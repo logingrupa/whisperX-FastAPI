@@ -1,0 +1,14 @@
+{
+  "name": "whisperx-dev",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n api,ui -c blue,green \"bun run dev:api\" \"bun run dev:ui\"",
+    "dev:api": "uvicorn app.main:app --reload --host localhost --port 8000",
+    "dev:ui": "cd frontend && bunx --bun vite --port 5173",
+    "build:ui": "cd frontend && bunx --bun vite build",
+    "preview:ui": "cd frontend && bunx --bun vite preview"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
