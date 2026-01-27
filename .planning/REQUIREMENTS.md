@@ -82,7 +82,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UPLD-01 | Phase 4 | Pending |
 | UPLD-02 | Phase 4 | Pending |
 | UPLD-03 | Phase 4 | Pending |
-| UPLD-04 | Phase 2 | Pending |
+| UPLD-04 | Phase 2 | Complete |
 | UPLD-05 | Phase 4 | Pending |
 | PROG-01 | Phase 5 | Pending |
 | PROG-02 | Phase 5 | Pending |

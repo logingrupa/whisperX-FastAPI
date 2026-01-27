@@ -13,7 +13,7 @@ This roadmap delivers a production-ready web frontend for the WhisperX speech-to
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: WebSocket & Task Infrastructure** - Backend foundation for real-time progress updates
-- [ ] **Phase 2: File Upload Infrastructure** - Streaming upload patterns for large audio/video files
+- [x] **Phase 2: File Upload Infrastructure** - Streaming upload patterns for large audio/video files
 - [ ] **Phase 3: Build Integration & SPA Serving** - React embedded in FastAPI at /ui route
 - [ ] **Phase 4: Core Upload Flow** - Drag-drop upload with language/model selection
 - [ ] **Phase 5: Real-Time Progress Tracking** - WebSocket-powered progress UI with stage display
@@ -47,8 +47,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 02-01-PLAN.md - Streaming upload with streaming-form-data and direct-to-disk writing
-- [ ] 02-02-PLAN.md - Magic byte validation using puremagic for spoofing protection
+- [x] 02-01-PLAN.md - Streaming upload with streaming-form-data and direct-to-disk writing
+- [x] 02-02-PLAN.md - Magic byte validation using puremagic for spoofing protection
 
 ### Phase 3: Build Integration & SPA Serving
 **Goal**: React SPA builds and serves correctly from FastAPI at /ui route
@@ -126,7 +126,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. WebSocket & Task Infrastructure | 2/2 | Complete | 2026-01-27 |
-| 2. File Upload Infrastructure | 0/2 | Not started | - |
+| 2. File Upload Infrastructure | 2/2 | Complete | 2026-01-27 |
 | 3. Build Integration & SPA Serving | 0/2 | Not started | - |
 | 4. Core Upload Flow | 0/4 | Not started | - |
 | 5. Real-Time Progress Tracking | 0/3 | Not started | - |
