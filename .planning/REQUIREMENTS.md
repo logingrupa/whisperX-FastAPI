@@ -9,11 +9,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Upload
 
-- [ ] **UPLD-01**: User can drag-and-drop audio/video files onto upload zone
-- [ ] **UPLD-02**: User can select files via file picker dialog
-- [ ] **UPLD-03**: User can upload multiple files at once with queue display
+- [x] **UPLD-01**: User can drag-and-drop audio/video files onto upload zone
+- [x] **UPLD-02**: User can select files via file picker dialog
+- [x] **UPLD-03**: User can upload multiple files at once with queue display
 - [ ] **UPLD-04**: System validates file format (MP3, WAV, MP4, MOV, M4A, FLAC, OGG)
-- [ ] **UPLD-05**: System auto-detects language from filename pattern (A03=Latvian, A04=Russian, A05=English)
+- [x] **UPLD-05**: System auto-detects language from filename pattern (A03=Latvian, A04=Russian, A05=English)
 
 ### Progress
 
@@ -35,8 +35,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Language & Model
 
-- [ ] **LANG-01**: User can select transcription language from dropdown
-- [ ] **LANG-02**: User can select Whisper model size (tiny/base/small/medium/large)
+- [x] **LANG-01**: User can select transcription language from dropdown
+- [x] **LANG-02**: User can select Whisper model size (tiny/base/small/medium/large)
 
 ## v2 Requirements
 
@@ -79,11 +79,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| UPLD-01 | Phase 4 | Pending |
-| UPLD-02 | Phase 4 | Pending |
-| UPLD-03 | Phase 4 | Pending |
+| UPLD-01 | Phase 4 | Complete |
+| UPLD-02 | Phase 4 | Complete |
+| UPLD-03 | Phase 4 | Complete |
 | UPLD-04 | Phase 2 | Complete |
-| UPLD-05 | Phase 4 | Pending |
+| UPLD-05 | Phase 4 | Complete |
 | PROG-01 | Phase 5 | Pending |
 | PROG-02 | Phase 5 | Pending |
 | PROG-03 | Phase 5 | Pending |
@@ -93,8 +93,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DOWN-02 | Phase 6 | Pending |
 | DOWN-03 | Phase 6 | Pending |
 | DOWN-04 | Phase 6 | Pending |
-| LANG-01 | Phase 4 | Pending |
-| LANG-02 | Phase 4 | Pending |
+| LANG-01 | Phase 4 | Complete |
+| LANG-02 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 16 total

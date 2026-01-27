@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: WebSocket & Task Infrastructure** - Backend foundation for real-time progress updates
 - [x] **Phase 2: File Upload Infrastructure** - Streaming upload patterns for large audio/video files
 - [x] **Phase 3: Build Integration & SPA Serving** - React embedded in FastAPI at /ui route
-- [ ] **Phase 4: Core Upload Flow** - Drag-drop upload with language/model selection
+- [x] **Phase 4: Core Upload Flow** - Drag-drop upload with language/model selection
 - [ ] **Phase 5: Real-Time Progress Tracking** - WebSocket-powered progress UI with stage display
 - [ ] **Phase 6: Transcript Viewer & Export** - View results and download in multiple formats
 
@@ -80,10 +80,10 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 04-01-PLAN.md - Initialize shadcn/ui and react-dropzone
-- [ ] 04-02-PLAN.md - Create upload types and language detection
-- [ ] 04-03-PLAN.md - File queue hook and dropzone component
-- [ ] 04-04-PLAN.md - Queue display, selects, and page assembly
+- [x] 04-01-PLAN.md - Initialize shadcn/ui and react-dropzone
+- [x] 04-02-PLAN.md - Create upload types and language detection
+- [x] 04-03-PLAN.md - File queue hook and dropzone component
+- [x] 04-04-PLAN.md - Queue display, selects, and page assembly
 
 ### Phase 5: Real-Time Progress Tracking
 **Goal**: Users see live transcription progress with stage indicators and error handling
@@ -129,7 +129,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 1. WebSocket & Task Infrastructure | 2/2 | Complete | 2026-01-27 |
 | 2. File Upload Infrastructure | 2/2 | Complete | 2026-01-27 |
 | 3. Build Integration & SPA Serving | 3/3 | Complete | 2026-01-27 |
-| 4. Core Upload Flow | 0/4 | Not started | - |
+| 4. Core Upload Flow | 4/4 | Complete | 2026-01-27 |
 | 5. Real-Time Progress Tracking | 0/3 | Not started | - |
 | 6. Transcript Viewer & Export | 0/3 | Not started | - |
 
