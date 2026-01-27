@@ -59,11 +59,12 @@ Plans:
   2. User can refresh any page without 404 error (client-side routing works)
   3. Development mode proxies API and WebSocket calls to FastAPI backend
   4. Production build serves static files from FastAPI container
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: Vite configuration with base path and dev proxy
-- [ ] 03-02: SPAStaticFiles handler with 404 catch-all for React Router
+- [ ] 03-01-PLAN.md - React frontend with Vite, TypeScript, Tailwind, skeleton loading
+- [ ] 03-02-PLAN.md - FastAPI SPA handler and root dev commands
+- [ ] 03-03-PLAN.md - Integration verification checkpoint
 
 ### Phase 4: Core Upload Flow
 **Goal**: Users can upload audio/video files with language and model selection
@@ -127,7 +128,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 |-------|----------------|--------|-----------|
 | 1. WebSocket & Task Infrastructure | 2/2 | Complete | 2026-01-27 |
 | 2. File Upload Infrastructure | 2/2 | Complete | 2026-01-27 |
-| 3. Build Integration & SPA Serving | 0/2 | Not started | - |
+| 3. Build Integration & SPA Serving | 0/3 | Not started | - |
 | 4. Core Upload Flow | 0/4 | Not started | - |
 | 5. Real-Time Progress Tracking | 0/3 | Not started | - |
 | 6. Transcript Viewer & Export | 0/3 | Not started | - |
