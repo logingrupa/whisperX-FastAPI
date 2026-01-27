@@ -511,6 +511,55 @@ class FileValidationError(ValidationError):
         )
 
 
+class FileFormatValidationError(ValidationError):
+    """Exception raised when file content doesn't match claimed format."""
+
+    def __init__(
+        self,
+        filename: str,
+        claimed_extension: str,
+        detected_type: Optional[str],
+        correlation_id: Optional[str] = None,
+    ) -> None:
+        """
+        Initialize the file format validation error.
+
+        Args:
+            filename: Name of the file that failed validation
+            claimed_extension: Extension claimed by the upload
+            detected_type: Actual file type detected via magic bytes
+            correlation_id: Optional correlation ID for tracing
+        """
+        if detected_type:
+            message = (
+                f"File format mismatch for '{filename}': "
+                f"claimed {claimed_extension} but detected {detected_type}"
+            )
+            user_message = (
+                f"The file '{filename}' appears to be a {detected_type} file, "
+                f"not a {claimed_extension} file. Please upload a valid {claimed_extension} file."
+            )
+        else:
+            message = (
+                f"Unknown file format for '{filename}': "
+                f"claimed {claimed_extension} but could not detect actual type"
+            )
+            user_message = (
+                f"The file '{filename}' does not appear to be a valid audio/video file. "
+                f"Supported formats: MP3, WAV, MP4, M4A, FLAC, OGG, WebM, MOV, AVI, MKV."
+            )
+
+        super().__init__(
+            message=message,
+            code="FILE_FORMAT_MISMATCH",
+            user_message=user_message,
+            correlation_id=correlation_id,
+            filename=filename,
+            claimed_extension=claimed_extension,
+            detected_type=detected_type,
+        )
+
+
 class UnsupportedFileExtensionError(ValidationError):
     """File extension not supported."""
 
