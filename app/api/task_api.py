@@ -7,7 +7,7 @@ from app.api.mappers.task_mapper import TaskMapper
 from app.api.schemas.task_schemas import TaskListResponse
 from app.core.exceptions import TaskNotFoundError
 from app.core.logging import logger
-from app.schemas import Metadata, Response, Result
+from app.schemas import Metadata, Response, Result, TaskProgress
 from app.services.task_management_service import TaskManagementService
 
 task_router = APIRouter()
@@ -105,3 +105,46 @@ async def delete_task(
     else:
         logger.error("Task not found: ID %s", identifier)
         raise TaskNotFoundError(identifier)
+
+
+@task_router.get(
+    "/tasks/{identifier}/progress",
+    response_model=TaskProgress,
+    tags=["Tasks Management"],
+    summary="Get task progress",
+    description="Get current progress for a task. Use this as fallback when WebSocket is unavailable.",
+)
+async def get_task_progress(
+    identifier: str,
+    service: TaskManagementService = Depends(get_task_management_service),
+) -> TaskProgress:
+    """
+    Get current progress for a task.
+
+    Returns progress percentage, current stage, and status.
+    Use this endpoint as fallback when WebSocket connection fails.
+
+    Args:
+        identifier: The task identifier (UUID)
+        service: Task management service (injected)
+
+    Returns:
+        TaskProgress with current progress information
+
+    Raises:
+        TaskNotFoundError: If task with identifier doesn't exist
+    """
+    logger.info("Retrieving progress for task ID: %s", identifier)
+    task = service.get_task(identifier)
+
+    if task is None:
+        logger.error("Task ID not found: %s", identifier)
+        raise TaskNotFoundError(identifier)
+
+    return TaskProgress(
+        identifier=task.uuid,
+        status=task.status,
+        progress_percentage=task.progress_percentage or 0,
+        progress_stage=task.progress_stage,
+        error=task.error,
+    )
