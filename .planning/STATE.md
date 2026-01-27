@@ -5,32 +5,33 @@
 See: .planning/PROJECT.md (updated 2026-01-27)
 
 **Core value:** Users can easily upload audio, transcribe with speaker identification, and export results — without touching the command line or API directly.
-**Current focus:** Phase 1 - WebSocket & Task Infrastructure (COMPLETE)
+**Current focus:** Phase 2 - File Upload Infrastructure (IN PROGRESS)
 
 ## Current Position
 
-Phase: 1 of 6 (WebSocket & Task Infrastructure)
-Plan: 2 of 2 in current phase
-Status: Phase complete
-Last activity: 2026-01-27 - Completed 01-02-PLAN.md (Progress Emission)
+Phase: 2 of 6 (File Upload Infrastructure)
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-01-27 - Completed 02-01-PLAN.md (Streaming Upload Infrastructure)
 
-Progress: [██░░░░░░░░] 17%
+Progress: [███░░░░░░░] 25%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: 6 min
-- Total execution time: 0.2 hours
+- Total plans completed: 3
+- Average duration: 7 min
+- Total execution time: 0.35 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-websocket-task-infrastructure | 2/2 | 12 min | 6 min |
+| 02-file-upload-infrastructure | 1/2 | 9 min | 9 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (6 min), 01-02 (6 min)
+- Last 5 plans: 01-01 (6 min), 01-02 (6 min), 02-01 (9 min)
 - Trend: Consistent
 
 *Updated after each plan completion*
@@ -55,6 +56,12 @@ Recent decisions affecting current work:
 - Stage-based progress percentages (not time-based) per research recommendation
 - Lazy singleton for ProgressEmitter to avoid circular imports
 
+**Phase 2 decisions:**
+- Use streaming-form-data library for memory-efficient multipart parsing (Cython-optimized)
+- 5GB max file size with early rejection during upload (not after)
+- Store uploads in system temp directory (gettempdir() / whisperx_uploads)
+- Separate upload_config.py module to avoid circular imports with main Config
+
 ### Pending Todos
 
 None yet.
@@ -65,6 +72,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-27T07:36:52Z
-Stopped at: Completed 01-02-PLAN.md (Phase 1 complete)
-Resume file: .planning/phases/02-transcription-pipeline/02-01-PLAN.md
+Last session: 2026-01-27T10:02:27Z
+Stopped at: Completed 02-01-PLAN.md (Streaming Upload Infrastructure)
+Resume file: .planning/phases/02-file-upload-infrastructure/02-02-PLAN.md
