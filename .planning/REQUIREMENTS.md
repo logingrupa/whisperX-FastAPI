@@ -79,28 +79,28 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| UPLD-01 | — | Pending |
-| UPLD-02 | — | Pending |
-| UPLD-03 | — | Pending |
-| UPLD-04 | — | Pending |
-| UPLD-05 | — | Pending |
-| PROG-01 | — | Pending |
-| PROG-02 | — | Pending |
-| PROG-03 | — | Pending |
-| VIEW-01 | — | Pending |
-| VIEW-02 | — | Pending |
-| DOWN-01 | — | Pending |
-| DOWN-02 | — | Pending |
-| DOWN-03 | — | Pending |
-| DOWN-04 | — | Pending |
-| LANG-01 | — | Pending |
-| LANG-02 | — | Pending |
+| UPLD-01 | Phase 4 | Pending |
+| UPLD-02 | Phase 4 | Pending |
+| UPLD-03 | Phase 4 | Pending |
+| UPLD-04 | Phase 2 | Pending |
+| UPLD-05 | Phase 4 | Pending |
+| PROG-01 | Phase 5 | Pending |
+| PROG-02 | Phase 5 | Pending |
+| PROG-03 | Phase 5 | Pending |
+| VIEW-01 | Phase 6 | Pending |
+| VIEW-02 | Phase 6 | Pending |
+| DOWN-01 | Phase 6 | Pending |
+| DOWN-02 | Phase 6 | Pending |
+| DOWN-03 | Phase 6 | Pending |
+| DOWN-04 | Phase 6 | Pending |
+| LANG-01 | Phase 4 | Pending |
+| LANG-02 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 16 total
-- Mapped to phases: 0
-- Unmapped: 16 ⚠️
+- Mapped to phases: 16
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-01-27*
-*Last updated: 2026-01-27 after initial definition*
+*Last updated: 2026-01-27 after roadmap creation*

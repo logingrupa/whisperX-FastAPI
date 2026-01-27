@@ -1,0 +1,137 @@
+# Roadmap: WhisperX Frontend UI
+
+## Overview
+
+This roadmap delivers a production-ready web frontend for the WhisperX speech-to-text API. The approach follows research recommendations: infrastructure-first (WebSocket reliability, streaming uploads, SPA serving) before building user-facing features (upload UI, progress tracking, transcript viewer). Each phase delivers a coherent, verifiable capability that subsequent phases depend on.
+
+## Phases
+
+**Phase Numbering:**
+- Integer phases (1, 2, 3): Planned milestone work
+- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+
+Decimal phases appear between their surrounding integers in numeric order.
+
+- [ ] **Phase 1: WebSocket & Task Infrastructure** - Backend foundation for real-time progress updates
+- [ ] **Phase 2: File Upload Infrastructure** - Streaming upload patterns for large audio/video files
+- [ ] **Phase 3: Build Integration & SPA Serving** - React embedded in FastAPI at /ui route
+- [ ] **Phase 4: Core Upload Flow** - Drag-drop upload with language/model selection
+- [ ] **Phase 5: Real-Time Progress Tracking** - WebSocket-powered progress UI with stage display
+- [ ] **Phase 6: Transcript Viewer & Export** - View results and download in multiple formats
+
+## Phase Details
+
+### Phase 1: WebSocket & Task Infrastructure
+**Goal**: Backend can push real-time progress updates to connected clients reliably
+**Depends on**: Nothing (first phase)
+**Requirements**: None (infrastructure, enables PROG-01, PROG-02, PROG-03)
+**Success Criteria** (what must be TRUE):
+  1. WebSocket endpoint accepts connections and maintains them during long operations
+  2. Heartbeat mechanism prevents proxy timeouts during 5-30 minute transcriptions
+  3. Task progress can be retrieved via fallback polling endpoint if WebSocket fails
+  4. Progress updates include percentage, current stage, and error information
+**Plans**: TBD
+
+Plans:
+- [ ] 01-01: WebSocket endpoint with ConnectionManager and heartbeat
+- [ ] 01-02: Task progress emission and fallback polling endpoint
+
+### Phase 2: File Upload Infrastructure
+**Goal**: Backend handles large audio/video uploads without memory exhaustion or event loop blocking
+**Depends on**: Phase 1
+**Requirements**: UPLD-04 (format validation)
+**Success Criteria** (what must be TRUE):
+  1. User can upload 500MB+ files without server memory spikes
+  2. System validates file format before processing begins (rejects unsupported formats with clear message)
+  3. Other requests remain responsive during large file uploads
+**Plans**: TBD
+
+Plans:
+- [ ] 02-01: Streaming upload handler with aiofiles and chunk processing
+- [ ] 02-02: File format validation (extension, MIME type, magic bytes)
+
+### Phase 3: Build Integration & SPA Serving
+**Goal**: React SPA builds and serves correctly from FastAPI at /ui route
+**Depends on**: Phase 1
+**Requirements**: None (infrastructure, enables all UI requirements)
+**Success Criteria** (what must be TRUE):
+  1. User can access React application at /ui in browser
+  2. User can refresh any page without 404 error (client-side routing works)
+  3. Development mode proxies API and WebSocket calls to FastAPI backend
+  4. Production build serves static files from FastAPI container
+**Plans**: TBD
+
+Plans:
+- [ ] 03-01: Vite configuration with base path and dev proxy
+- [ ] 03-02: SPAStaticFiles handler with 404 catch-all for React Router
+
+### Phase 4: Core Upload Flow
+**Goal**: Users can upload audio/video files with language and model selection
+**Depends on**: Phase 2, Phase 3
+**Requirements**: UPLD-01, UPLD-02, UPLD-03, UPLD-05, LANG-01, LANG-02
+**Success Criteria** (what must be TRUE):
+  1. User can drag-and-drop audio/video files onto upload zone
+  2. User can select files via file picker dialog
+  3. User can upload multiple files and see queue display
+  4. System auto-detects language from filename pattern (A03=Latvian, A04=Russian, A05=English)
+  5. User can select transcription language from dropdown (overriding auto-detection)
+  6. User can select Whisper model size (tiny/base/small/medium/large)
+**Plans**: TBD
+
+Plans:
+- [ ] 04-01: Upload page layout with drag-drop zone (react-dropzone)
+- [ ] 04-02: Multi-file queue display and management
+- [ ] 04-03: Language detection and selection controls
+- [ ] 04-04: Model selection dropdown
+
+### Phase 5: Real-Time Progress Tracking
+**Goal**: Users see live transcription progress with stage indicators and error handling
+**Depends on**: Phase 4
+**Requirements**: PROG-01, PROG-02, PROG-03
+**Success Criteria** (what must be TRUE):
+  1. User sees real-time progress percentage via WebSocket
+  2. User sees which stage is active (Uploading, Queued, Transcribing, Aligning, Diarizing, Complete)
+  3. User sees clear error message when processing fails (not raw API errors)
+  4. Progress updates resume after brief connection loss (reconnection with backoff)
+**Plans**: TBD
+
+Plans:
+- [ ] 05-01: useWebSocket hook with reconnection logic
+- [ ] 05-02: Progress display component with stage indicators
+- [ ] 05-03: Error state handling and display
+
+### Phase 6: Transcript Viewer & Export
+**Goal**: Users can view transcription results and download in multiple formats
+**Depends on**: Phase 5
+**Requirements**: VIEW-01, VIEW-02, DOWN-01, DOWN-02, DOWN-03, DOWN-04
+**Success Criteria** (what must be TRUE):
+  1. User can view transcript with paragraph-level timestamps
+  2. User can see speaker labels (Speaker 1, Speaker 2, etc.)
+  3. User can download transcript as SRT file
+  4. User can download transcript as VTT file
+  5. User can download transcript as plain text file
+  6. User can download transcript as JSON with full metadata
+**Plans**: TBD
+
+Plans:
+- [ ] 06-01: Transcript viewer component with timestamps and speaker labels
+- [ ] 06-02: Export modal with format selection
+- [ ] 06-03: Format conversion utilities (SRT, VTT, TXT, JSON)
+
+## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 1. WebSocket & Task Infrastructure | 0/2 | Not started | - |
+| 2. File Upload Infrastructure | 0/2 | Not started | - |
+| 3. Build Integration & SPA Serving | 0/2 | Not started | - |
+| 4. Core Upload Flow | 0/4 | Not started | - |
+| 5. Real-Time Progress Tracking | 0/3 | Not started | - |
+| 6. Transcript Viewer & Export | 0/3 | Not started | - |
+
+---
+*Roadmap created: 2026-01-27*
+*Milestone: v1.0 Frontend UI*
