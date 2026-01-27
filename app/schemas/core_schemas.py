@@ -422,3 +422,23 @@ class TaskStatus(str, Enum):
     processing = "processing"
     completed = "completed"
     failed = "failed"
+
+
+class TaskProgressStage(str, Enum):
+    """Enum for task progress stages."""
+
+    queued = "queued"
+    transcribing = "transcribing"
+    aligning = "aligning"
+    diarizing = "diarizing"
+    complete = "complete"
+
+
+class TaskProgress(BaseModel):
+    """Model for task progress information."""
+
+    identifier: str
+    status: str
+    progress_percentage: int
+    progress_stage: str | None
+    error: str | None = None

@@ -89,3 +89,11 @@ class Task(Base):
         onupdate=lambda: datetime.now(timezone.utc),
         comment="Date and time of last update",
     )
+    progress_percentage: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, default=0,
+        comment="Current progress percentage (0-100)"
+    )
+    progress_stage: Mapped[str | None] = mapped_column(
+        String, nullable=True,
+        comment="Current processing stage (queued, transcribing, aligning, diarizing, complete)"
+    )
