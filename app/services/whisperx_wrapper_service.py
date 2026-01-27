@@ -26,6 +26,7 @@ from app.infrastructure.database.connection import SessionLocal
 from app.infrastructure.database.repositories.sqlalchemy_task_repository import (
     SQLAlchemyTaskRepository,
 )
+from app.infrastructure.websocket import get_progress_emitter
 from app.schemas import (
     AlignedTranscription,
     ComputeType,
@@ -33,10 +34,31 @@ from app.schemas import (
     Metadata,
     Result,
     SpeechToTextProcessingParams,
+    TaskProgressStage,
     TaskStatus,
     WhisperModel,
 )
 from app.transcript import filter_aligned_transcription
+
+
+def _update_progress(
+    repository: ITaskRepository,
+    identifier: str,
+    stage: TaskProgressStage,
+    percentage: int,
+) -> None:
+    """Update progress in database and emit to WebSocket clients."""
+    # Update database for polling fallback
+    repository.update(
+        identifier=identifier,
+        update_data={
+            "progress_stage": stage.value,
+            "progress_percentage": percentage,
+        },
+    )
+    # Emit to WebSocket clients
+    progress_emitter = get_progress_emitter()
+    progress_emitter.emit_progress(identifier, stage, percentage)
 
 
 def transcribe_with_whisper(
