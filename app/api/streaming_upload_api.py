@@ -14,6 +14,7 @@ from app.core.upload_config import (
     MAX_FILE_SIZE,
     UPLOAD_DIR,
 )
+from app.infrastructure.storage.magic_validator import validate_magic_bytes
 from app.infrastructure.storage.streaming_target import StreamingFileTarget
 
 streaming_upload_router = APIRouter(prefix="/upload", tags=["Upload"])
@@ -94,6 +95,26 @@ async def streaming_upload(request: Request) -> dict[str, str | int]:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unsupported file format: {extension}. Allowed: {allowed_list}",
         )
+
+    # Validate magic bytes to ensure file content matches extension
+    is_valid, validation_message, detected_type = validate_magic_bytes(
+        temp_path, extension
+    )
+
+    if not is_valid:
+        # Clean up the uploaded file
+        temp_path.unlink(missing_ok=True)
+        logger.warning(
+            "Magic byte validation failed for %s: %s",
+            original_filename,
+            validation_message,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=validation_message,
+        )
+
+    logger.debug("Magic byte validation passed: %s", validation_message)
 
     # Rename temp file with proper extension
     final_path = UPLOAD_DIR / f"{upload_id}{extension}"
