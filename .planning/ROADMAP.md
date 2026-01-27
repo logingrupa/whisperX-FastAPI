@@ -37,18 +37,18 @@ Plans:
 - [x] 01-02-PLAN.md - Task progress emission and fallback polling endpoint
 
 ### Phase 2: File Upload Infrastructure
-**Goal**: Backend handles large audio/video uploads without memory exhaustion or event loop blocking
+**Goal**: Backend handles large audio/video uploads (up to 5GB) without memory exhaustion or event loop blocking
 **Depends on**: Phase 1
 **Requirements**: UPLD-04 (format validation)
 **Success Criteria** (what must be TRUE):
   1. User can upload 500MB+ files without server memory spikes
   2. System validates file format before processing begins (rejects unsupported formats with clear message)
   3. Other requests remain responsive during large file uploads
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: Streaming upload handler with aiofiles and chunk processing
-- [ ] 02-02: File format validation (extension, MIME type, magic bytes)
+- [ ] 02-01-PLAN.md - Streaming upload with streaming-form-data and direct-to-disk writing
+- [ ] 02-02-PLAN.md - Magic byte validation using puremagic for spoofing protection
 
 ### Phase 3: Build Integration & SPA Serving
 **Goal**: React SPA builds and serves correctly from FastAPI at /ui route
