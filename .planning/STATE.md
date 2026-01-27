@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-27)
 ## Current Position
 
 Phase: 4 of 6 (Core Upload Flow)
-Plan: 2 of 4 in current phase
+Plan: 3 of 4 in current phase
 Status: In progress
-Last activity: 2026-01-27 - Completed 04-01-PLAN.md (UI Component Library)
+Last activity: 2026-01-27 - Completed 04-03-PLAN.md (File Queue Hook and Upload Dropzone)
 
-Progress: [██████░░░░] 60%
+Progress: [███████░░░] 70%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
+- Total plans completed: 10
 - Average duration: 5 min
-- Total execution time: 0.75 hours
+- Total execution time: 0.8 hours
 
 **By Phase:**
 
@@ -30,11 +30,11 @@ Progress: [██████░░░░] 60%
 | 01-websocket-task-infrastructure | 2/2 | 12 min | 6 min |
 | 02-file-upload-infrastructure | 2/2 | 13 min | 6.5 min |
 | 03-build-integration-spa-serving | 3/3 | 12 min | 4 min |
-| 04-core-upload-flow | 2/4 | 7 min | 3.5 min |
+| 04-core-upload-flow | 3/4 | 10 min | 3.3 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-02 (4 min), 03-03 (3 min), 04-02 (2 min), 04-01 (5 min)
-- Trend: Consistent, slightly faster
+- Last 5 plans: 03-03 (3 min), 04-01 (5 min), 04-02 (2 min), 04-03 (3 min)
+- Trend: Consistent, fast execution
 
 *Updated after each plan completion*
 
@@ -85,6 +85,10 @@ Recent decisions affecting current work:
 - Manual shadcn/ui setup due to Tailwind v4 incompatibility with CLI
 - Fixed sonner component to use sonner package instead of next-themes
 - TooltipProvider at root for performance (not per-tooltip)
+- Hooks in frontend/src/hooks/ directory
+- Upload components in frontend/src/components/upload/ directory
+- noClick pattern for full-page drop targets (react-dropzone)
+- removeFile only removes pending files (per CONTEXT.md constraint)
 
 ### Pending Todos
 
@@ -96,6 +100,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-27T14:41:00Z
-Stopped at: Completed 04-01-PLAN.md (UI Component Library)
+Last session: 2026-01-27T14:48:00Z
+Stopped at: Completed 04-03-PLAN.md (File Queue Hook and Upload Dropzone)
 Resume file: None
