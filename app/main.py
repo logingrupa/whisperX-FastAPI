@@ -15,7 +15,7 @@ from fastapi import FastAPI, status  # noqa: E402
 from fastapi.responses import JSONResponse, RedirectResponse  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
-from app.api import service_router, stt_router, task_router  # noqa: E402
+from app.api import service_router, stt_router, task_router, websocket_router  # noqa: E402
 from app.api.exception_handlers import (  # noqa: E402
     domain_error_handler,
     generic_error_handler,
@@ -131,6 +131,7 @@ app.add_exception_handler(Exception, generic_error_handler)
 app.include_router(stt_router)
 app.include_router(task_router)
 app.include_router(service_router)
+app.include_router(websocket_router)
 
 
 @app.get("/", include_in_schema=False)
