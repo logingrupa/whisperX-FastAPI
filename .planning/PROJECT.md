@@ -63,12 +63,27 @@ Users can easily upload audio, transcribe with speaker identification, and expor
 **Codebase Map:**
 - See `.planning/codebase/` for detailed architecture analysis
 
+## Current Milestone: v1.0 Frontend UI
+
+**Goal:** Deliver a production-ready web interface for transcription, viewing, and downloading results.
+
+**Target features:**
+- Drag-drop file upload with multi-file support
+- Real-time WebSocket progress tracking
+- Transcript viewer with timestamps and speaker labels
+- Individual file downloads (SRT, VTT, TXT, JSON)
+- Language and model selection
+
 ## Constraints
 
 - **Tech stack**: React + Vite (Bun), embedded in existing FastAPI
 - **Deployment**: Single container, no separate frontend service
 - **Browser support**: Modern browsers (Chrome, Firefox, Safari, Edge)
 - **Language detection**: Must support A03/A04/A05 filename convention
+- **Package manager**: Bun only for all commands (no npm/yarn/pnpm)
+- **Code principles**: SRP (Single Responsibility Principle) and DRY (Don't Repeat Yourself)
+- **UI components**: shadcn/ui + Radix only (no custom components)
+- **Naming**: Full descriptive names only (no abbreviations like `btn`, `usr`, `msg`)
 
 ## Key Decisions
 
@@ -82,4 +97,4 @@ Users can easily upload audio, transcribe with speaker identification, and expor
 | Filename-based language detection | User's existing workflow convention (A03/A04/A05) | — Pending |
 
 ---
-*Last updated: 2026-01-27 after initialization*
+*Last updated: 2026-01-27 after v1.0 milestone definition*
