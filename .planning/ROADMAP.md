@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: WebSocket & Task Infrastructure** - Backend foundation for real-time progress updates
 - [x] **Phase 2: File Upload Infrastructure** - Streaming upload patterns for large audio/video files
-- [ ] **Phase 3: Build Integration & SPA Serving** - React embedded in FastAPI at /ui route
+- [x] **Phase 3: Build Integration & SPA Serving** - React embedded in FastAPI at /ui route
 - [ ] **Phase 4: Core Upload Flow** - Drag-drop upload with language/model selection
 - [ ] **Phase 5: Real-Time Progress Tracking** - WebSocket-powered progress UI with stage display
 - [ ] **Phase 6: Transcript Viewer & Export** - View results and download in multiple formats
@@ -62,9 +62,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md - React frontend with Vite, TypeScript, Tailwind, skeleton loading
-- [ ] 03-02-PLAN.md - FastAPI SPA handler and root dev commands
-- [ ] 03-03-PLAN.md - Integration verification checkpoint
+- [x] 03-01-PLAN.md - React frontend with Vite, TypeScript, Tailwind, skeleton loading
+- [x] 03-02-PLAN.md - FastAPI SPA handler and root dev commands
+- [x] 03-03-PLAN.md - Integration verification checkpoint
 
 ### Phase 4: Core Upload Flow
 **Goal**: Users can upload audio/video files with language and model selection
@@ -128,7 +128,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 |-------|----------------|--------|-----------|
 | 1. WebSocket & Task Infrastructure | 2/2 | Complete | 2026-01-27 |
 | 2. File Upload Infrastructure | 2/2 | Complete | 2026-01-27 |
-| 3. Build Integration & SPA Serving | 0/3 | Not started | - |
+| 3. Build Integration & SPA Serving | 3/3 | Complete | 2026-01-27 |
 | 4. Core Upload Flow | 0/4 | Not started | - |
 | 5. Real-Time Progress Tracking | 0/3 | Not started | - |
 | 6. Transcript Viewer & Export | 0/3 | Not started | - |
