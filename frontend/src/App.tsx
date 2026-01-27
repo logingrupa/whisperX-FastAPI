@@ -34,16 +34,18 @@ function App() {
 
   return (
     <UploadDropzone onFilesAdded={addFiles}>
-      <FileQueueList
-        queue={queue}
-        onRemoveFile={removeFile}
-        onUpdateSettings={updateFileSettings}
-        onClearPending={clearPendingFiles}
-        onStartAll={handleStartAll}
-        onStartFile={handleStartFile}
-        pendingCount={pendingCount}
-        readyCount={readyCount}
-      />
+      {queue.length > 0 && (
+        <FileQueueList
+          queue={queue}
+          onRemoveFile={removeFile}
+          onUpdateSettings={updateFileSettings}
+          onClearPending={clearPendingFiles}
+          onStartAll={handleStartAll}
+          onStartFile={handleStartFile}
+          pendingCount={pendingCount}
+          readyCount={readyCount}
+        />
+      )}
     </UploadDropzone>
   );
 }

@@ -1,3 +1,4 @@
+import React from 'react';
 import { useDropzone } from 'react-dropzone';
 import { toast } from 'sonner';
 import { Upload } from 'lucide-react';
@@ -99,8 +100,8 @@ export function UploadDropzone({
         {/* Children (queue list, etc.) */}
         {children}
 
-        {/* Empty state hint - only show if no children provided */}
-        {!children && (
+        {/* Empty state hint - only show if no children rendered */}
+        {React.Children.count(children) === 0 && (
           <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-12 text-center">
             <Upload className="mx-auto h-12 w-12 text-muted-foreground/50 mb-4" />
             <p className="text-lg text-muted-foreground mb-2">
