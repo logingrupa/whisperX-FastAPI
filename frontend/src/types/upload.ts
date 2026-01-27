@@ -36,6 +36,8 @@ export interface FileQueueItem {
   status: FileQueueItemStatus;
   /** Error message if status is 'error' */
   errorMessage?: string;
+  /** Technical error details for debugging (shown via "Show details") */
+  technicalDetail?: string;
   /** Backend task ID for WebSocket subscription (set after upload starts) */
   taskId?: string;
   /** Current progress percentage (0-100) */

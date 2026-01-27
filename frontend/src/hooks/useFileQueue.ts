@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { FileQueueItem, FileQueueItemStatus } from '@/types/upload';
+import type { FileQueueItem, FileQueueItemStatus, ProgressStage } from '@/types/upload';
 import { detectLanguageFromFilename } from '@/lib/languageDetection';
 import { DEFAULT_MODEL } from '@/lib/whisperModels';
 
@@ -86,6 +86,68 @@ export function useFileQueue() {
   }, []);
 
   /**
+   * Update file progress from WebSocket
+   */
+  const updateFileProgress = useCallback((
+    id: string,
+    progressPercentage: number,
+    progressStage: ProgressStage
+  ) => {
+    setQueue(previousQueue =>
+      previousQueue.map(item =>
+        item.id === id ? { ...item, progressPercentage, progressStage } : item
+      )
+    );
+  }, []);
+
+  /**
+   * Set backend task ID for a file (after upload starts)
+   */
+  const setFileTaskId = useCallback((id: string, taskId: string) => {
+    setQueue(previousQueue =>
+      previousQueue.map(item =>
+        item.id === id ? { ...item, taskId } : item
+      )
+    );
+  }, []);
+
+  /**
+   * Mark file as complete (reset progress display, set status)
+   */
+  const completeFile = useCallback((id: string) => {
+    setQueue(previousQueue =>
+      previousQueue.map(item =>
+        item.id === id
+          ? { ...item, status: 'complete' as const, progressStage: 'complete' as const }
+          : item
+      )
+    );
+  }, []);
+
+  /**
+   * Mark file as error with message
+   */
+  const setFileError = useCallback((
+    id: string,
+    errorMessage: string,
+    technicalDetail?: string
+  ) => {
+    setQueue(previousQueue =>
+      previousQueue.map(item =>
+        item.id === id
+          ? {
+              ...item,
+              status: 'error' as const,
+              errorMessage,
+              // Store technical detail for "Show details" feature
+              technicalDetail,
+            }
+          : item
+      )
+    );
+  }, []);
+
+  /**
    * Check if a file is ready to process (has language selected)
    */
   const isFileReady = useCallback((item: FileQueueItem): boolean => {
@@ -116,6 +178,10 @@ export function useFileQueue() {
     clearPendingFiles,
     updateFileSettings,
     updateFileStatus,
+    updateFileProgress,
+    setFileTaskId,
+    completeFile,
+    setFileError,
     isFileReady,
     pendingCount,
     readyCount,
