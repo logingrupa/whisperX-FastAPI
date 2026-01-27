@@ -94,12 +94,12 @@ Plans:
   2. User sees which stage is active (Uploading, Queued, Transcribing, Aligning, Diarizing, Complete)
   3. User sees clear error message when processing fails (not raw API errors)
   4. Progress updates resume after brief connection loss (reconnection with backoff)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: useWebSocket hook with reconnection logic
-- [ ] 05-02: Progress display component with stage indicators
-- [ ] 05-03: Error state handling and display
+- [ ] 05-01-PLAN.md — Setup: Install react-use-websocket, add Progress component, create types and stage config
+- [ ] 05-02-PLAN.md — Hooks: Create useTaskProgress hook with WebSocket, extend useFileQueue with progress tracking
+- [ ] 05-03-PLAN.md — UI: Create StageBadge, FileProgress, ConnectionStatus components and integrate into FileQueueItem
 
 ### Phase 6: Transcript Viewer & Export
 **Goal**: Users can view transcription results and download in multiple formats
