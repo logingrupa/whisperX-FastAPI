@@ -1,1 +1,6 @@
 @import "tailwindcss";
+
+/* Progress bar smooth animation */
+[data-slot="indicator"] {
+  transition: transform 500ms ease-out;
+}
