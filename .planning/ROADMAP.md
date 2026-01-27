@@ -12,7 +12,7 @@ This roadmap delivers a production-ready web frontend for the WhisperX speech-to
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: WebSocket & Task Infrastructure** - Backend foundation for real-time progress updates
+- [x] **Phase 1: WebSocket & Task Infrastructure** - Backend foundation for real-time progress updates
 - [ ] **Phase 2: File Upload Infrastructure** - Streaming upload patterns for large audio/video files
 - [ ] **Phase 3: Build Integration & SPA Serving** - React embedded in FastAPI at /ui route
 - [ ] **Phase 4: Core Upload Flow** - Drag-drop upload with language/model selection
@@ -30,11 +30,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Heartbeat mechanism prevents proxy timeouts during 5-30 minute transcriptions
   3. Task progress can be retrieved via fallback polling endpoint if WebSocket fails
   4. Progress updates include percentage, current stage, and error information
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: WebSocket endpoint with ConnectionManager and heartbeat
-- [ ] 01-02: Task progress emission and fallback polling endpoint
+- [x] 01-01-PLAN.md - WebSocket endpoint with ConnectionManager and heartbeat
+- [x] 01-02-PLAN.md - Task progress emission and fallback polling endpoint
 
 ### Phase 2: File Upload Infrastructure
 **Goal**: Backend handles large audio/video uploads without memory exhaustion or event loop blocking
@@ -125,7 +125,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. WebSocket & Task Infrastructure | 0/2 | Not started | - |
+| 1. WebSocket & Task Infrastructure | 2/2 | Complete | 2026-01-27 |
 | 2. File Upload Infrastructure | 0/2 | Not started | - |
 | 3. Build Integration & SPA Serving | 0/2 | Not started | - |
 | 4. Core Upload Flow | 0/4 | Not started | - |
