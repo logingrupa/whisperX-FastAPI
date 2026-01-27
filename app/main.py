@@ -34,6 +34,7 @@ from app.core.exceptions import (  # noqa: E402
 )
 from app.docs import generate_db_schema, save_openapi_json  # noqa: E402
 from app.infrastructure.database import Base, engine  # noqa: E402
+from app.spa_handler import setup_spa_routes  # noqa: E402
 
 # Load environment variables from .env
 load_dotenv()
@@ -204,3 +205,7 @@ async def readiness_check() -> JSONResponse:
                 "message": "Application is not ready due to an internal error.",
             },
         )
+
+
+# Setup SPA routes (must be last - catch-all for client-side routing)
+setup_spa_routes(app)
