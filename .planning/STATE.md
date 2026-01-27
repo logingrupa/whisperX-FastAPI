@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-27)
 
 **Core value:** Users can easily upload audio, transcribe with speaker identification, and export results — without touching the command line or API directly.
-**Current focus:** Phase 3 - Build Integration & SPA Serving (COMPLETE)
+**Current focus:** Phase 4 - Core Upload Flow
 
 ## Current Position
 
-Phase: 3 of 6 (Build Integration & SPA Serving)
-Plan: 3 of 3 in current phase
-Status: Phase complete
-Last activity: 2026-01-27 - Completed 03-03-PLAN.md (Integration Verification)
+Phase: 4 of 6 (Core Upload Flow)
+Plan: 2 of 4 in current phase
+Status: In progress
+Last activity: 2026-01-27 - Completed 04-02-PLAN.md (Upload Types & Language Detection)
 
-Progress: [██████░░░░] 55%
+Progress: [██████░░░░] 60%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
+- Total plans completed: 8
 - Average duration: 5 min
-- Total execution time: 0.6 hours
+- Total execution time: 0.7 hours
 
 **By Phase:**
 
@@ -30,9 +30,10 @@ Progress: [██████░░░░] 55%
 | 01-websocket-task-infrastructure | 2/2 | 12 min | 6 min |
 | 02-file-upload-infrastructure | 2/2 | 13 min | 6.5 min |
 | 03-build-integration-spa-serving | 3/3 | 12 min | 4 min |
+| 04-core-upload-flow | 1/4 | 2 min | 2 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-02 (4 min), 03-01 (5 min), 03-02 (4 min), 03-03 (3 min)
+- Last 5 plans: 03-01 (5 min), 03-02 (4 min), 03-03 (3 min), 04-02 (2 min)
 - Trend: Consistent, slightly faster
 
 *Updated after each plan completion*
@@ -76,6 +77,12 @@ Recent decisions affecting current work:
 - SPA catch-all route registered AFTER all API routes in main.py
 - Index.html uses relative paths, Vite base config adds /ui/ prefix during build
 
+**Phase 4 decisions:**
+- 16 languages total: 3 core (lv, ru, en) + 13 common European/Asian languages
+- A03/A04/A05 pattern detection is case-insensitive
+- large-v3 as default Whisper model (user preference for accuracy)
+- Types in frontend/src/types/, utilities in frontend/src/lib/
+
 ### Pending Todos
 
 None yet.
@@ -86,6 +93,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-27T11:49:37Z
-Stopped at: Completed 03-03-PLAN.md (Integration Verification)
-Resume file: None (Phase 3 complete, ready for Phase 4)
+Last session: 2026-01-27T14:38:20Z
+Stopped at: Completed 04-02-PLAN.md (Upload Types & Language Detection)
+Resume file: None
