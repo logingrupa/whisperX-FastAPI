@@ -77,13 +77,13 @@ Plans:
   4. System auto-detects language from filename pattern (A03=Latvian, A04=Russian, A05=English)
   5. User can select transcription language from dropdown (overriding auto-detection)
   6. User can select Whisper model size (tiny/base/small/medium/large)
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 04-01: Upload page layout with drag-drop zone (react-dropzone)
-- [ ] 04-02: Multi-file queue display and management
-- [ ] 04-03: Language detection and selection controls
-- [ ] 04-04: Model selection dropdown
+- [ ] 04-01-PLAN.md - Initialize shadcn/ui and react-dropzone
+- [ ] 04-02-PLAN.md - Create upload types and language detection
+- [ ] 04-03-PLAN.md - File queue hook and dropzone component
+- [ ] 04-04-PLAN.md - Queue display, selects, and page assembly
 
 ### Phase 5: Real-Time Progress Tracking
 **Goal**: Users see live transcription progress with stage indicators and error handling
