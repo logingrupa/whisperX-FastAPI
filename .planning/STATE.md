@@ -12,16 +12,16 @@ See: .planning/PROJECT.md (updated 2026-01-27)
 Phase: 4 of 6 (Core Upload Flow)
 Plan: 2 of 4 in current phase
 Status: In progress
-Last activity: 2026-01-27 - Completed 04-02-PLAN.md (Upload Types & Language Detection)
+Last activity: 2026-01-27 - Completed 04-01-PLAN.md (UI Component Library)
 
 Progress: [██████░░░░] 60%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
+- Total plans completed: 9
 - Average duration: 5 min
-- Total execution time: 0.7 hours
+- Total execution time: 0.75 hours
 
 **By Phase:**
 
@@ -30,10 +30,10 @@ Progress: [██████░░░░] 60%
 | 01-websocket-task-infrastructure | 2/2 | 12 min | 6 min |
 | 02-file-upload-infrastructure | 2/2 | 13 min | 6.5 min |
 | 03-build-integration-spa-serving | 3/3 | 12 min | 4 min |
-| 04-core-upload-flow | 1/4 | 2 min | 2 min |
+| 04-core-upload-flow | 2/4 | 7 min | 3.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-01 (5 min), 03-02 (4 min), 03-03 (3 min), 04-02 (2 min)
+- Last 5 plans: 03-02 (4 min), 03-03 (3 min), 04-02 (2 min), 04-01 (5 min)
 - Trend: Consistent, slightly faster
 
 *Updated after each plan completion*
@@ -82,6 +82,9 @@ Recent decisions affecting current work:
 - A03/A04/A05 pattern detection is case-insensitive
 - large-v3 as default Whisper model (user preference for accuracy)
 - Types in frontend/src/types/, utilities in frontend/src/lib/
+- Manual shadcn/ui setup due to Tailwind v4 incompatibility with CLI
+- Fixed sonner component to use sonner package instead of next-themes
+- TooltipProvider at root for performance (not per-tooltip)
 
 ### Pending Todos
 
@@ -93,6 +96,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-27T14:38:20Z
-Stopped at: Completed 04-02-PLAN.md (Upload Types & Language Detection)
+Last session: 2026-01-27T14:41:00Z
+Stopped at: Completed 04-01-PLAN.md (UI Component Library)
 Resume file: None
