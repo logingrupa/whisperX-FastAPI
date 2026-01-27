@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-27)
 
 **Core value:** Users can easily upload audio, transcribe with speaker identification, and export results — without touching the command line or API directly.
-**Current focus:** Phase 2 - File Upload Infrastructure (COMPLETE)
+**Current focus:** Phase 3 - Build Integration & SPA Serving (IN PROGRESS)
 
 ## Current Position
 
-Phase: 2 of 6 (File Upload Infrastructure)
-Plan: 2 of 2 in current phase
-Status: Phase complete
-Last activity: 2026-01-27 - Completed 02-02-PLAN.md (Magic Byte Validation)
+Phase: 3 of 6 (Build Integration & SPA Serving)
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-01-27 - Completed 03-01-PLAN.md (Vite React Frontend Scaffold)
 
-Progress: [████░░░░░░] 33%
+Progress: [█████░░░░░] 42%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
+- Total plans completed: 5
 - Average duration: 6 min
-- Total execution time: 0.4 hours
+- Total execution time: 0.5 hours
 
 **By Phase:**
 
@@ -29,9 +29,10 @@ Progress: [████░░░░░░] 33%
 |-------|-------|-------|----------|
 | 01-websocket-task-infrastructure | 2/2 | 12 min | 6 min |
 | 02-file-upload-infrastructure | 2/2 | 13 min | 6.5 min |
+| 03-build-integration-spa-serving | 1/2 | 5 min | 5 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (6 min), 01-02 (6 min), 02-01 (9 min), 02-02 (4 min)
+- Last 5 plans: 01-02 (6 min), 02-01 (9 min), 02-02 (4 min), 03-01 (5 min)
 - Trend: Consistent
 
 *Updated after each plan completion*
@@ -65,6 +66,13 @@ Recent decisions affecting current work:
 - 8KB header read for reliable magic byte detection
 - Canonical extension mapping normalizes variants (.oga -> .ogg, .m4v -> .mp4)
 
+**Phase 3 decisions:**
+- Bun for package management (bunx create-vite, bun install)
+- Tailwind v4 with @tailwindcss/vite plugin (not PostCSS)
+- CSS-first syntax: @import "tailwindcss" instead of @tailwind directives
+- Skeleton as sibling of #root for CSS :not(:empty) selector
+- @/* path alias for all src/ imports (shadcn/ui convention)
+
 ### Pending Todos
 
 None yet.
@@ -75,6 +83,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-27T10:09:38Z
-Stopped at: Completed 02-02-PLAN.md (Magic Byte Validation) - Phase 2 complete
-Resume file: .planning/phases/03-transcription-pipeline/03-01-PLAN.md
+Last session: 2026-01-27T11:39:43Z
+Stopped at: Completed 03-01-PLAN.md (Vite React Frontend Scaffold)
+Resume file: .planning/phases/03-build-integration-spa-serving/03-02-PLAN.md
