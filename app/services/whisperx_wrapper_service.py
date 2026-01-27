@@ -435,6 +435,14 @@ def process_audio_common(
             params.identifier,
             str(e),
         )
+        # Emit error to WebSocket clients
+        progress_emitter = get_progress_emitter()
+        progress_emitter.emit_error(
+            params.identifier,
+            error_code="PROCESSING_FAILED",
+            user_message="Transcription processing failed. Please try again.",
+            technical_detail=str(e),
+        )
         repository.update(
             identifier=params.identifier,
             update_data={
@@ -446,6 +454,14 @@ def process_audio_common(
     except MemoryError as e:
         logger.error(
             f"Task failed for identifier {params.identifier} due to out of memory. Error: {str(e)}"
+        )
+        # Emit error to WebSocket clients
+        progress_emitter = get_progress_emitter()
+        progress_emitter.emit_error(
+            params.identifier,
+            error_code="PROCESSING_FAILED",
+            user_message="Transcription processing failed due to memory constraints. Please try with a smaller file.",
+            technical_detail=str(e),
         )
         repository.update(
             identifier=params.identifier,
