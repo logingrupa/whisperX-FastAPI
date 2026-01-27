@@ -318,12 +318,18 @@ def process_audio_common(
     session = SessionLocal()
     repository: ITaskRepository = SQLAlchemyTaskRepository(session)
 
+    # Initial progress: queued
+    _update_progress(repository, params.identifier, TaskProgressStage.queued, 0)
+
     try:
         start_time = datetime.now()
         logger.info(
             "Starting speech-to-text processing for identifier: %s",
             params.identifier,
         )
+
+        # Progress: starting transcription
+        _update_progress(repository, params.identifier, TaskProgressStage.transcribing, 10)
 
         logger.debug(
             "Transcription parameters - task: %s, language: %s, batch_size: %d, chunk_size: %d, model: %s, device: %s, device_index: %d, compute_type: %s, threads: %d",
@@ -353,6 +359,9 @@ def process_audio_common(
             threads=params.whisper_model_params.threads,
         )
 
+        # Progress: transcription complete, starting alignment
+        _update_progress(repository, params.identifier, TaskProgressStage.aligning, 40)
+
         logger.debug(
             "Alignment parameters - align_model: %s, interpolate_method: %s, return_char_alignments: %s, language_code: %s",
             params.alignment_params.align_model,
@@ -374,6 +383,9 @@ def process_audio_common(
         filtered_transcript = filter_aligned_transcription(transcript)
         transcript_dict = filtered_transcript.model_dump()
 
+        # Progress: alignment complete, starting diarization
+        _update_progress(repository, params.identifier, TaskProgressStage.diarizing, 60)
+
         logger.debug(
             "Diarization parameters - device: %s, min_speakers: %s, max_speakers: %s",
             params.whisper_model_params.device.value,
@@ -387,6 +399,9 @@ def process_audio_common(
             max_speakers=params.diarization_params.max_speakers,
         )
 
+        # Progress: diarization complete, combining results
+        _update_progress(repository, params.identifier, TaskProgressStage.diarizing, 80)
+
         logger.debug("Starting to combine transcript with diarization results")
         result = speaker_svc.assign_speakers(diarization_segments, transcript_dict)
 
@@ -399,6 +414,9 @@ def process_audio_common(
             params.identifier,
             duration,
         )
+
+        # Progress: complete
+        _update_progress(repository, params.identifier, TaskProgressStage.complete, 100)
 
         repository.update(
             identifier=params.identifier,
