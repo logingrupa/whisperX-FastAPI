@@ -3,6 +3,10 @@
  * Used by file queue, language detection, and model selection
  */
 
+import type { ProgressStage } from './websocket';
+
+export type { ProgressStage } from './websocket';
+
 /** Whisper model sizes available for transcription */
 export type WhisperModel = 'tiny' | 'base' | 'small' | 'medium' | 'large-v3' | 'turbo';
 
@@ -32,6 +36,12 @@ export interface FileQueueItem {
   status: FileQueueItemStatus;
   /** Error message if status is 'error' */
   errorMessage?: string;
+  /** Backend task ID for WebSocket subscription (set after upload starts) */
+  taskId?: string;
+  /** Current progress percentage (0-100) */
+  progressPercentage?: number;
+  /** Current processing stage */
+  progressStage?: ProgressStage;
 }
 
 /** Language definition for display */
