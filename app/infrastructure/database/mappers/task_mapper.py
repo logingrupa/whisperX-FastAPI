@@ -31,6 +31,8 @@ def to_domain(orm_task: ORMTask) -> DomainTask:
         error=orm_task.error,
         created_at=orm_task.created_at,
         updated_at=orm_task.updated_at,
+        progress_percentage=orm_task.progress_percentage,
+        progress_stage=orm_task.progress_stage,
     )
 
 
@@ -61,5 +63,7 @@ def to_orm(domain_task: DomainTask) -> ORMTask:
         error=domain_task.error,
         created_at=domain_task.created_at,
         updated_at=domain_task.updated_at,
+        progress_percentage=domain_task.progress_percentage,
+        progress_stage=domain_task.progress_stage,
     )
     return orm_task

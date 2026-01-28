@@ -30,6 +30,8 @@ class Task:
         error: Error message, if any, associated with the task
         created_at: Date and time of creation
         updated_at: Date and time of last update
+        progress_percentage: Current progress percentage (0-100)
+        progress_stage: Current processing stage (queued, transcribing, aligning, diarizing, complete)
     """
 
     uuid: str
@@ -48,6 +50,8 @@ class Task:
     error: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    progress_percentage: int | None = None
+    progress_stage: str | None = None
 
     def mark_as_completed(
         self, result: dict[str, Any], duration: float, end_time: datetime
@@ -140,4 +144,6 @@ class Task:
             "error": self.error,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "progress_percentage": self.progress_percentage,
+            "progress_stage": self.progress_stage,
         }
