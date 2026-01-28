@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-27)
 
 **Core value:** Users can easily upload audio, transcribe with speaker identification, and export results — without touching the command line or API directly.
-**Current focus:** Phase 5 - Real-time Progress Tracking
+**Current focus:** Phase 5.1 - Upload and Transcription Trigger
 
 ## Current Position
 
-Phase: 5 of 6 (Real-time Progress Tracking)
-Plan: 2 of 4 in current phase
+Phase: 5.1 of 6 (Upload and Transcription Trigger)
+Plan: 1 of 3 in current phase
 Status: In progress
-Last activity: 2026-01-27 - Completed 05-02-PLAN.md (WebSocket Hook and Queue Progress)
+Last activity: 2026-01-28 - Completed 05.1-01-PLAN.md (Transcription API Client)
 
-Progress: [████████░░] 85%
+Progress: [█████████░] 91%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 13
-- Average duration: 4.3 min
-- Total execution time: 0.98 hours
+- Total plans completed: 15
+- Average duration: 4.0 min
+- Total execution time: 1.06 hours
 
 **By Phase:**
 
@@ -31,10 +31,11 @@ Progress: [████████░░] 85%
 | 02-file-upload-infrastructure | 2/2 | 13 min | 6.5 min |
 | 03-build-integration-spa-serving | 3/3 | 12 min | 4 min |
 | 04-core-upload-flow | 4/4 | 15 min | 3.75 min |
-| 05-real-time-progress-tracking | 2/4 | 5 min | 2.5 min |
+| 05-real-time-progress-tracking | 3/3 | 8 min | 2.7 min |
+| 05.1-upload-transcription-trigger | 1/3 | 2 min | 2 min |
 
 **Recent Trend:**
-- Last 5 plans: 04-03 (3 min), 04-04 (5 min), 05-01 (2 min), 05-02 (3 min)
+- Last 5 plans: 05-01 (2 min), 05-02 (3 min), 05-03 (3 min), 05.1-01 (2 min)
 - Trend: Consistent, fast execution
 
 *Updated after each plan completion*
@@ -99,6 +100,11 @@ Recent decisions affecting current work:
 - Null URL pattern for conditional WebSocket connection
 - Polling fallback on reconnect to recover missed messages
 
+**Phase 5.1 decisions:**
+- Discriminated union ApiResult<T> for type-safe API results (not exceptions)
+- API client modules in frontend/src/lib/api/ directory
+- Query params for language/model, FormData body for file only
+
 ### Pending Todos
 
 None yet.
@@ -109,6 +115,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-27T18:03:00Z
-Stopped at: Completed 05-02-PLAN.md (WebSocket Hook and Queue Progress)
+Last session: 2026-01-28
+Stopped at: Completed 05.1-01-PLAN.md (Transcription API Client)
 Resume file: None
+Next action: Execute 05.1-02-PLAN.md (Upload Integration with Queue)
