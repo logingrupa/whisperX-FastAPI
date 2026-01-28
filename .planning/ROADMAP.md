@@ -16,7 +16,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: File Upload Infrastructure** - Streaming upload patterns for large audio/video files
 - [x] **Phase 3: Build Integration & SPA Serving** - React embedded in FastAPI at /ui route
 - [x] **Phase 4: Core Upload Flow** - Drag-drop upload with language/model selection
-- [ ] **Phase 5: Real-Time Progress Tracking** - WebSocket-powered progress UI with stage display
+- [x] **Phase 5: Real-Time Progress Tracking** - WebSocket-powered progress UI with stage display
+- [ ] **Phase 5.1: Upload & Transcription Trigger** - INSERTED: Wire Start buttons to actually upload files and trigger transcription
 - [ ] **Phase 6: Transcript Viewer & Export** - View results and download in multiple formats
 
 ## Phase Details
@@ -97,13 +98,30 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Setup: Install react-use-websocket, add Progress component, create types and stage config
-- [ ] 05-02-PLAN.md — Hooks: Create useTaskProgress hook with WebSocket, extend useFileQueue with progress tracking
-- [ ] 05-03-PLAN.md — UI: Create StageBadge, FileProgress, ConnectionStatus components and integrate into FileQueueItem
+- [x] 05-01-PLAN.md — Setup: Install react-use-websocket, add Progress component, create types and stage config
+- [x] 05-02-PLAN.md — Hooks: Create useTaskProgress hook with WebSocket, extend useFileQueue with progress tracking
+- [x] 05-03-PLAN.md — UI: Create StageBadge, FileProgress, ConnectionStatus components and integrate into FileQueueItem
+
+### Phase 5.1: Upload & Transcription Trigger (INSERTED)
+**Goal**: Start buttons actually upload files to backend and trigger transcription with real-time progress
+**Depends on**: Phase 5
+**Requirements**: PROG-01, PROG-02, PROG-03 (completes these requirements)
+**Success Criteria** (what must be TRUE):
+  1. User can click "Start All" to upload and transcribe all ready files
+  2. User can click individual file's start button to upload and transcribe that file
+  3. File upload uses POST /service/transcribe with FormData
+  4. Task ID from response used for WebSocket progress subscription
+  5. Progress updates flow through WebSocket during transcription
+  6. Error states are properly displayed when upload or transcription fails
+**Plans**: 2 plans
+
+Plans:
+- [ ] 05.1-01-PLAN.md - API client and types for transcription endpoint
+- [ ] 05.1-02-PLAN.md - Upload orchestration hook and App.tsx integration
 
 ### Phase 6: Transcript Viewer & Export
 **Goal**: Users can view transcription results and download in multiple formats
-**Depends on**: Phase 5
+**Depends on**: Phase 5.1
 **Requirements**: VIEW-01, VIEW-02, DOWN-01, DOWN-02, DOWN-03, DOWN-04
 **Success Criteria** (what must be TRUE):
   1. User can view transcript with paragraph-level timestamps
@@ -130,7 +148,8 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 2. File Upload Infrastructure | 2/2 | Complete | 2026-01-27 |
 | 3. Build Integration & SPA Serving | 3/3 | Complete | 2026-01-27 |
 | 4. Core Upload Flow | 4/4 | Complete | 2026-01-27 |
-| 5. Real-Time Progress Tracking | 0/3 | Not started | - |
+| 5. Real-Time Progress Tracking | 3/3 | Complete | 2026-01-28 |
+| 5.1. Upload & Transcription Trigger | 0/2 | Planned | - |
 | 6. Transcript Viewer & Export | 0/3 | Not started | - |
 
 ---
