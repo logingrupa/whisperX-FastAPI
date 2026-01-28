@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Build Integration & SPA Serving** - React embedded in FastAPI at /ui route
 - [x] **Phase 4: Core Upload Flow** - Drag-drop upload with language/model selection
 - [x] **Phase 5: Real-Time Progress Tracking** - WebSocket-powered progress UI with stage display
-- [ ] **Phase 5.1: Upload & Transcription Trigger** - INSERTED: Wire Start buttons to actually upload files and trigger transcription
+- [x] **Phase 5.1: Upload & Transcription Trigger** - INSERTED: Wire Start buttons to actually upload files and trigger transcription
 - [ ] **Phase 6: Transcript Viewer & Export** - View results and download in multiple formats
 
 ## Phase Details
@@ -116,8 +116,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 05.1-01-PLAN.md - API client and types for transcription endpoint
-- [ ] 05.1-02-PLAN.md - Upload orchestration hook and App.tsx integration
+- [x] 05.1-01-PLAN.md - API client and types for transcription endpoint
+- [x] 05.1-02-PLAN.md - Upload orchestration hook and App.tsx integration
 
 ### Phase 6: Transcript Viewer & Export
 **Goal**: Users can view transcription results and download in multiple formats
@@ -149,7 +149,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 3. Build Integration & SPA Serving | 3/3 | Complete | 2026-01-27 |
 | 4. Core Upload Flow | 4/4 | Complete | 2026-01-27 |
 | 5. Real-Time Progress Tracking | 3/3 | Complete | 2026-01-28 |
-| 5.1. Upload & Transcription Trigger | 0/2 | Planned | - |
+| 5.1. Upload & Transcription Trigger | 2/2 | Complete | 2026-01-28 |
 | 6. Transcript Viewer & Export | 0/3 | Not started | - |
 
 ---

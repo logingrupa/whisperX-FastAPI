@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-27)
 
 **Core value:** Users can easily upload audio, transcribe with speaker identification, and export results — without touching the command line or API directly.
-**Current focus:** Phase 5.1 - Upload and Transcription Trigger
+**Current focus:** Phase 5.1 - Upload and Transcription Trigger - COMPLETE
 
 ## Current Position
 
-Phase: 5.1 of 6 (Upload and Transcription Trigger)
-Plan: 2 of 3 in current phase
-Status: In progress
+Phase: 5.1 of 6 (Upload and Transcription Trigger) - COMPLETE
+Plan: 2 of 2 in current phase
+Status: Phase complete, ready for Phase 6
 Last activity: 2026-01-28 - Completed 05.1-02-PLAN.md (Upload Integration with Queue)
 
-Progress: [█████████░] 93%
+Progress: [█████████░] 95%
 
 ## Performance Metrics
 
@@ -32,7 +32,7 @@ Progress: [█████████░] 93%
 | 03-build-integration-spa-serving | 3/3 | 12 min | 4 min |
 | 04-core-upload-flow | 4/4 | 15 min | 3.75 min |
 | 05-real-time-progress-tracking | 3/3 | 8 min | 2.7 min |
-| 05.1-upload-transcription-trigger | 2/3 | 4.5 min | 2.25 min |
+| 05.1-upload-transcription-trigger | 2/2 | 4.5 min | 2.25 min |
 
 **Recent Trend:**
 - Last 5 plans: 05-02 (3 min), 05-03 (3 min), 05.1-01 (2 min), 05.1-02 (2.5 min)
@@ -119,6 +119,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-28
-Stopped at: Completed 05.1-02-PLAN.md (Upload Integration with Queue)
+Stopped at: Completed Phase 5.1 (Upload & Transcription Trigger)
 Resume file: None
-Next action: Execute 05.1-03-PLAN.md (Integration Testing and Polish)
+Next action: Plan or execute Phase 6 (Transcript Viewer & Export)
