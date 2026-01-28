@@ -21,6 +21,11 @@ export default defineConfig({
 
   server: {
     proxy: {
+      // Service endpoints (transcription API)
+      '/service': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
       // Speech-to-text endpoints
       '/speech-to-text': {
         target: 'http://localhost:8000',
