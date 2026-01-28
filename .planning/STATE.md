@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-27)
 ## Current Position
 
 Phase: 5.1 of 6 (Upload and Transcription Trigger)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-01-28 - Completed 05.1-01-PLAN.md (Transcription API Client)
+Last activity: 2026-01-28 - Completed 05.1-02-PLAN.md (Upload Integration with Queue)
 
-Progress: [█████████░] 91%
+Progress: [█████████░] 93%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 15
+- Total plans completed: 16
 - Average duration: 4.0 min
-- Total execution time: 1.06 hours
+- Total execution time: 1.10 hours
 
 **By Phase:**
 
@@ -32,10 +32,10 @@ Progress: [█████████░] 91%
 | 03-build-integration-spa-serving | 3/3 | 12 min | 4 min |
 | 04-core-upload-flow | 4/4 | 15 min | 3.75 min |
 | 05-real-time-progress-tracking | 3/3 | 8 min | 2.7 min |
-| 05.1-upload-transcription-trigger | 1/3 | 2 min | 2 min |
+| 05.1-upload-transcription-trigger | 2/3 | 4.5 min | 2.25 min |
 
 **Recent Trend:**
-- Last 5 plans: 05-01 (2 min), 05-02 (3 min), 05-03 (3 min), 05.1-01 (2 min)
+- Last 5 plans: 05-02 (3 min), 05-03 (3 min), 05.1-01 (2 min), 05.1-02 (2.5 min)
 - Trend: Consistent, fast execution
 
 *Updated after each plan completion*
@@ -104,6 +104,9 @@ Recent decisions affecting current work:
 - Discriminated union ApiResult<T> for type-safe API results (not exceptions)
 - API client modules in frontend/src/lib/api/ directory
 - Query params for language/model, FormData body for file only
+- Process one file at a time (MVP simplicity)
+- Auto-continue to next ready file after completion
+- Use refs for current file/task tracking to avoid stale closures
 
 ### Pending Todos
 
@@ -116,6 +119,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-28
-Stopped at: Completed 05.1-01-PLAN.md (Transcription API Client)
+Stopped at: Completed 05.1-02-PLAN.md (Upload Integration with Queue)
 Resume file: None
-Next action: Execute 05.1-02-PLAN.md (Upload Integration with Queue)
+Next action: Execute 05.1-03-PLAN.md (Integration Testing and Polish)
