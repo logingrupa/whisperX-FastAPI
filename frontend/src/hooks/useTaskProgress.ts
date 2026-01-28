@@ -123,12 +123,12 @@ export function useTaskProgress({
         return Math.min(1000 * Math.pow(2, attemptNumber), 30000);
       },
       onOpen: () => {
-        const wasReconnecting = wasConnectedRef.current;
         wasConnectedRef.current = true;
         reconnectAttemptRef.current = 0;
 
-        // On reconnect, fetch current state to sync missed updates
-        if (wasReconnecting && taskId) {
+        // Always sync progress on connect (initial or reconnect)
+        // Backend may have emitted updates before WebSocket connected
+        if (taskId) {
           syncProgressFromPolling(taskId);
         }
       },
