@@ -23,11 +23,13 @@ from app.infrastructure.database.connection import SessionLocal
 from app.infrastructure.database.repositories.sqlalchemy_task_repository import (
     SQLAlchemyTaskRepository,
 )
+from app.infrastructure.websocket import get_progress_emitter
 from app.schemas import (
     AlignmentParams,
     ASROptions,
     Device,
     DiarizationParams,
+    TaskProgressStage,
     TaskStatus,
     VADOptions,
     WhisperModelParams,
@@ -53,6 +55,26 @@ def validate_language_code(language_code: str) -> None:
         )
 
 
+def _update_progress(
+    repository: ITaskRepository,
+    identifier: str,
+    stage: TaskProgressStage,
+    percentage: int,
+) -> None:
+    """Update progress in database and emit to WebSocket clients."""
+    # Update database for polling fallback
+    repository.update(
+        identifier=identifier,
+        update_data={
+            "progress_stage": stage.value,
+            "progress_percentage": percentage,
+        },
+    )
+    # Emit to WebSocket clients
+    progress_emitter = get_progress_emitter()
+    progress_emitter.emit_progress(identifier, stage, percentage)
+
+
 def process_audio_task(
     audio_processor: Callable[[], Any],
     identifier: str,
@@ -70,9 +92,24 @@ def process_audio_task(
     session = SessionLocal()
     repository: ITaskRepository = SQLAlchemyTaskRepository(session)
 
+    # Map task types to progress stages
+    stage_map = {
+        "transcription": TaskProgressStage.transcribing,
+        "transcription_alignment": TaskProgressStage.aligning,
+        "diarization": TaskProgressStage.diarizing,
+        "combine_transcript&diarization": TaskProgressStage.diarizing,
+    }
+    processing_stage = stage_map.get(task_type, TaskProgressStage.transcribing)
+
+    # Initial progress: queued
+    _update_progress(repository, identifier, TaskProgressStage.queued, 0)
+
     try:
         start_time = datetime.now()
         logger.info(f"Starting {task_type} task for identifier {identifier}")
+
+        # Progress: processing started
+        _update_progress(repository, identifier, processing_stage, 10)
 
         result = audio_processor()
 
@@ -84,6 +121,9 @@ def process_audio_task(
         logger.info(
             f"Completed {task_type} task for identifier {identifier}. Duration: {duration}s"
         )
+
+        # Progress: complete
+        _update_progress(repository, identifier, TaskProgressStage.complete, 100)
 
         repository.update(
             identifier=identifier,
@@ -109,6 +149,14 @@ def process_audio_task(
         logger.error(
             f"Task {task_type} failed for identifier {identifier}. Error: {str(e)}"
         )
+        # Emit error to WebSocket clients
+        progress_emitter = get_progress_emitter()
+        progress_emitter.emit_error(
+            identifier,
+            error_code="PROCESSING_FAILED",
+            user_message=f"{task_type.replace('_', ' ').title()} failed. Please try again.",
+            technical_detail=str(e),
+        )
         repository.update(
             identifier=identifier,
             update_data={"status": TaskStatus.failed, "error": str(e)},
@@ -116,6 +164,14 @@ def process_audio_task(
     except Exception as e:
         logger.error(
             f"Task {task_type} failed for identifier {identifier} with unexpected error. Error: {str(e)}"
+        )
+        # Emit error to WebSocket clients
+        progress_emitter = get_progress_emitter()
+        progress_emitter.emit_error(
+            identifier,
+            error_code="PROCESSING_FAILED",
+            user_message=f"{task_type.replace('_', ' ').title()} failed unexpectedly.",
+            technical_detail=str(e),
         )
         repository.update(
             identifier=identifier,
