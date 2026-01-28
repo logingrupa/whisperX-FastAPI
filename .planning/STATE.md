@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-27)
 
 **Core value:** Users can easily upload audio, transcribe with speaker identification, and export results — without touching the command line or API directly.
-**Current focus:** Phase 6 - Transcript Viewer & Export - In Progress
+**Current focus:** Phase 6 - Transcript Viewer & Export - COMPLETE
 
 ## Current Position
 
 Phase: 6 of 6 (Transcript Viewer & Export)
-Plan: 2 of 3 in current phase
-Status: In progress
-Last activity: 2026-01-28 - Completed 06-02-PLAN.md (Task API Client and Collapsible)
+Plan: 3 of 3 in current phase
+Status: Phase complete
+Last activity: 2026-01-28 - Completed 06-03-PLAN.md (Transcript Viewer UI Components)
 
-Progress: [█████████░] 97%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 18
-- Average duration: 3.8 min
-- Total execution time: 1.18 hours
+- Total plans completed: 19
+- Average duration: 3.7 min
+- Total execution time: 1.21 hours
 
 **By Phase:**
 
@@ -33,10 +33,10 @@ Progress: [█████████░] 97%
 | 04-core-upload-flow | 4/4 | 15 min | 3.75 min |
 | 05-real-time-progress-tracking | 3/3 | 8 min | 2.7 min |
 | 05.1-upload-transcription-trigger | 2/2 | 4.5 min | 2.25 min |
-| 06-transcript-viewer-export | 2/3 | 5 min | 2.5 min |
+| 06-transcript-viewer-export | 3/3 | 7 min | 2.3 min |
 
 **Recent Trend:**
-- Last 5 plans: 05.1-01 (2 min), 05.1-02 (2.5 min), 06-01 (3 min), 06-02 (2 min)
+- Last 5 plans: 05.1-02 (2.5 min), 06-01 (3 min), 06-02 (2 min), 06-03 (2 min)
 - Trend: Consistent, fast execution
 
 *Updated after each plan completion*
@@ -116,18 +116,20 @@ Recent decisions affecting current work:
 - Pure formatter functions for testability
 - Task API client follows existing ApiResult pattern
 - Collapsible component for expandable transcript viewing
+- Timestamps display MM:SS for short audio, HH:MM:SS for >1 hour
+- Speaker labels converted to friendly format (Speaker 1, 2, etc.)
 
 ### Pending Todos
 
-None yet.
+None - all phases complete.
 
 ### Blockers/Concerns
 
-None yet.
+None.
 
 ## Session Continuity
 
 Last session: 2026-01-28
-Stopped at: Completed 06-02-PLAN.md (Task API Client and Collapsible)
+Stopped at: Completed 06-03-PLAN.md (Transcript Viewer UI Components)
 Resume file: None
-Next action: Execute 06-03-PLAN.md (TranscriptViewer Component)
+Next action: All phases complete. Ready for integration testing or additional features.
