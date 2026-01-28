@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-27)
 
 **Core value:** Users can easily upload audio, transcribe with speaker identification, and export results — without touching the command line or API directly.
-**Current focus:** All phases complete - MVP functional
+**Current focus:** All phases complete - MVP functional, UAT gap closure complete
 
 ## Current Position
 
 Phase: 6 of 6 (Transcript Viewer & Export)
 Plan: 4 of 4 in current phase
-Status: All phases complete
-Last activity: 2026-01-28 - Completed 06-04-PLAN.md (Integration and Verification)
+Status: All phases complete + UAT gap closure
+Last activity: 2026-01-29 - Completed 05-04-PLAN.md (Gap Closure)
 
-Progress: [##########] 100%
+Progress: [##########] 100% + Gap closure
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 20
+- Total plans completed: 21
 - Average duration: 3.6 min
-- Total execution time: 1.29 hours
+- Total execution time: 1.36 hours
 
 **By Phase:**
 
@@ -31,13 +31,13 @@ Progress: [##########] 100%
 | 02-file-upload-infrastructure | 2/2 | 13 min | 6.5 min |
 | 03-build-integration-spa-serving | 3/3 | 12 min | 4 min |
 | 04-core-upload-flow | 4/4 | 15 min | 3.75 min |
-| 05-real-time-progress-tracking | 3/3 | 8 min | 2.7 min |
+| 05-real-time-progress-tracking | 4/4 | 12 min | 3 min |
 | 05.1-upload-transcription-trigger | 2/2 | 4.5 min | 2.25 min |
 | 06-transcript-viewer-export | 4/4 | 12 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 06-01 (3 min), 06-02 (2 min), 06-03 (2 min), 06-04 (5 min)
-- Trend: Consistent execution, verification checkpoint added time to 06-04
+- Last 5 plans: 06-02 (2 min), 06-03 (2 min), 06-04 (5 min), 05-04-gap (4 min)
+- Trend: Consistent execution, gap closure plan completed efficiently
 
 *Updated after each plan completion*
 
@@ -100,6 +100,8 @@ Recent decisions affecting current work:
 - Callback refs pattern for WebSocket handlers to avoid stale closures
 - Null URL pattern for conditional WebSocket connection
 - Polling fallback on reconnect to recover missed messages
+- Sync progress on every WebSocket connect (not just reconnect) to handle backend emitting before frontend connects
+- Export connectionState and reconnect from orchestration hook for UI visibility
 
 **Phase 5.1 decisions:**
 - Discriminated union ApiResult<T> for type-safe API results (not exceptions)
@@ -139,7 +141,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-01-28
-Stopped at: Completed 06-04-PLAN.md (Integration and Verification)
+Last session: 2026-01-29
+Stopped at: Completed 05-04-PLAN.md (Gap Closure)
 Resume file: None
-Next action: All phases complete. Ready for integration testing, deployment, or additional features.
+Next action: UAT gap closure complete. Ready for re-verification of fixed issues.
