@@ -7,6 +7,7 @@ from app.infrastructure.websocket.connection_manager import (
 from app.infrastructure.websocket.progress_emitter import (
     ProgressEmitter,
     get_progress_emitter,
+    set_main_loop,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "connection_manager",
     "ProgressEmitter",
     "get_progress_emitter",
+    "set_main_loop",
 ]

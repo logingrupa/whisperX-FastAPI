@@ -11,12 +11,22 @@ if TYPE_CHECKING:
     from app.infrastructure.websocket.connection_manager import ConnectionManager
 
 
+# Store reference to main event loop for cross-thread scheduling
+_main_loop: asyncio.AbstractEventLoop | None = None
+
+
+def set_main_loop(loop: asyncio.AbstractEventLoop) -> None:
+    """Store reference to main event loop for WebSocket operations."""
+    global _main_loop
+    _main_loop = loop
+
+
 class ProgressEmitter:
     """
     Emits progress updates from synchronous background tasks to WebSocket clients.
 
     Background tasks run in a thread pool without an event loop.
-    This service bridges that gap by creating a temporary event loop for emission.
+    This service bridges that gap by scheduling sends on the main event loop.
     """
 
     def __init__(self, connection_manager: "ConnectionManager") -> None:
@@ -32,27 +42,32 @@ class ProgressEmitter:
         """
         Emit progress update from sync code (background tasks run in thread pool).
 
+        Uses asyncio.run_coroutine_threadsafe to schedule the send on the main
+        event loop where WebSocket connections were established.
+
         Args:
             task_id: The task identifier
             stage: Current processing stage
             percentage: Progress percentage (0-100)
             message: Optional status message
         """
+        if _main_loop is None:
+            logger.warning("Main event loop not set, cannot emit progress for task %s", task_id)
+            return
+
         try:
-            loop = asyncio.new_event_loop()
-            try:
-                loop.run_until_complete(
-                    self.manager.send_to_task(task_id, {
-                        "type": "progress",
-                        "task_id": task_id,
-                        "stage": stage.value,
-                        "percentage": percentage,
-                        "message": message,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    })
-                )
-            finally:
-                loop.close()
+            coro = self.manager.send_to_task(task_id, {
+                "type": "progress",
+                "task_id": task_id,
+                "stage": stage.value,
+                "percentage": percentage,
+                "message": message,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
+            # Schedule on main event loop and wait for completion
+            future = asyncio.run_coroutine_threadsafe(coro, _main_loop)
+            # Wait with timeout to avoid blocking forever
+            future.result(timeout=5.0)
         except Exception as e:
             # Don't let WebSocket errors crash the background task
             logger.warning(
@@ -71,27 +86,31 @@ class ProgressEmitter:
         """
         Emit error message from sync code.
 
+        Uses asyncio.run_coroutine_threadsafe to schedule the send on the main
+        event loop where WebSocket connections were established.
+
         Args:
             task_id: The task identifier
             error_code: Error code for programmatic handling
             user_message: User-friendly error message
             technical_detail: Optional technical details for debugging
         """
+        if _main_loop is None:
+            logger.warning("Main event loop not set, cannot emit error for task %s", task_id)
+            return
+
         try:
-            loop = asyncio.new_event_loop()
-            try:
-                loop.run_until_complete(
-                    self.manager.send_to_task(task_id, {
-                        "type": "error",
-                        "task_id": task_id,
-                        "error_code": error_code,
-                        "user_message": user_message,
-                        "technical_detail": technical_detail,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    })
-                )
-            finally:
-                loop.close()
+            coro = self.manager.send_to_task(task_id, {
+                "type": "error",
+                "task_id": task_id,
+                "error_code": error_code,
+                "user_message": user_message,
+                "technical_detail": technical_detail,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
+            # Schedule on main event loop and wait for completion
+            future = asyncio.run_coroutine_threadsafe(coro, _main_loop)
+            future.result(timeout=5.0)
         except Exception as e:
             logger.warning(
                 "Failed to emit error for task %s: %s",

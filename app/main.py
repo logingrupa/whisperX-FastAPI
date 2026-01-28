@@ -1,5 +1,6 @@
 """Main entry point for the FastAPI application."""
 
+import asyncio
 from collections.abc import AsyncGenerator
 
 from app.core.warnings_filter import filter_warnings
@@ -34,6 +35,7 @@ from app.core.exceptions import (  # noqa: E402
 )
 from app.docs import generate_db_schema, save_openapi_json  # noqa: E402
 from app.infrastructure.database import Base, engine  # noqa: E402
+from app.infrastructure.websocket import set_main_loop  # noqa: E402
 from app.spa_handler import setup_spa_routes  # noqa: E402
 
 # Load environment variables from .env
@@ -61,6 +63,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Args:
         app (FastAPI): The FastAPI application instance.
     """
+    # Store main event loop for WebSocket progress emission from background tasks
+    set_main_loop(asyncio.get_running_loop())
+
     logging.info("Application lifespan started - dependency container initialized")
 
     save_openapi_json(app)
