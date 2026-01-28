@@ -40,7 +40,6 @@ export function TranscriptViewer({
           <TranscriptSegmentRow
             key={`${segment.start}-${index}`}
             segment={segment}
-            index={index}
           />
         ))}
       </div>

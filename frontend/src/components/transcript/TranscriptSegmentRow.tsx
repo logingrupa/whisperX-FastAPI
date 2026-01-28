@@ -3,7 +3,6 @@ import type { TranscriptSegment } from '@/types/transcript';
 
 interface TranscriptSegmentRowProps {
   segment: TranscriptSegment;
-  index: number;
 }
 
 /**
@@ -41,7 +40,7 @@ function formatSpeakerLabel(speaker: string | null): string | null {
 /**
  * Single transcript segment with timestamp and speaker label
  */
-export function TranscriptSegmentRow({ segment, index }: TranscriptSegmentRowProps) {
+export function TranscriptSegmentRow({ segment }: TranscriptSegmentRowProps) {
   const speakerLabel = formatSpeakerLabel(segment.speaker);
 
   return (
