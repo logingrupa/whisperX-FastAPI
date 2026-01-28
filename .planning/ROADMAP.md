@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: File Upload Infrastructure** - Streaming upload patterns for large audio/video files
 - [x] **Phase 3: Build Integration & SPA Serving** - React embedded in FastAPI at /ui route
 - [x] **Phase 4: Core Upload Flow** - Drag-drop upload with language/model selection
-- [x] **Phase 5: Real-Time Progress Tracking** - WebSocket-powered progress UI with stage display
+- [ ] **Phase 5: Real-Time Progress Tracking** - WebSocket-powered progress UI with stage display
 - [x] **Phase 5.1: Upload & Transcription Trigger** - INSERTED: Wire Start buttons to actually upload files and trigger transcription
 - [x] **Phase 6: Transcript Viewer & Export** - View results and download in multiple formats
 
@@ -95,12 +95,13 @@ Plans:
   2. User sees which stage is active (Uploading, Queued, Transcribing, Aligning, Diarizing, Complete)
   3. User sees clear error message when processing fails (not raw API errors)
   4. Progress updates resume after brief connection loss (reconnection with backoff)
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 Plans:
 - [x] 05-01-PLAN.md — Setup: Install react-use-websocket, add Progress component, create types and stage config
 - [x] 05-02-PLAN.md — Hooks: Create useTaskProgress hook with WebSocket, extend useFileQueue with progress tracking
 - [x] 05-03-PLAN.md — UI: Create StageBadge, FileProgress, ConnectionStatus components and integrate into FileQueueItem
+- [ ] 05-04-PLAN.md — Gap closure: Fix race condition, wire ConnectionStatus and handleRetry
 
 ### Phase 5.1: Upload & Transcription Trigger (INSERTED)
 **Goal**: Start buttons actually upload files to backend and trigger transcription with real-time progress
@@ -149,7 +150,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 2. File Upload Infrastructure | 2/2 | Complete | 2026-01-27 |
 | 3. Build Integration & SPA Serving | 3/3 | Complete | 2026-01-27 |
 | 4. Core Upload Flow | 4/4 | Complete | 2026-01-27 |
-| 5. Real-Time Progress Tracking | 3/3 | Complete | 2026-01-28 |
+| 5. Real-Time Progress Tracking | 3/4 | Gap closure | 2026-01-28 |
 | 5.1. Upload & Transcription Trigger | 2/2 | Complete | 2026-01-28 |
 | 6. Transcript Viewer & Export | 4/4 | Complete | 2026-01-28 |
 
