@@ -1,5 +1,6 @@
 import { UploadDropzone } from '@/components/upload/UploadDropzone';
 import { FileQueueList } from '@/components/upload/FileQueueList';
+import { ConnectionStatus } from '@/components/upload/ConnectionStatus';
 import { useUploadOrchestration } from '@/hooks/useUploadOrchestration';
 
 /**
@@ -21,10 +22,17 @@ function App() {
     readyCount,
     handleStartAll,
     handleStartFile,
+    handleRetry,
+    connectionState,
+    reconnect,
   } = useUploadOrchestration();
 
   return (
     <UploadDropzone onFilesAdded={addFiles}>
+      <ConnectionStatus
+        connectionState={connectionState}
+        onReconnect={reconnect}
+      />
       {queue.length > 0 && (
         <FileQueueList
           queue={queue}
@@ -33,6 +41,7 @@ function App() {
           onClearPending={clearPendingFiles}
           onStartAll={handleStartAll}
           onStartFile={handleStartFile}
+          onRetry={handleRetry}
           pendingCount={pendingCount}
           readyCount={readyCount}
         />

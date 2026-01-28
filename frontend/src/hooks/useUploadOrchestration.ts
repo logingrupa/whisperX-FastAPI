@@ -15,7 +15,7 @@
  */
 import { useCallback, useRef, useEffect } from 'react';
 import { useFileQueue, type UseFileQueueReturn } from './useFileQueue';
-import { useTaskProgress, type TaskProgressState, type TaskErrorState } from './useTaskProgress';
+import { useTaskProgress, type TaskProgressState, type TaskErrorState, type ConnectionState } from './useTaskProgress';
 import { startTranscription } from '@/lib/api/transcriptionApi';
 import type { FileQueueItem } from '@/types/upload';
 
@@ -26,6 +26,10 @@ interface UseUploadOrchestrationReturn extends UseFileQueueReturn {
   handleStartAll: () => void;
   /** Retry a failed file */
   handleRetry: (id: string) => void;
+  /** WebSocket connection state */
+  connectionState: ConnectionState;
+  /** Manual reconnection trigger */
+  reconnect: () => void;
 }
 
 /**
@@ -91,7 +95,7 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
   }, [completeFile]);
 
   // WebSocket connection for current task
-  useTaskProgress({
+  const { connectionState, reconnect } = useTaskProgress({
     taskId: currentTaskId,
     onProgress: handleProgress,
     onError: handleError,
@@ -224,5 +228,7 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
     handleStartFile,
     handleStartAll,
     handleRetry,
+    connectionState,
+    reconnect,
   };
 }
