@@ -102,6 +102,7 @@ Recent decisions affecting current work:
 - Polling fallback on reconnect to recover missed messages
 - Sync progress on every WebSocket connect (not just reconnect) to handle backend emitting before frontend connects
 - Export connectionState and reconnect from orchestration hook for UI visibility
+- Added shadcn/ui CSS theme variables to index.css for Tailwind v4 (--primary, --secondary, etc.)
 
 **Phase 5.1 decisions:**
 - Discriminated union ApiResult<T> for type-safe API results (not exceptions)
@@ -142,6 +143,6 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-29
-Stopped at: Completed 05-04-PLAN.md (Gap Closure)
+Stopped at: Phase 5 verified complete (human confirmed progress bar working)
 Resume file: None
-Next action: UAT gap closure complete. Ready for re-verification of fixed issues.
+Next action: All phases complete. Ready for milestone audit.

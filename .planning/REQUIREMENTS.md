@@ -17,9 +17,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Progress
 
-- [ ] **PROG-01**: User sees real-time progress via WebSocket (percentage, current stage)
-- [ ] **PROG-02**: User sees which stage is active (Uploading, Queued, Transcribing, Aligning, Diarizing, Complete)
-- [ ] **PROG-03**: User sees clear error messages when processing fails
+- [x] **PROG-01**: User sees real-time progress via WebSocket (percentage, current stage)
+- [x] **PROG-02**: User sees which stage is active (Uploading, Queued, Transcribing, Aligning, Diarizing, Complete)
+- [x] **PROG-03**: User sees clear error messages when processing fails
 
 ### Transcript Viewer
 
@@ -84,9 +84,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UPLD-03 | Phase 4 | Complete |
 | UPLD-04 | Phase 2 | Complete |
 | UPLD-05 | Phase 4 | Complete |
-| PROG-01 | Phase 5 | Pending |
-| PROG-02 | Phase 5 | Pending |
-| PROG-03 | Phase 5 | Pending |
+| PROG-01 | Phase 5 | Complete |
+| PROG-02 | Phase 5 | Complete |
+| PROG-03 | Phase 5 | Complete |
 | VIEW-01 | Phase 6 | Pending |
 | VIEW-02 | Phase 6 | Pending |
 | DOWN-01 | Phase 6 | Pending |
