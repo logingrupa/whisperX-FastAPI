@@ -1,6 +1,6 @@
 import { UploadDropzone } from '@/components/upload/UploadDropzone';
 import { FileQueueList } from '@/components/upload/FileQueueList';
-import { useFileQueue } from '@/hooks/useFileQueue';
+import { useUploadOrchestration } from '@/hooks/useUploadOrchestration';
 
 /**
  * Main upload page
@@ -8,9 +8,7 @@ import { useFileQueue } from '@/hooks/useFileQueue';
  * Integrates:
  * - UploadDropzone for drag-drop and file selection
  * - FileQueueList for queue display and management
- * - useFileQueue for state management
- *
- * Note: Start functionality is stubbed (Phase 5 will add actual upload)
+ * - useUploadOrchestration for upload -> transcribe -> progress flow
  */
 function App() {
   const {
@@ -21,16 +19,9 @@ function App() {
     updateFileSettings,
     pendingCount,
     readyCount,
-  } = useFileQueue();
-
-  // Stub for start functionality (implemented in Phase 5)
-  const handleStartAll = () => {
-    console.log('Start all clicked - will be implemented in Phase 5');
-  };
-
-  const handleStartFile = (id: string) => {
-    console.log(`Start file ${id} clicked - will be implemented in Phase 5`);
-  };
+    handleStartAll,
+    handleStartFile,
+  } = useUploadOrchestration();
 
   return (
     <UploadDropzone onFilesAdded={addFiles}>
