@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-27)
 
 **Core value:** Users can easily upload audio, transcribe with speaker identification, and export results — without touching the command line or API directly.
-**Current focus:** Phase 6 - Transcript Viewer & Export - COMPLETE
+**Current focus:** All phases complete - MVP functional
 
 ## Current Position
 
 Phase: 6 of 6 (Transcript Viewer & Export)
-Plan: 3 of 3 in current phase
-Status: Phase complete
-Last activity: 2026-01-28 - Completed 06-03-PLAN.md (Transcript Viewer UI Components)
+Plan: 4 of 4 in current phase
+Status: All phases complete
+Last activity: 2026-01-28 - Completed 06-04-PLAN.md (Integration and Verification)
 
-Progress: [██████████] 100%
+Progress: [##########] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 19
-- Average duration: 3.7 min
-- Total execution time: 1.21 hours
+- Total plans completed: 20
+- Average duration: 3.6 min
+- Total execution time: 1.29 hours
 
 **By Phase:**
 
@@ -33,11 +33,11 @@ Progress: [██████████] 100%
 | 04-core-upload-flow | 4/4 | 15 min | 3.75 min |
 | 05-real-time-progress-tracking | 3/3 | 8 min | 2.7 min |
 | 05.1-upload-transcription-trigger | 2/2 | 4.5 min | 2.25 min |
-| 06-transcript-viewer-export | 3/3 | 7 min | 2.3 min |
+| 06-transcript-viewer-export | 4/4 | 12 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 05.1-02 (2.5 min), 06-01 (3 min), 06-02 (2 min), 06-03 (2 min)
-- Trend: Consistent, fast execution
+- Last 5 plans: 06-01 (3 min), 06-02 (2 min), 06-03 (2 min), 06-04 (5 min)
+- Trend: Consistent execution, verification checkpoint added time to 06-04
 
 *Updated after each plan completion*
 
@@ -118,10 +118,20 @@ Recent decisions affecting current work:
 - Collapsible component for expandable transcript viewing
 - Timestamps display MM:SS for short audio, HH:MM:SS for >1 hour
 - Speaker labels converted to friendly format (Speaker 1, 2, etc.)
+- Lazy load transcript data on first expand (avoid unnecessary fetches)
+- Download buttons visible only after transcript loads
 
 ### Pending Todos
 
 None - all phases complete.
+
+### User Enhancement Feedback (Future Work)
+
+Noted during 06-04 verification (not Phase 6 failures):
+1. Upload progress bar with speed/ETA - Phase 5 upload flow area
+2. Step timing display after completion - Show stage durations
+3. All status badges visible from start - Grayed, then colored
+4. Persistence on refresh - Remember state across reloads
 
 ### Blockers/Concerns
 
@@ -130,6 +140,6 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-28
-Stopped at: Completed 06-03-PLAN.md (Transcript Viewer UI Components)
+Stopped at: Completed 06-04-PLAN.md (Integration and Verification)
 Resume file: None
-Next action: All phases complete. Ready for integration testing or additional features.
+Next action: All phases complete. Ready for integration testing, deployment, or additional features.
