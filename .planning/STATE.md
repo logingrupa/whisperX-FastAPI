@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-27)
 
 **Core value:** Users can easily upload audio, transcribe with speaker identification, and export results — without touching the command line or API directly.
-**Current focus:** Phase 5.1 - Upload and Transcription Trigger - COMPLETE
+**Current focus:** Phase 6 - Transcript Viewer & Export - In Progress
 
 ## Current Position
 
-Phase: 5.1 of 6 (Upload and Transcription Trigger) - COMPLETE
-Plan: 2 of 2 in current phase
-Status: Phase complete, ready for Phase 6
-Last activity: 2026-01-28 - Completed 05.1-02-PLAN.md (Upload Integration with Queue)
+Phase: 6 of 6 (Transcript Viewer & Export)
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-01-28 - Completed 06-01-PLAN.md (Transcript Types and Format Utilities)
 
-Progress: [█████████░] 95%
+Progress: [█████████░] 96%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 16
-- Average duration: 4.0 min
-- Total execution time: 1.10 hours
+- Total plans completed: 17
+- Average duration: 3.9 min
+- Total execution time: 1.15 hours
 
 **By Phase:**
 
@@ -33,9 +33,10 @@ Progress: [█████████░] 95%
 | 04-core-upload-flow | 4/4 | 15 min | 3.75 min |
 | 05-real-time-progress-tracking | 3/3 | 8 min | 2.7 min |
 | 05.1-upload-transcription-trigger | 2/2 | 4.5 min | 2.25 min |
+| 06-transcript-viewer-export | 1/3 | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 05-02 (3 min), 05-03 (3 min), 05.1-01 (2 min), 05.1-02 (2.5 min)
+- Last 5 plans: 05-03 (3 min), 05.1-01 (2 min), 05.1-02 (2.5 min), 06-01 (3 min)
 - Trend: Consistent, fast execution
 
 *Updated after each plan completion*
@@ -108,6 +109,12 @@ Recent decisions affecting current work:
 - Auto-continue to next ready file after completion
 - Use refs for current file/task tracking to avoid stale closures
 
+**Phase 6 decisions:**
+- SRT uses comma for ms, VTT uses period (format spec compliance)
+- VTT voice tags <v> for speakers instead of brackets
+- Blob URL revocation after download (memory leak prevention)
+- Pure formatter functions for testability
+
 ### Pending Todos
 
 None yet.
@@ -119,6 +126,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-28
-Stopped at: Completed Phase 5.1 (Upload & Transcription Trigger)
+Stopped at: Completed 06-01-PLAN.md (Transcript Types and Format Utilities)
 Resume file: None
-Next action: Plan or execute Phase 6 (Transcript Viewer & Export)
+Next action: Execute 06-02-PLAN.md (Transcript Viewer Component)
