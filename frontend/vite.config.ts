@@ -31,8 +31,13 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
-      // Task management endpoints
+      // Task management endpoints (plural - list)
       '/tasks': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      // Task detail endpoint (singular - by ID)
+      '/task': {
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
