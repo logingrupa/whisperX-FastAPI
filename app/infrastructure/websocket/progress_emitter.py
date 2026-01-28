@@ -56,6 +56,7 @@ class ProgressEmitter:
             return
 
         try:
+            logger.info("Emitting progress: task=%s stage=%s percentage=%d", task_id, stage.value, percentage)
             coro = self.manager.send_to_task(task_id, {
                 "type": "progress",
                 "task_id": task_id,
@@ -68,6 +69,7 @@ class ProgressEmitter:
             future = asyncio.run_coroutine_threadsafe(coro, _main_loop)
             # Wait with timeout to avoid blocking forever
             future.result(timeout=5.0)
+            logger.info("Progress emitted successfully: task=%s stage=%s", task_id, stage.value)
         except Exception as e:
             # Don't let WebSocket errors crash the background task
             logger.warning(
