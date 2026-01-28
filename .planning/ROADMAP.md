@@ -130,12 +130,13 @@ Plans:
   4. User can download transcript as VTT file
   5. User can download transcript as plain text file
   6. User can download transcript as JSON with full metadata
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 06-01: Transcript viewer component with timestamps and speaker labels
-- [ ] 06-02: Export modal with format selection
-- [ ] 06-03: Format conversion utilities (SRT, VTT, TXT, JSON)
+- [ ] 06-01-PLAN.md — Types and format utilities (transcript types, SRT/VTT/TXT/JSON formatters, download hook)
+- [ ] 06-02-PLAN.md — API client and Collapsible component (task result fetching, shadcn/ui Collapsible)
+- [ ] 06-03-PLAN.md — Transcript viewer components (TranscriptSegmentRow, TranscriptViewer, DownloadButtons)
+- [ ] 06-04-PLAN.md — Integration and verification (wire into FileQueueItem, human verification)
 
 ## Progress
 
@@ -150,7 +151,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 4. Core Upload Flow | 4/4 | Complete | 2026-01-27 |
 | 5. Real-Time Progress Tracking | 3/3 | Complete | 2026-01-28 |
 | 5.1. Upload & Transcription Trigger | 2/2 | Complete | 2026-01-28 |
-| 6. Transcript Viewer & Export | 0/3 | Not started | - |
+| 6. Transcript Viewer & Export | 0/4 | Not started | - |
 
 ---
 *Roadmap created: 2026-01-27*
