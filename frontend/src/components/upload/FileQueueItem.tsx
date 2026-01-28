@@ -1,7 +1,12 @@
-import { X, Play, AlertCircle, CheckCircle2, RotateCcw } from 'lucide-react';
+import { useState } from 'react';
+import { X, Play, AlertCircle, CheckCircle2, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
+import { TranscriptViewer } from '@/components/transcript/TranscriptViewer';
+import { DownloadButtons } from '@/components/transcript/DownloadButtons';
+import { fetchTaskResult } from '@/lib/api/taskApi';
 import {
   Tooltip,
   TooltipContent,
@@ -13,6 +18,7 @@ import { StageBadge } from './StageBadge';
 import { FileProgress } from './FileProgress';
 import { getLanguageName } from '@/lib/languages';
 import type { FileQueueItem as FileQueueItemType, LanguageCode, WhisperModel } from '@/types/upload';
+import type { TranscriptSegment, TaskMetadata } from '@/types/transcript';
 import { cn } from '@/lib/utils';
 
 interface FileQueueItemProps {
@@ -64,6 +70,46 @@ export function FileQueueItem({
   const isComplete = item.status === 'complete';
   const isError = item.status === 'error';
   const isReady = isPending && item.selectedLanguage !== '';
+
+  // Transcript state (for completed files)
+  const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
+  const [transcriptSegments, setTranscriptSegments] = useState<TranscriptSegment[] | null>(null);
+  const [transcriptMetadata, setTranscriptMetadata] = useState<TaskMetadata | null>(null);
+  const [isLoadingTranscript, setIsLoadingTranscript] = useState(false);
+  const [transcriptError, setTranscriptError] = useState<string | null>(null);
+
+  /**
+   * Handle transcript viewer toggle with lazy loading
+   * Fetches transcript data on first expand only
+   */
+  const handleToggleTranscript = async () => {
+    // If opening and no data yet, fetch it
+    if (!isTranscriptOpen && !transcriptSegments && item.taskId) {
+      setIsLoadingTranscript(true);
+      setTranscriptError(null);
+
+      const result = await fetchTaskResult(item.taskId);
+
+      if (result.success && result.data.result?.segments) {
+        setTranscriptSegments(result.data.result.segments);
+        setTranscriptMetadata({
+          fileName: result.data.fileName,
+          language: result.data.language,
+          audioDuration: result.data.audioDuration,
+        });
+      } else {
+        setTranscriptError(
+          result.success
+            ? 'No transcript data available'
+            : result.error.detail
+        );
+      }
+
+      setIsLoadingTranscript(false);
+    }
+
+    setIsTranscriptOpen(!isTranscriptOpen);
+  };
 
   return (
     <Card className={cn(
@@ -213,6 +259,58 @@ export function FileQueueItem({
               percentage={item.progressPercentage}
               showSpinner={true}
             />
+          )}
+
+          {/* Transcript viewer (completed files only) */}
+          {isComplete && item.taskId && (
+            <Collapsible open={isTranscriptOpen} onOpenChange={setIsTranscriptOpen}>
+              <div className="flex items-center justify-between pt-2 border-t border-border">
+                <CollapsibleTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleToggleTranscript}
+                    className="gap-1"
+                  >
+                    {isTranscriptOpen ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                    {isLoadingTranscript ? 'Loading...' : 'View Transcript'}
+                  </Button>
+                </CollapsibleTrigger>
+
+                {/* Download buttons (visible once transcript is loaded) */}
+                {transcriptSegments && (
+                  <DownloadButtons
+                    segments={transcriptSegments}
+                    filename={item.file.name.replace(/\.[^/.]+$/, '')}
+                    metadata={transcriptMetadata ?? undefined}
+                  />
+                )}
+              </div>
+
+              <CollapsibleContent>
+                <div className="pt-3">
+                  {isLoadingTranscript && (
+                    <div className="text-center py-4 text-muted-foreground">
+                      Loading transcript...
+                    </div>
+                  )}
+
+                  {transcriptError && (
+                    <div className="text-center py-4 text-destructive">
+                      {transcriptError}
+                    </div>
+                  )}
+
+                  {transcriptSegments && !isLoadingTranscript && (
+                    <TranscriptViewer segments={transcriptSegments} maxHeight="250px" />
+                  )}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           )}
         </div>
       </CardContent>
