@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Core Upload Flow** - Drag-drop upload with language/model selection
 - [x] **Phase 5: Real-Time Progress Tracking** - WebSocket-powered progress UI with stage display
 - [x] **Phase 5.1: Upload & Transcription Trigger** - INSERTED: Wire Start buttons to actually upload files and trigger transcription
-- [ ] **Phase 6: Transcript Viewer & Export** - View results and download in multiple formats
+- [x] **Phase 6: Transcript Viewer & Export** - View results and download in multiple formats
 
 ## Phase Details
 
@@ -133,10 +133,10 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — Types and format utilities (transcript types, SRT/VTT/TXT/JSON formatters, download hook)
-- [ ] 06-02-PLAN.md — API client and Collapsible component (task result fetching, shadcn/ui Collapsible)
-- [ ] 06-03-PLAN.md — Transcript viewer components (TranscriptSegmentRow, TranscriptViewer, DownloadButtons)
-- [ ] 06-04-PLAN.md — Integration and verification (wire into FileQueueItem, human verification)
+- [x] 06-01-PLAN.md — Types and format utilities (transcript types, SRT/VTT/TXT/JSON formatters, download hook)
+- [x] 06-02-PLAN.md — API client and Collapsible component (task result fetching, shadcn/ui Collapsible)
+- [x] 06-03-PLAN.md — Transcript viewer components (TranscriptSegmentRow, TranscriptViewer, DownloadButtons)
+- [x] 06-04-PLAN.md — Integration and verification (wire into FileQueueItem, human verification)
 
 ## Progress
 
@@ -151,7 +151,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 4. Core Upload Flow | 4/4 | Complete | 2026-01-27 |
 | 5. Real-Time Progress Tracking | 3/3 | Complete | 2026-01-28 |
 | 5.1. Upload & Transcription Trigger | 2/2 | Complete | 2026-01-28 |
-| 6. Transcript Viewer & Export | 0/4 | Not started | - |
+| 6. Transcript Viewer & Export | 4/4 | Complete | 2026-01-28 |
 
 ---
 *Roadmap created: 2026-01-27*
