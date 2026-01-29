@@ -44,6 +44,10 @@ export interface FileQueueItem {
   progressPercentage?: number;
   /** Current processing stage */
   progressStage?: ProgressStage;
+  /** Upload speed formatted (e.g., "12.3 MB/s") -- set during upload phase */
+  uploadSpeed?: string;
+  /** Estimated time remaining formatted (e.g., "2m 15s") -- set during upload phase */
+  uploadEta?: string;
 }
 
 /** Language definition for display */
