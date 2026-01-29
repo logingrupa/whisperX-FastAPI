@@ -10,30 +10,30 @@ See: .planning/PROJECT.md (updated 2026-01-29)
 ## Current Position
 
 Phase: 8 of 10 (Frontend Chunking)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-01-29 - Completed 08-01-PLAN.md
+Last activity: 2026-01-29 - Completed 08-02-PLAN.md
 
-Progress: [========            ] 36% (4/11)
+Progress: [=========           ] 45% (5/11)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4 (v1.1)
-- Average duration: 3.3 min
-- Total execution time: 0.22 hours
+- Total plans completed: 5 (v1.1)
+- Average duration: 3.0 min
+- Total execution time: 0.25 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 7 | 3/3 | 10m | 3.3m |
-| 8 | 1/3 | 3m | 3m |
+| 8 | 2/3 | 5m | 2.5m |
 | 9 | 0/3 | - | - |
 | 10 | 0/2 | - | - |
 
 **Recent Trend:**
-- Last 5 plans: 07-01 (5m), 07-02 (2m), 07-03 (3m), 08-01 (3m)
+- Last 5 plans: 07-01 (5m), 07-02 (2m), 07-03 (3m), 08-01 (3m), 08-02 (2m)
 - Trend: Consistent velocity
 
 *Updated after each plan completion*
@@ -57,6 +57,8 @@ Recent decisions affecting current work:
 - [07-03]: Used tuspyserver gc_files instead of non-existent remove_expired_files for cleanup
 - [08-01]: Pre-generated taskId via TUS metadata for frontend-backend handoff (Approach B)
 - [08-01]: EMA alpha=0.3 for speed smoothing with 500ms minimum update interval
+- [08-02]: File size routing at >= 80MB with isTusSupported() fallback
+- [08-02]: updateFileUploadMetrics in useFileQueue (SRP) rather than orchestration-local state
 
 ### Pending Todos
 
@@ -70,5 +72,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-29
-Stopped at: Completed 08-01-PLAN.md
+Stopped at: Completed 08-02-PLAN.md
 Resume file: None
