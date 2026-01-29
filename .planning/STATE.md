@@ -10,30 +10,30 @@ See: .planning/PROJECT.md (updated 2026-01-29)
 ## Current Position
 
 Phase: 8 of 10 (Frontend Chunking)
-Plan: 0 of 3 in current phase
-Status: Ready to plan
-Last activity: 2026-01-29 - Phase 7 complete, verified ✓
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-01-29 - Completed 08-01-PLAN.md
 
-Progress: [======              ] 27% (3/11)
+Progress: [========            ] 36% (4/11)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3 (v1.1)
+- Total plans completed: 4 (v1.1)
 - Average duration: 3.3 min
-- Total execution time: 0.17 hours
+- Total execution time: 0.22 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 7 | 3/3 | 10m | 3.3m |
-| 8 | 0/3 | - | - |
+| 8 | 1/3 | 3m | 3m |
 | 9 | 0/3 | - | - |
 | 10 | 0/2 | - | - |
 
 **Recent Trend:**
-- Last 5 plans: 07-01 (5m), 07-02 (2m), 07-03 (3m)
+- Last 5 plans: 07-01 (5m), 07-02 (2m), 07-03 (3m), 08-01 (3m)
 - Trend: Consistent velocity
 
 *Updated after each plan completion*
@@ -55,6 +55,8 @@ Recent decisions affecting current work:
 - [07-02]: callback_url=None for TUS uploads (WebSocket used instead of HTTP callbacks)
 - [07-02]: Exceptions re-raised from hook so tuspyserver reports failures to client
 - [07-03]: Used tuspyserver gc_files instead of non-existent remove_expired_files for cleanup
+- [08-01]: Pre-generated taskId via TUS metadata for frontend-backend handoff (Approach B)
+- [08-01]: EMA alpha=0.3 for speed smoothing with 500ms minimum update interval
 
 ### Pending Todos
 
@@ -68,5 +70,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-29
-Stopped at: Phase 7 verified and complete. Ready for Phase 8.
+Stopped at: Completed 08-01-PLAN.md
 Resume file: None
