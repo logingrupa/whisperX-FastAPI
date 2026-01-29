@@ -16,7 +16,9 @@ interface StartTranscriptionParams {
 /**
  * Start transcription for a file
  *
- * Posts file to /service/transcribe endpoint and returns task ID.
+ * Posts file to /speech-to-text endpoint and returns task ID.
+ * This endpoint runs the full pipeline: transcription -> alignment -> diarization
+ * emitting progress updates for all 5 stages.
  * The task ID is used to subscribe to WebSocket progress updates.
  *
  * @param params - File, language, and model parameters
@@ -38,7 +40,7 @@ export async function startTranscription(
   });
 
   try {
-    const response = await fetch(`/service/transcribe?${queryParams}`, {
+    const response = await fetch(`/speech-to-text?${queryParams}`, {
       method: 'POST',
       body: formData,
       // Note: Don't set Content-Type header - browser sets it with boundary

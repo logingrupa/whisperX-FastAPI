@@ -9,9 +9,20 @@ REM Get the directory where this script lives (project root)
 set "SCRIPT_DIR=%~dp0"
 
 REM Add ffmpeg to PATH (winget installs to user-specific location)
-for /d %%i in ("%LOCALAPPDATA%\Microsoft\WinGet\Packages\Gyan.FFmpeg*") do (
-    for /d %%j in ("%%i\ffmpeg-*-full_build\bin") do set "PATH=%%j;%PATH%"
+set "WINGET_PKGS=%LOCALAPPDATA%\Microsoft\WinGet\Packages"
+
+REM Search winget packages folder for ffmpeg using dir
+for /f "delims=" %%i in ('dir /b /s "%WINGET_PKGS%\ffmpeg.exe" 2^>nul') do (
+    set "PATH=%%~dpi;%PATH%"
+    echo ffmpeg found: %%~dpi
+    goto :ffmpeg_done
 )
+
+echo WARNING: ffmpeg not found in WinGet packages.
+echo Checking system PATH...
+where ffmpeg >nul 2>&1 && echo ffmpeg found in system PATH || echo ffmpeg NOT found - video processing will fail.
+
+:ffmpeg_done
 
 REM Activate venv using absolute path
 call "%SCRIPT_DIR%.venv\Scripts\activate.bat"

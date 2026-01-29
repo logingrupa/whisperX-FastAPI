@@ -2,7 +2,7 @@
  * API response types matching backend schemas
  */
 
-/** Response from POST /service/transcribe */
+/** Response from POST /speech-to-text (full pipeline transcription) */
 export interface TranscriptionResponse {
   /** Task ID for WebSocket subscription */
   identifier: string;

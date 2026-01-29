@@ -8,9 +8,9 @@
  *
  * Flow:
  * 1. User clicks Start -> status: 'uploading'
- * 2. API call to /service/transcribe
+ * 2. API call to /speech-to-text (full pipeline: transcription + alignment + diarization)
  * 3. Get task ID -> connect WebSocket -> status: 'processing'
- * 4. Receive progress updates via WebSocket
+ * 4. Receive progress updates via WebSocket for all 5 stages
  * 5. Complete or error state
  */
 import { useCallback, useRef, useEffect } from 'react';
