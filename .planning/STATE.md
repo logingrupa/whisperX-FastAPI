@@ -10,31 +10,31 @@ See: .planning/PROJECT.md (updated 2026-01-29)
 ## Current Position
 
 Phase: 7 of 10 (Backend Chunk Infrastructure)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-01-29 - Completed 07-01-PLAN.md (TUS Router and CORS)
+Last activity: 2026-01-29 - Completed 07-02-PLAN.md (Upload Session Service)
 
-Progress: [=                   ] 9% (1/11)
+Progress: [==                  ] 18% (2/11)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1 (v1.1)
-- Average duration: 5 min
-- Total execution time: 0.08 hours
+- Total plans completed: 2 (v1.1)
+- Average duration: 3.5 min
+- Total execution time: 0.12 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 7 | 1/3 | 5m | 5m |
+| 7 | 2/3 | 7m | 3.5m |
 | 8 | 0/3 | - | - |
 | 9 | 0/3 | - | - |
 | 10 | 0/2 | - | - |
 
 **Recent Trend:**
-- Last 5 plans: 07-01 (5m)
-- Trend: Starting milestone
+- Last 5 plans: 07-01 (5m), 07-02 (2m)
+- Trend: Accelerating
 
 *Updated after each plan completion*
 
@@ -51,6 +51,9 @@ Recent decisions affecting current work:
 - [07-01]: TUS files stored in UPLOAD_DIR/tus/ subdirectory (separate from streaming uploads)
 - [07-01]: CORS middleware added with wildcard origins for development
 - [07-01]: Patched tuspyserver lock.py for Windows dev compatibility (fcntl -> msvcrt)
+- [07-02]: Default WhisperModelParams for TUS transcription (advanced params not available via TUS metadata)
+- [07-02]: callback_url=None for TUS uploads (WebSocket used instead of HTTP callbacks)
+- [07-02]: Exceptions re-raised from hook so tuspyserver reports failures to client
 
 ### Pending Todos
 
@@ -59,11 +62,10 @@ None yet.
 ### Blockers/Concerns
 
 - Cloudflare WAF rules need validation in staging (Phase 10)
-- CORS headers for TUS now configured (resolved from initial concerns)
 - tuspyserver fcntl patch is dev-only; production Linux is unaffected
 
 ## Session Continuity
 
-Last session: 2026-01-29T18:16:23Z
-Stopped at: Completed 07-01-PLAN.md (TUS Router and CORS)
+Last session: 2026-01-29T18:22:29Z
+Stopped at: Completed 07-02-PLAN.md (Upload Session Service)
 Resume file: None
