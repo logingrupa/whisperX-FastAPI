@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 05-real-time-progress-tracking
 source: [05-01-SUMMARY.md, 05-02-SUMMARY.md, 05-03-SUMMARY.md]
 started: 2026-01-28T22:30:00Z
@@ -67,47 +67,72 @@ skipped: 0
   reason: "User reported: jumps steps, no loading bar visible, only 5% text shown"
   severity: major
   test: 1
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "Race condition - background task emits progress BEFORE frontend WebSocket connects. useTaskProgress only syncs from polling on reconnect, not initial connect."
+  artifacts:
+    - path: "frontend/src/hooks/useTaskProgress.ts"
+      issue: "syncProgressFromPolling() only called on reconnect (wasReconnecting), not initial connect"
+    - path: "app/infrastructure/websocket/connection_manager.py"
+      issue: "Silently drops messages when no connections exist"
+  missing:
+    - "Call syncProgressFromPolling() on initial WebSocket connect, not just reconnect"
+  debug_session: ".planning/debug/websocket-progress-not-reaching-frontend.md"
 
 - truth: "Stage badge shows intermediate processing stages (Transcribing, Aligning, Diarizing) with yellow color"
   status: failed
   reason: "User reported: see blue 1/5 and then straight to green Done - intermediate stages not shown"
   severity: major
   test: 2
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "Same race condition as Test 1 - progress updates emitted before WebSocket connected"
+  artifacts:
+    - path: "frontend/src/hooks/useTaskProgress.ts"
+      issue: "Missing initial sync on WebSocket connect"
+  missing:
+    - "Sync progress state on initial WebSocket connect"
+  debug_session: ".planning/debug/websocket-progress-not-reaching-frontend.md"
 
 - truth: "Stage badge shows step count during processing (2/5, 3/5, 4/5, 5/5)"
   status: failed
   reason: "User reported: only see 1st step then next step is always done - no intermediate step counts"
   severity: major
   test: 3
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "Same race condition as Test 1 - progress updates emitted before WebSocket connected"
+  artifacts:
+    - path: "frontend/src/hooks/useTaskProgress.ts"
+      issue: "Missing initial sync on WebSocket connect"
+  missing:
+    - "Sync progress state on initial WebSocket connect"
+  debug_session: ".planning/debug/websocket-progress-not-reaching-frontend.md"
 
 - truth: "When processing fails, file shows red AlertCircle icon, red border, error message, and Retry button"
   status: failed
   reason: "User reported: crashed backend, 500 errors and WebSocket failures in console, but UI stays stuck on Queued (1/5) for 20+ minutes - no error state"
   severity: major
   test: 5
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "Integration gap - handleRetry not wired through component tree. useUploadOrchestration returns handleRetry but App.tsx doesn't destructure it, FileQueueList doesn't accept/pass onRetry prop."
+  artifacts:
+    - path: "frontend/src/App.tsx"
+      issue: "Doesn't destructure handleRetry from useUploadOrchestration"
+    - path: "frontend/src/components/upload/FileQueueList.tsx"
+      issue: "Doesn't accept or pass onRetry prop to FileQueueItem"
+  missing:
+    - "App.tsx: destructure handleRetry and pass to FileQueueList"
+    - "FileQueueList.tsx: accept onRetry prop and pass to each FileQueueItem"
+  debug_session: ".planning/debug/error-state-not-displayed.md"
 
 - truth: "Connection status indicator shows reconnection attempts and amber warning after max attempts"
   status: failed
   reason: "User reported: no info in UI - just error in console log, no reconnecting indicator or amber warning"
   severity: major
   test: 6
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "ConnectionStatus component never rendered - it exists but is never imported or rendered anywhere. Also connectionState/reconnect not exposed from useUploadOrchestration."
+  artifacts:
+    - path: "frontend/src/components/upload/ConnectionStatus.tsx"
+      issue: "Component exists but never imported/rendered anywhere in UI tree"
+    - path: "frontend/src/hooks/useUploadOrchestration.ts"
+      issue: "Doesn't expose connectionState and reconnect in return object"
+    - path: "frontend/src/App.tsx"
+      issue: "Doesn't render ConnectionStatus component"
+  missing:
+    - "useUploadOrchestration.ts: add connectionState and reconnect to return object"
+    - "App.tsx: import and render ConnectionStatus, pass connectionState and reconnect"
+  debug_session: ".planning/debug/error-state-not-displayed.md"

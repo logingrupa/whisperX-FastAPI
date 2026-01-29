@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A production-ready web frontend for the WhisperX speech-to-text API. Users can upload audio/video files, transcribe them with speaker diarization, manage Whisper models, and export results in multiple formats. The UI is embedded in FastAPI and served at `/ui`.
+A production-ready web frontend for the WhisperX speech-to-text API. Users can upload audio/video files, transcribe them with speaker diarization, and export results in multiple formats. The UI is embedded in FastAPI and served at `/ui`.
 
 ## Core Value
 
@@ -14,28 +14,36 @@ Users can easily upload audio, transcribe with speaker identification, and expor
 
 <!-- Shipped and confirmed valuable. -->
 
-- ✓ REST API for speech-to-text transcription — existing
-- ✓ File upload endpoint (POST /speech-to-text) — existing
-- ✓ URL-based transcription (POST /speech-to-text-url) — existing
-- ✓ Task management (GET /tasks, GET /tasks/{id}) — existing
-- ✓ Background processing with status tracking — existing
-- ✓ Speaker diarization integration — existing
-- ✓ Transcript alignment — existing
-- ✓ Webhook callbacks on completion — existing
-- ✓ Health check endpoints — existing
+**Pre-existing Backend:**
+- REST API for speech-to-text transcription — existing
+- File upload endpoint (POST /speech-to-text) — existing
+- URL-based transcription (POST /speech-to-text-url) — existing
+- Task management (GET /tasks, GET /tasks/{id}) — existing
+- Background processing with status tracking — existing
+- Speaker diarization integration — existing
+- Transcript alignment — existing
+- Webhook callbacks on completion — existing
+- Health check endpoints — existing
+
+**v1.0 Frontend UI (shipped 2026-01-29):**
+- React frontend served at /ui route — v1.0
+- Drag-and-drop file upload with multi-file queue — v1.0
+- Real-time transcription progress via WebSockets — v1.0
+- Auto-detect language from filename (A03=Latvian, A04=Russian, A05=English) — v1.0
+- Transcript viewer with speaker labels and timestamps — v1.0
+- Export to SRT, VTT, TXT, and JSON formats — v1.0
+- Language and model selection dropdowns — v1.0
+- File format validation with magic byte verification — v1.0
 
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-- [ ] React frontend served at /ui route
-- [ ] File upload with drag-and-drop support
-- [ ] Real-time transcription progress via WebSockets
-- [ ] Auto-detect language from filename (A03=Latvian, A04=Russian, A05=English)
-- [ ] Model management: view loaded models, download new models, switch between models
-- [ ] Transcript viewer with speaker labels and timestamps
-- [ ] Export to SRT, VTT, and JSON formats
-- [ ] Responsive design for desktop and tablet
+- [ ] Model management: view loaded models, download new models
+- [ ] Upload progress bar with speed and ETA
+- [ ] Step timing display after completion
+- [ ] State persistence on page refresh
+- [ ] Responsive design improvements for tablet
 
 ### Out of Scope
 
@@ -44,35 +52,24 @@ Users can easily upload audio, transcribe with speaker identification, and expor
 - Multi-tenancy — single user/team deployment
 - Real-time streaming transcription — batch processing only
 - Audio editing — transcription only, not an editor
+- Inline transcript editing — complex state management, export to editor instead
+- Video player with transcript sync — HTML5 video complexity
 
 ## Context
 
-**Existing Backend:**
-- FastAPI application with DDD architecture
-- WhisperX for transcription, alignment, diarization
-- SQLite database for task persistence
-- Background task processing
-- Python 3.11, UV package manager
+**Current State (v1.0 shipped):**
+- 3,075 lines TypeScript/TSX frontend
+- React + Vite + Tailwind v4 + shadcn/ui
+- FastAPI backend with WebSocket progress system
+- 7 phases, 21 plans completed in 3 days
 
-**Frontend Addition:**
-- React + Vite built with Bun
-- Static files served from FastAPI at /ui
-- WebSocket support needed for progress updates
-- Filename convention for language: A03=lv, A04=ru, A05=en
+**Tech Stack:**
+- Backend: FastAPI, Python 3.11, SQLite, WhisperX
+- Frontend: React 18, Vite, Bun, Tailwind v4
+- Communication: WebSocket for progress, REST for CRUD
 
 **Codebase Map:**
 - See `.planning/codebase/` for detailed architecture analysis
-
-## Current Milestone: v1.0 Frontend UI
-
-**Goal:** Deliver a production-ready web interface for transcription, viewing, and downloading results.
-
-**Target features:**
-- Drag-drop file upload with multi-file support
-- Real-time WebSocket progress tracking
-- Transcript viewer with timestamps and speaker labels
-- Individual file downloads (SRT, VTT, TXT, JSON)
-- Language and model selection
 
 ## Constraints
 
@@ -91,10 +88,15 @@ Users can easily upload audio, transcribe with speaker identification, and expor
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Embed in FastAPI vs separate app | Simpler deployment, no CORS, single container | — Pending |
-| React + Vite on Bun | User preference, modern tooling, fast builds | — Pending |
-| WebSockets for progress | Better UX than polling for long transcriptions | — Pending |
-| Filename-based language detection | User's existing workflow convention (A03/A04/A05) | — Pending |
+| Embed in FastAPI vs separate app | Simpler deployment, no CORS, single container | Good |
+| React + Vite on Bun | User preference, modern tooling, fast builds | Good |
+| WebSockets for progress | Better UX than polling for long transcriptions | Good |
+| Filename-based language detection | User's existing workflow convention (A03/A04/A05) | Good |
+| Tailwind v4 with CSS-first syntax | Modern approach, cleaner config | Good |
+| Stage-based progress percentages | Transcription duration varies too much for time-based | Good |
+| large-v3 as default model | User preference for accuracy over speed | Good |
+| Discriminated union ApiResult<T> | Type-safe API results without exceptions | Good |
+| Lazy load transcripts on expand | Avoids unnecessary API calls | Good |
 
 ---
-*Last updated: 2026-01-27 after v1.0 milestone definition*
+*Last updated: 2026-01-29 after v1.0 milestone completion*
