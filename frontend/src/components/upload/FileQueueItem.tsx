@@ -258,6 +258,8 @@ export function FileQueueItem({
             <FileProgress
               percentage={item.progressPercentage}
               showSpinner={true}
+              uploadSpeed={item.uploadSpeed}
+              uploadEta={item.uploadEta}
             />
           )}
 

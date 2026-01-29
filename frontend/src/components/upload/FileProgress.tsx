@@ -7,6 +7,10 @@ interface FileProgressProps {
   percentage: number;
   /** Show spinner alongside progress */
   showSpinner?: boolean;
+  /** Upload speed display (e.g., "12.3 MB/s") */
+  uploadSpeed?: string;
+  /** Estimated time remaining (e.g., "2m 15s") */
+  uploadEta?: string;
   className?: string;
 }
 
@@ -21,17 +25,27 @@ interface FileProgressProps {
 export function FileProgress({
   percentage,
   showSpinner = true,
+  uploadSpeed,
+  uploadEta,
   className,
 }: FileProgressProps) {
   return (
-    <div className={cn('flex items-center gap-2', className)}>
-      {showSpinner && (
-        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
+    <div className={cn('space-y-0', className)}>
+      <div className="flex items-center gap-2">
+        {showSpinner && (
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
+        )}
+        <Progress value={percentage} className="flex-1 h-2" />
+        <span className="text-sm text-muted-foreground w-10 text-right shrink-0">
+          {percentage}%
+        </span>
+      </div>
+      {(uploadSpeed || uploadEta) && (
+        <div className="flex justify-between text-xs text-muted-foreground mt-1">
+          <span>{uploadSpeed || ''}</span>
+          <span>{uploadEta || ''}</span>
+        </div>
       )}
-      <Progress value={percentage} className="flex-1 h-2" />
-      <span className="text-sm text-muted-foreground w-10 text-right shrink-0">
-        {percentage}%
-      </span>
     </div>
   );
 }
