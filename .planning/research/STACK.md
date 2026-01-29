@@ -1,246 +1,317 @@
-# Stack Research
+# Stack Research: Chunked Uploads
 
-**Domain:** React frontend embedded in FastAPI (transcription workbench UI)
-**Researched:** 2026-01-27
-**Confidence:** HIGH
+**Project:** WhisperX Transcription App
+**Researched:** 2026-01-29
+**Focus:** Bypassing Cloudflare 100MB limit with chunked uploads
+**Overall Confidence:** HIGH
 
-## Recommended Stack
+## Executive Summary
 
-### Core Technologies
+To bypass Cloudflare's 100MB per-request limit for files up to 500MB+, the recommended approach is implementing the **TUS resumable upload protocol** using **tus-js-client** on the frontend and **tuspyserver** on the backend. This provides standardized resumable uploads, automatic retry on failure, and proven Cloudflare compatibility when chunk sizes are kept under 100MB.
 
-| Technology | Version | Purpose | Why Recommended | Confidence |
-|------------|---------|---------|-----------------|------------|
-| React | 19.2 | UI framework | Latest stable with improved hooks, Activity API, useEffectEvent. Industry standard for SPAs. | HIGH |
-| Vite | 7.3.x | Build tooling | Native ESM, fast HMR (<50ms), first-party Tailwind plugin. Vite 7 requires Node 20.19+. | HIGH |
-| Bun | 1.3.6 | Package manager + runtime | 2-3x faster installs than npm, native TypeScript, `bunx` for scripts. Replaces npm/node for dev. | HIGH |
-| TypeScript | 5.7.x | Type safety | De facto standard for React projects. React 19 typings require TypeScript 5.0+. | HIGH |
-| TailwindCSS | 4.1.x | Styling | CSS-first config, automatic content detection via Vite plugin. No PostCSS config needed. | HIGH |
+---
 
-### State Management
+## Recommended Additions
 
-| Library | Version | Purpose | When to Use | Confidence |
-|---------|---------|---------|-------------|------------|
-| TanStack Query | 5.x | Server state | ALL API calls. Handles caching, deduplication, retries, optimistic updates. 80% of state needs. | HIGH |
-| Zustand | 5.0.x | Client state | UI state (modals, sidebar), WebSocket connection state, file queue. Minimal API, 1KB bundle. | HIGH |
+### Frontend
 
-**Rationale:** TanStack Query replaces Redux/fetch boilerplate for server state. Zustand handles the remaining 20% of truly client-side state. This combo is the 2026 community default. Do NOT use Redux for new projects unless enterprise scale (5+ developers, strict patterns required).
+| Package | Version | Purpose | Rationale |
+|---------|---------|---------|-----------|
+| **tus-js-client** | ^4.3.1 | TUS protocol client | Industry standard for resumable uploads. Pure JS, works in browsers/Node. Requires Node 18+. Configured chunkSize bypasses Cloudflare limit. |
 
-### UI Components
-
-| Library | Version | Purpose | When to Use | Confidence |
-|---------|---------|---------|-------------|------------|
-| shadcn/ui | latest | Component library | All UI components. Copy-paste into codebase, full ownership. Built on Radix + Tailwind. | HIGH |
-| Radix UI | primitives | Accessibility layer | Comes with shadcn. Handles ARIA, keyboard nav, focus management. | HIGH |
-| Lucide React | 0.474.x | Icons | All icons. Tree-shakeable, consistent style with shadcn. | MEDIUM |
-
-**Rationale:** shadcn/ui is NOT a package dependency. Components are copied into your codebase (typically `src/components/ui/`). This gives full control and avoids breaking changes from library updates. The ecosystem has shifted decisively toward shadcn in 2025-2026.
-
-### File Upload
-
-| Library | Version | Purpose | When to Use | Confidence |
-|---------|---------|---------|-------------|------------|
-| react-dropzone | 14.3.x | Drag-and-drop | File upload zone. Handles drag events, file validation, multiple files. | HIGH |
-
-**Rationale:** react-dropzone is a hook, not a UI component. Pair with shadcn-style dropzone component for styling. It does NOT handle HTTP uploads; use TanStack Query mutations for actual upload requests.
-
-### Routing
-
-| Library | Version | Purpose | When to Use | Confidence |
-|---------|---------|---------|-------------|------------|
-| React Router | 7.13.x | Client routing | SPA navigation. Declarative mode for simple routing (no SSR needed). | HIGH |
-
-**Rationale:** React Router 7 merged Remix features but Declarative mode is sufficient for embedded SPAs. Do NOT use Framework mode; FastAPI handles server-side concerns.
-
-### WebSocket Integration
-
-| Library | Version | Purpose | When to Use | Confidence |
-|---------|---------|---------|-------------|------------|
-| Native WebSocket | - | Real-time updates | Progress streaming from FastAPI. Use with Zustand store for connection state. | HIGH |
-
-**Rationale:** FastAPI has native WebSocket support via Starlette. No additional library needed. Create a custom hook that manages connection lifecycle and updates Zustand store.
-
-### Development Tools
-
-| Tool | Version | Purpose | Notes |
-|------|---------|---------|-------|
-| Bun | 1.3.6 | Runtime + package manager | Use `bun install`, `bun run dev`, `bunx vite build` |
-| Vitest | 3.x | Testing | Vite-native, faster than Jest. Use with @testing-library/react |
-| ESLint | 9.x | Linting | Flat config format. Use @eslint/js + typescript-eslint |
-| Prettier | 3.x | Formatting | With tailwindcss plugin for class sorting |
-
-## Installation
-
+**Installation:**
 ```bash
-# Initialize with Bun + Vite template
-bun create vite webapp --template react-ts
-
-# Install core dependencies
-bun add react@19 react-dom@19 react-router@7 @tanstack/react-query zustand
-
-# Install UI dependencies
-bun add tailwindcss @tailwindcss/vite class-variance-authority clsx tailwind-merge
-bun add @radix-ui/react-dialog @radix-ui/react-dropdown-menu @radix-ui/react-slot
-bun add lucide-react react-dropzone
-
-# Install dev dependencies
-bun add -D typescript @types/react @types/react-dom
-bun add -D vitest @testing-library/react @testing-library/jest-dom jsdom
-bun add -D eslint @eslint/js typescript-eslint prettier prettier-plugin-tailwindcss
+npm install tus-js-client@^4.3.1
 ```
 
-## Vite Configuration for FastAPI Embedding
+**Why tus-js-client:**
+- **Battle-tested protocol** - Used by Cloudflare, Vimeo, Supabase
+- **Automatic resume** - Survives network interruptions without re-uploading
+- **Configurable chunks** - Set to 50-90MB to stay under Cloudflare's 100MB limit
+- **Progress tracking** - Built-in `onProgress` callback integrates with existing UI
+- **Retry logic** - Configurable `retryDelays` for flaky connections (default: `[0, 1000, 3000, 5000]`)
+- **Minimal footprint** - No UI dependencies, integrates with existing react-dropzone
+
+### Backend
+
+| Package | Version | Purpose | Rationale |
+|---------|---------|---------|-----------|
+| **tuspyserver** | ^4.2.3 | TUS protocol server | FastAPI router with dependency injection hooks. Released Nov 2025, actively maintained. Only requires fastapi>=0.110. |
+
+**Installation:**
+```bash
+pip install tuspyserver==4.2.3
+```
+
+**Why tuspyserver:**
+- **Native FastAPI integration** - Drops in as a router, uses FastAPI's dependency injection
+- **Minimal dependencies** - Only requires `fastapi>=0.110` (already have 0.128.0)
+- **Built-in cleanup** - Configurable expiration (default 5 days), `remove_expired_files()` for scheduled cleanup
+- **Upload hooks** - Dependency injection for post-upload processing (trigger transcription)
+- **Metadata support** - Stores filename/filetype for reconstruction
+
+---
+
+## Integration Points
+
+### Frontend Integration with react-dropzone
+
+react-dropzone handles file selection; tus-js-client handles chunked upload. They compose naturally:
 
 ```typescript
-// vite.config.ts
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
+// Existing: react-dropzone provides File objects via onDrop
+// New: tus-js-client uploads those files in chunks
 
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  base: '/ui/',  // Critical: matches FastAPI mount path
-  build: {
-    outDir: 'dist',
-    emptyOutDir: true,
-  },
-  server: {
-    proxy: {
-      '/api': 'http://localhost:8000',  // Proxy API calls in dev
-      '/ws': {
-        target: 'ws://localhost:8000',
-        ws: true,
+import { useDropzone } from 'react-dropzone';
+import * as tus from 'tus-js-client';
+
+const onDrop = useCallback((acceptedFiles: File[]) => {
+  acceptedFiles.forEach((file) => {
+    const upload = new tus.Upload(file, {
+      endpoint: `${BACKEND_URL}/uploads/`,
+      chunkSize: 50 * 1024 * 1024, // 50MB chunks (under Cloudflare 100MB limit)
+      retryDelays: [0, 1000, 3000, 5000],
+      metadata: {
+        filename: file.name,
+        filetype: file.type,
       },
-    },
-  },
-})
+      onProgress: (bytesUploaded, bytesTotal) => {
+        const percentage = (bytesUploaded / bytesTotal * 100).toFixed(2);
+        // Update existing progress UI
+      },
+      onSuccess: () => {
+        // File uploaded - URL available at upload.url
+        // Trigger transcription via existing WebSocket flow
+      },
+      onError: (error) => {
+        // Handle error - TUS will auto-retry based on retryDelays
+      },
+    });
+    upload.start();
+  });
+}, []);
+
+const { getRootProps, getInputProps } = useDropzone({ onDrop });
 ```
 
-## FastAPI Static File Integration
+### Backend Integration with FastAPI
+
+tuspyserver provides a router that mounts alongside existing endpoints:
 
 ```python
-# In app/main.py
-from pathlib import Path
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+# app/main.py or router file
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from tuspyserver import create_tus_router
 
-# Mount built React app
-WEBAPP_DIR = Path(__file__).parent.parent / "webapp" / "dist"
+app = FastAPI()
 
-if WEBAPP_DIR.exists():
-    app.mount("/ui/assets", StaticFiles(directory=WEBAPP_DIR / "assets"), name="ui-assets")
+# CRITICAL: Expose TUS headers through CORS for chunked uploads
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configure appropriately
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=[
+        "Location",
+        "Upload-Offset",
+        "Upload-Length",
+        "Tus-Resumable",
+        "Tus-Version",
+        "Tus-Extension",
+        "Tus-Max-Size",
+    ],
+)
 
-    @app.get("/ui/{path:path}")
-    async def serve_ui(path: str):
-        """Serve React SPA with client-side routing support."""
-        file_path = WEBAPP_DIR / path
-        if file_path.exists() and file_path.is_file():
-            return FileResponse(file_path)
-        return FileResponse(WEBAPP_DIR / "index.html")
+# Mount TUS upload router
+app.include_router(
+    create_tus_router(
+        files_dir="./uploads",
+        days_to_keep=5,  # Auto-expire incomplete uploads
+    ),
+    prefix="/uploads",
+)
 ```
 
-## Alternatives Considered
+### Post-Upload Hook for Transcription
 
-| Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|-------------------------|
-| React 19 | React 18 | If third-party libs have React 19 issues (rare as of Jan 2026) |
-| Vite 7 | Vite 6 | Only if Node <20.19; Vite 6 supports Node 18 |
-| shadcn/ui | MUI | Enterprise apps needing Material Design compliance |
-| shadcn/ui | Ant Design | Data-heavy enterprise apps with CJK locale needs |
-| Zustand | Jotai | Atomic state model preferred over flux-like |
-| TanStack Query | SWR | Simpler API sufficient; SWR is smaller bundle |
-| Bun | npm/node | CI environments without Bun support |
+tuspyserver supports dependency injection for post-upload processing:
 
-## What NOT to Use
+```python
+from tuspyserver import create_tus_router
+from fastapi import Depends
 
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| Create React App (CRA) | Deprecated, unmaintained since 2023. Slow builds. | Vite |
-| Redux (without RTK) | Boilerplate-heavy, unnecessary for most apps | Zustand + TanStack Query |
-| Redux Toolkit (RTK) | Overkill for single-team projects. RTK Query duplicates TanStack Query. | Zustand + TanStack Query |
-| Axios | fetch is native, TanStack Query handles retries/caching | Native fetch + TanStack Query |
-| Styled-components | Runtime CSS-in-JS hurts performance, ecosystem moved to Tailwind | TailwindCSS |
-| Emotion | Same as styled-components; runtime overhead | TailwindCSS |
-| Bootstrap | Dated look, CSS bloat, conflicts with Tailwind | shadcn/ui |
-| socket.io-client | Unnecessary complexity; FastAPI uses native WebSocket | Native WebSocket |
-| Webpack | Slower than Vite, more config needed | Vite |
-| Jest | Slower than Vitest for Vite projects | Vitest |
+async def on_upload_complete(file_path: str, metadata: dict):
+    """Trigger transcription after successful upload."""
+    # Queue transcription job using existing infrastructure
+    # Connect to existing WebSocket progress system
+    pass
 
-## Stack Patterns by Variant
-
-**For this transcription workbench UI:**
-- Use shadcn's file upload block (react-dropzone based)
-- Use TanStack Query for all API calls (`useQuery` for tasks, `useMutation` for uploads)
-- Use native WebSocket with Zustand store for progress updates
-- Use shadcn Table for transcript display with virtualization if >1000 segments
-
-**If adding model management later:**
-- Same stack applies
-- Use TanStack Query's `useQueries` for parallel model status checks
-
-## Version Compatibility
-
-| Package | Compatible With | Notes |
-|---------|-----------------|-------|
-| React 19.2 | React Router 7.x | Router requires React 18+ |
-| Vite 7.3 | Tailwind 4.1.x | Use @tailwindcss/vite plugin |
-| Zustand 5.x | React 19 | Native useSyncExternalStore |
-| TanStack Query 5 | React 19 | Full React 19 support |
-| shadcn/ui | Radix primitives | shadcn uses Radix internally |
-| Bun 1.3 | Vite 7 | Use `bunx --bun vite` for Bun runtime |
-
-## Project Structure
-
+app.include_router(
+    create_tus_router(
+        files_dir="./uploads",
+        on_upload_complete=on_upload_complete,
+    ),
+    prefix="/uploads",
+)
 ```
-webapp/
-├── src/
-│   ├── components/
-│   │   ├── ui/              # shadcn components
-│   │   ├── layout/          # App shell, sidebar, header
-│   │   ├── upload/          # File upload components
-│   │   ├── transcript/      # Transcript viewer components
-│   │   └── models/          # Model management components
-│   ├── hooks/
-│   │   ├── use-websocket.ts # WebSocket connection hook
-│   │   └── use-upload.ts    # File upload hook
-│   ├── stores/
-│   │   └── app-store.ts     # Zustand store
-│   ├── api/
-│   │   └── queries.ts       # TanStack Query definitions
-│   ├── lib/
-│   │   └── utils.ts         # cn() helper, etc.
-│   ├── App.tsx
-│   └── main.tsx
-├── index.html
-├── vite.config.ts
-├── tailwind.config.ts       # Optional: only if customizing theme
-├── tsconfig.json
-└── package.json
+
+### WebSocket Progress Integration
+
+The existing WebSocket infrastructure remains unchanged. Flow becomes:
+
+1. **Upload phase**: tus-js-client `onProgress` updates UI with upload %
+2. **Processing phase**: Existing WebSocket updates UI with transcription progress
+3. **Complete**: Existing result delivery mechanism
+
+---
+
+## Cloudflare Compatibility
+
+**Critical constraint:** Cloudflare proxies reject requests >100MB.
+
+**Solution:** Configure `chunkSize` in tus-js-client:
+
+| Chunk Size | Cloudflare Compatible | Performance Notes |
+|------------|----------------------|-------------------|
+| 50MB | Yes | Safe margin, more requests |
+| 90MB | Yes | Fewer requests, closer to limit |
+| 100MB | No | Rejected by Cloudflare |
+| Infinity (default) | No | Single request fails for large files |
+
+**Recommended:** `chunkSize: 50 * 1024 * 1024` (50MB) for safety margin.
+
+**Total file size limit:** Cloudflare's cache limit is ~512MB for reassembled files. Files >512MB may require Cloudflare bypass (direct to origin) or Cloudflare Stream (separate service).
+
+---
+
+## Session Management / Resume Capability
+
+TUS protocol handles session management automatically:
+
+| Concern | TUS Solution | Notes |
+|---------|--------------|-------|
+| **Upload ID** | Server-generated URL in `Location` header | Client stores for resume |
+| **Progress tracking** | `Upload-Offset` header | Server tracks bytes received |
+| **Resume after failure** | Client calls `HEAD` to get offset, resumes from there | Automatic in tus-js-client |
+| **Expired uploads** | Server returns 404/410, client starts fresh | tuspyserver: 5-day default |
+
+**Client-side persistence** (optional, for browser refresh survival):
+
+```typescript
+const upload = new tus.Upload(file, {
+  // Store upload URL in localStorage for resume after page refresh
+  storeFingerprintForResuming: true,
+  // Custom fingerprint for matching files
+  fingerprint: (file) => `${file.name}-${file.size}-${file.lastModified}`,
+});
 ```
+
+---
+
+## Rejected Alternatives
+
+### 1. Uppy (@uppy/core + @uppy/tus)
+
+| Aspect | Assessment |
+|--------|------------|
+| **What it is** | Full-featured upload UI library with TUS support |
+| **Version** | 5.2.2 (Sept 2025 release) |
+| **Why rejected** | **Overkill** - Includes Dashboard UI, file preview, cloud providers. You already have react-dropzone UI. Would replace working UI code unnecessarily. |
+| **When to use** | Greenfield projects needing complete upload UI |
+
+### 2. @rpldy/chunked-uploady
+
+| Aspect | Assessment |
+|--------|------------|
+| **What it is** | React-native chunked upload with Content-Range headers |
+| **Version** | ~1.13.0 |
+| **Why rejected** | **Non-standard protocol** - Uses custom Content-Range chunking, not TUS. Less ecosystem support. Server must implement custom chunk reassembly. No automatic resume on network failure. |
+| **When to use** | Simple chunking without resume requirement |
+
+### 3. Custom File.slice() Implementation
+
+| Aspect | Assessment |
+|--------|------------|
+| **What it is** | Manual chunking with fetch/axios |
+| **Why rejected** | **Reinventing the wheel** - Must build: chunk tracking, resume logic, retry logic, progress aggregation, server reassembly. TUS protocol solves all of this. |
+| **When to use** | Highly custom requirements not covered by TUS extensions |
+
+### 4. fastapi-tusd
+
+| Aspect | Assessment |
+|--------|------------|
+| **What it is** | Alternative TUS server for FastAPI |
+| **Version** | 0.100.2 (May 2024) |
+| **Why rejected** | **Less maintained** - 23 commits total, last release May 2024. tuspyserver is more actively maintained (Nov 2025 release) with better FastAPI integration patterns. |
+| **When to use** | If you need S3 storage backend (partial support) |
+
+### 5. S3 Multipart Upload (Direct)
+
+| Aspect | Assessment |
+|--------|------------|
+| **What it is** | Upload directly to S3 with presigned URLs |
+| **Why rejected** | **Different architecture** - Bypasses your FastAPI server entirely. Good for CDN delivery, but you need files on server for WhisperX processing. Would require downloading from S3 before transcription. |
+| **When to use** | Large-scale systems with separate processing workers |
+
+---
+
+## Version Compatibility Matrix
+
+| Component | Current Version | Required For Chunked Uploads | Compatible |
+|-----------|-----------------|------------------------------|------------|
+| React | 19.2.0 | tus-js-client (any React) | Yes |
+| Node.js | (build tool) | tus-js-client 4.x requires Node 18+ | Verify |
+| FastAPI | 0.128.0 | tuspyserver requires >=0.110 | Yes |
+| Python | 3.11 | tuspyserver requires >=3.8 | Yes |
+| react-dropzone | 14.3.8 | N/A (composable) | Yes |
+
+---
+
+## Migration Path
+
+### Phase 1: Add Dependencies (Low Risk)
+```bash
+# Frontend
+npm install tus-js-client@^4.3.1
+
+# Backend
+pip install tuspyserver==4.2.3
+```
+
+### Phase 2: Backend Setup
+1. Mount TUS router at `/uploads/`
+2. Configure CORS to expose TUS headers
+3. Set `files_dir` to upload destination
+4. Add post-upload hook for transcription trigger
+
+### Phase 3: Frontend Integration
+1. Keep react-dropzone for file selection
+2. Replace direct upload with tus-js-client
+3. Update progress UI to use TUS `onProgress`
+4. Add resume capability (optional)
+
+### Phase 4: Existing Flow Preservation
+- Keep WebSocket for transcription progress
+- Keep existing result delivery
+- Only upload mechanism changes
+
+---
 
 ## Sources
 
-### HIGH Confidence (Official Documentation)
+### Primary (HIGH Confidence)
+- [tus-js-client GitHub Releases](https://github.com/tus/tus-js-client/releases) - v4.3.1 confirmed Jan 2025
+- [tus-js-client API Documentation](https://github.com/tus/tus-js-client/blob/main/docs/api.md) - chunkSize, retryDelays, onProgress
+- [tuspyserver PyPI](https://pypi.org/project/tuspyserver/) - v4.2.3, Nov 2025
+- [tuspyserver GitHub](https://github.com/edihasaj/tuspy-fast-api) - FastAPI integration patterns
+- [TUS Protocol Specification](https://tus.io/protocols/resumable-upload) - Expiration, resume behavior
 
-- Vite 7.3.1 release notes — https://vite.dev/releases (current stable version, Node 20.19+ requirement)
-- TanStack Query v5 overview — https://tanstack.com/query/latest/docs/framework/react/overview
-- Bun 1.3.6 release — https://github.com/oven-sh/bun/releases (latest stable, Jan 13 2026)
-- React Router 7.13 changelog — https://reactrouter.com/changelog
-- FastAPI Static Files — https://fastapi.tiangolo.com/tutorial/static-files/
-- TailwindCSS v4 Vite plugin — https://tailwindcss.com/docs (@tailwindcss/vite 4.1.18)
-- Zustand v5 migration — https://zustand.docs.pmnd.rs/migrations/migrating-to-v5
+### Secondary (MEDIUM Confidence)
+- [Cloudflare Stream TUS Docs](https://developers.cloudflare.com/stream/uploading-videos/resumable-uploads/) - Chunk size requirements
+- [Cloudflare Community: TUS behind proxy](https://community.cloudflare.com/t/upload-with-tus-protocol-returns-413-for-large-videos-623-mb/603198) - 100MB limit confirmation
+- [Uppy React Docs](https://uppy.io/docs/react/) - v5.x release info
 
-### MEDIUM Confidence (Multiple Credible Sources)
-
-- shadcn/ui ecosystem adoption — https://www.untitledui.com/blog/react-component-libraries (2026 libraries comparison)
-- React state management patterns — https://www.nucamp.co/blog/state-management-in-2026-redux-context-api-and-modern-patterns
-- Zustand + TanStack Query combo — https://dev.to/martinrojas/federated-state-done-right-zustand-tanstack-query-and-the-patterns-that-actually-work-27c0
-- FastAPI + React embedding — https://medium.com/@asafshakarzy/embedding-a-react-frontend-inside-a-fastapi-python-package-in-a-monorepo-c00f99e90471
-- FastAPI WebSocket + React — https://medium.com/@suganthi2496/fastapi-websockets-react-real-time-features-for-your-modern-apps-b8042a10fd90
-
-### LOW Confidence (Single Source / Training Data)
-
-- react-dropzone version 14.3.x — npm registry (stable, but verify before install)
-
----
-*Stack research for: React frontend embedded in FastAPI*
-*Researched: 2026-01-27*
+### Tertiary (LOW Confidence - Community Sources)
+- [FastAPI Discussion: Big File Uploads](https://github.com/fastapi/fastapi/discussions/9828) - Chunking patterns
+- [Transloadit Blog: Drag and Drop React](https://transloadit.com/devtips/implementing-drag-and-drop-file-upload-in-react/) - TUS integration patterns

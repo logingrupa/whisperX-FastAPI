@@ -1,291 +1,268 @@
 # Project Research Summary
 
-**Project:** WhisperX Transcription Workbench UI
-**Domain:** React frontend embedded in FastAPI (ML-powered transcription web application)
-**Researched:** 2026-01-27
+**Project:** WhisperX Transcription App - v1.1 Chunked Uploads
+**Domain:** Large file upload for audio/video transcription services
+**Researched:** 2026-01-29
 **Confidence:** HIGH
 
 ## Executive Summary
 
-WhisperX is a self-hosted speech-to-text transcription system that needs a modern web interface for batch audio processing. Based on comprehensive research across 200+ sources, the recommended approach is to build a React 19 SPA embedded directly in the existing FastAPI application, using WebSockets for real-time progress updates during long-running ML inference tasks. This architecture avoids CORS complexity, provides a single-container deployment, and leverages established patterns from the transcription software industry (Otter.ai, Descript, Rev.com).
+WhisperX needs to support 500MB+ audio/video files through Cloudflare's 100MB per-request limit. Research shows the proven solution is implementing the TUS resumable upload protocol using **tus-js-client** (frontend) and **tuspyserver** (backend). This approach is battle-tested by Cloudflare Stream, Vimeo, and Supabase, provides automatic resume after network failures, and requires minimal changes to existing architecture.
 
-The core technical challenge is managing long-running ML tasks (5-30+ minutes for large files) with real-time progress feedback to users. The recommended stack — React 19 + Vite 7 + TanStack Query + Zustand for state, shadcn/ui for components — represents the 2026 community default and provides proven solutions for async state management. Critical risks center around WebSocket connection stability during long transcriptions, memory management for large file uploads, and event loop blocking from synchronous I/O operations.
+The recommended implementation keeps the existing react-dropzone UI and WebSocket progress infrastructure unchanged. Files under 100MB continue using the current single-request flow, while larger files are chunked at 50MB per request. The TUS protocol handles all complexity around resumability, retry logic, and session management. The backend tuspyserver library provides a FastAPI router that mounts alongside existing endpoints with post-upload hooks that trigger the existing transcription pipeline.
 
-Success depends on addressing infrastructure concerns (WebSocket reliability, task queuing, streaming file uploads) before building UI features. The research identifies 7 critical pitfalls that must be prevented in early phases, particularly WebSocket connection loss during ML processing and memory exhaustion from naive file handling patterns. The recommended phase structure prioritizes these foundational concerns, then layers on UI features incrementally.
+Critical risks center on Cloudflare compatibility (chunk size must be under 100MB), storage management (orphaned chunks from incomplete uploads), and CORS configuration (TUS headers must be exposed). The research identified 8 table-stakes features users expect for large file uploads, including resume after page refresh, automatic retry, and smooth progress indicators. Implementation can follow a clear four-phase approach that minimizes risk by keeping existing flows intact.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The 2026 React ecosystem has converged on Vite + TypeScript + TailwindCSS as the build foundation, with shadcn/ui components (copy-paste, not npm installed) as the de facto UI library. For this transcription workbench, state management follows the hybrid pattern: TanStack Query handles all server state (tasks, transcripts, models) with automatic caching and polling, while Zustand manages the remaining 20% of truly client-side UI state (modal visibility, connection status, upload progress).
+Research strongly recommends adopting the TUS resumable upload protocol over custom chunking implementations. TUS is an industry standard with mature client and server libraries that handle the edge cases that plague custom implementations.
 
 **Core technologies:**
-- React 19.2 + Vite 7.3: Modern SPA foundation with fast HMR, native ESM, requires Node 20.19+
-- TanStack Query 5.x: Server state caching, automatic retries, polling for task status — eliminates Redux boilerplate
-- Zustand 5.x: Lightweight (1KB) client state for modals, preferences, WebSocket connection state
-- shadcn/ui + Radix primitives: Component library copied into codebase, full ownership, built-in accessibility
-- TailwindCSS 4.1: Styling with Vite plugin, CSS-first config, no PostCSS needed
-- Bun 1.3.6: Package manager 2-3x faster than npm, native TypeScript support for dev workflows
+- **tus-js-client v4.3.1**: Pure JavaScript TUS protocol client with automatic resume, configurable chunk size (set to 50MB), retry delays, and progress callbacks that integrate with existing UI
+- **tuspyserver v4.2.3**: FastAPI-native TUS server with dependency injection hooks, built-in cleanup (5-day default expiration), and minimal dependencies (only requires fastapi>=0.110)
+- **Existing stack preserved**: React-dropzone continues handling file selection, WebSocket continues handling transcription progress, no UI rewrites required
 
-**Critical for FastAPI integration:**
-- Vite config must set `base: '/ui/'` to match FastAPI mount path
-- SPAStaticFiles handler with catch-all for React Router client-side routing
-- Native WebSocket (no socket.io) aligns with FastAPI's Starlette WebSocket implementation
-- Development proxy configured in Vite for `/api` and `/ws` endpoints to FastAPI backend
+**Why TUS over custom chunking:**
+Custom implementations repeatedly suffer from memory exhaustion (loading all chunks into memory), race conditions (parallel chunk uploads), session state loss (in-memory tracking), and orphaned storage leaks. TUS solves these through standardized protocol headers (Upload-Offset, Location, Tus-Resumable), server-side state management, and proven Cloudflare compatibility when chunks are kept under 100MB.
+
+**Cloudflare constraint:** Chunk size must be configured to 50MB (safe margin under 100MB limit). Files exceeding 512MB may hit Cloudflare's cache reassembly limit, but this is acceptable for WhisperX's target use case.
 
 ### Expected Features
 
-Research into competitive transcription tools (Otter.ai, Descript, Rev.com, Sonix) reveals clear feature tiers. Table stakes features are those users assume exist; missing them makes the product feel incomplete. Differentiators leverage WhisperX's self-hosted nature and model flexibility, offering capabilities SaaS tools cannot provide.
+Research identified 8 table-stakes features that users expect from chunked upload systems. Missing any of these makes uploads feel broken.
 
 **Must have (table stakes):**
-- Drag-and-drop multi-file upload with format validation (MP3, WAV, MP4, MOV, M4A, FLAC, OGG)
-- Real-time progress indicator via WebSocket (percentage, stages, ETA) — not just a spinner
-- Transcript viewer with paragraph-level timestamps and speaker labels (Speaker 1, Speaker 2, etc.)
-- Language selection with auto-detection from filename patterns (A03=Latvian, A04=Russian, A05=English)
-- Export to SRT, VTT, plain text, and JSON formats for different downstream workflows
-- Basic error handling with actionable messages, not raw API errors
+- **Overall file progress bar**: Users need transparent progress to reduce anxiety; chunked uploads without smooth progress feel unresponsive
+- **Automatic retry on failure**: Network hiccups are common; system must retry silently (max 3 attempts with exponential backoff) before showing error
+- **Resume after page refresh**: Losing 80% of a 500MB upload on accidental browser close is unacceptable; localStorage-based session persistence is required
+- **Clear error messages**: "Upload Failed" is useless; errors must be actionable ("Network error. Click to retry")
+- **Cancel upload button**: Users must be able to stop uploads immediately without confirmation dialogs
+- **Upload speed indicator**: For large files, users want to estimate completion time (show "X MB/s" or "~Y minutes remaining")
+- **File size validation before upload**: Prevent wasted time uploading files that exceed server limits
+- **Smooth progress updates**: Progress bar must update every 2-3 seconds, not jump in large increments
 
 **Should have (competitive):**
-- Model selection dropdown (tiny/base/small/medium/large) — unique to self-hosted Whisper
-- Model download manager UI for adding new models on-demand
-- Batch processing queue with pause, reorder, cancel capabilities
-- Word-level timestamps with click-to-play audio navigation (Descript/Rev feature)
-- Confidence score display to flag low-accuracy segments for review
-- Dark mode for developer preference and long editing sessions
+- **Pause/resume button**: User-initiated pause for bandwidth management (defer to v1.2)
+- **Background upload via Service Worker**: Upload continues if user navigates away (defer to v1.2)
+- **Parallel chunk uploads**: Faster uploads on high-bandwidth connections (defer - adds complexity)
 
 **Defer (v2+):**
-- Inline transcript editing (complex state management, undo/redo, timestamp sync)
-- Real-time live transcription (different architecture, streaming audio, separate use case)
-- Custom vocabulary/dictionary for domain-specific terms (needs API investigation)
-- AI summarization or chat features (scope creep, requires LLM integration)
-- Video player with transcript sync (HTML5 video complexity, format issues)
+- Per-chunk progress visualization (overwhelming for users)
+- Chunk size configuration (implementation detail users don't understand)
+- Upload history/persistence across sessions (scope creep beyond v1.1)
+- Confirmation dialogs on cancel (adds friction; cancel should be immediate and reversible)
+
+**UX pattern:** Progress UI should show two distinct phases: "Uploading... X%" (driven by TUS onProgress callback) followed by "Processing..." (driven by existing WebSocket for transcription stages). Don't try to unify these too early.
 
 ### Architecture Approach
 
-The recommended architecture embeds the React SPA directly in FastAPI via static file serving, avoiding CORS configuration and providing single-container deployment. This follows the standard pattern for ML-backed web applications where the frontend and backend are tightly coupled and deployed together. The system uses three communication channels: REST API for CRUD operations and file uploads, WebSocket for real-time progress streaming, and static file serving for the built React application.
+The chunked upload system integrates as a parallel flow to the existing single-file upload, reusing most infrastructure.
 
 **Major components:**
-1. **FastAPI WebSocket endpoint** (`/ws/tasks/{task_id}`) with ConnectionManager — maintains active connections per task, broadcasts progress updates to all subscribers. Must implement heartbeat (ping/pong every 15-30s) to prevent proxy timeouts during long ML inference.
 
-2. **SPAStaticFiles handler** at `/ui` route — serves React build output with catch-all 404 handler returning index.html for client-side routing. API routes must be mounted BEFORE static files to take precedence.
+1. **TUS Upload Router (Backend)**: New `/uploads/` endpoint mounted in FastAPI that handles TUS protocol negotiation, chunk storage, and automatic cleanup. Uses tuspyserver's built-in dependency injection to trigger transcription after assembly.
 
-3. **TanStack Query + Zustand state layer** — TanStack Query manages all server state (task list, task details) with polling and caching. Zustand holds UI state (selected task, modal visibility, upload progress). WebSocket updates trigger React Query cache invalidation for consistency.
+2. **Upload Decision Layer (Frontend)**: Modified `useUploadOrchestration.ts` checks file size. Files under 100MB use existing `/speech-to-text` endpoint, files over 100MB use TUS client. Both flows converge at the same WebSocket progress tracking.
 
-4. **Streaming file upload handler** — uses `async for chunk in file` pattern with aiofiles to avoid loading entire audio/video files into memory. Critical for handling 100MB+ uploads without OOM errors.
+3. **Existing Infrastructure (Reused)**: WebSocket ConnectionManager, progress emitter, transcription pipeline, and result delivery remain unchanged. TUS upload completes, triggers existing `process_audio_common` function, everything downstream is identical.
 
-5. **Background task queue** (Celery or ARQ) — FastAPI BackgroundTasks is insufficient for ML inference. Celery provides persistence, retries, and progress tracking. WebSocket broadcasts updates from Celery progress callbacks.
+**Integration pattern:**
+```
+Small file (<100MB):
+[react-dropzone] -> [POST /speech-to-text] -> [Transcription] -> [WebSocket Progress]
+
+Large file (>100MB):
+[react-dropzone] -> [tus-js-client] -> [POST /uploads/ (TUS)] -> [Assembly Hook] -> [Transcription] -> [WebSocket Progress]
+```
+
+**Key decision:** Research explored custom implementation but recommends TUS because the protocol solves session management, resume logic, and retry handling through standardized headers. Custom implementations repeatedly fail on these edge cases.
+
+**CORS requirement:** TUS requires exposing specific headers through Cloudflare (Location, Upload-Offset, Upload-Length, Tus-Resumable). This is a deployment configuration step that's easy to miss.
 
 ### Critical Pitfalls
 
-Research identified 7 critical pitfalls that cause production failures in React + FastAPI + ML applications. These must be addressed in foundational phases before building user-facing features.
+Research identified 14 pitfalls across three severity levels. These are the top 5 that require explicit prevention:
 
-1. **WebSocket connection loss during long transcriptions** — Network infrastructure terminates idle connections after 30-120 seconds. Implement bidirectional heartbeat (ping/pong), exponential backoff reconnection, and fallback polling for task status. Store progress in Redis/database, not just in-memory, so state survives connection drops.
+1. **Chunk Assembly Memory Exhaustion**: Loading all chunks into memory before writing the final file causes server crashes with 500MB+ files. TUS prevents this by writing chunks directly to disk and using file system operations for assembly. FastAPI's default `File()` parameter must be avoided.
 
-2. **Memory exhaustion from large file uploads** — Using `await file.read()` loads entire file into memory. A 500MB video upload spikes server memory by 500MB. Stream uploads chunk-by-chunk with `async for chunk in file` and aiofiles. Set explicit chunk sizes (1-5MB) and file size limits (validate Content-Length BEFORE reading).
+2. **Cloudflare 100MB Per-Request Limit**: Individual chunk requests larger than 100MB are rejected with 413 error before reaching origin. Solution: Configure `chunkSize: 50 * 1024 * 1024` in tus-js-client (50MB provides safe margin). This is a configuration constant, not user-facing.
 
-3. **Event loop blocking with synchronous file I/O** — Standard Python `file.write()` blocks the entire async event loop. During large file writes, ALL other requests queue up. Use aiofiles for all file operations. Move CPU-bound work to thread pool via `run_in_threadpool`.
+3. **Orphaned Chunks Storage Leak**: Incomplete uploads leave chunks on disk forever if cleanup isn't implemented. tuspyserver provides built-in expiration (5-day default) and `remove_expired_files()` function. Schedule this with existing APScheduler infrastructure.
 
-4. **React Router 404 on page refresh** — React handles routes client-side, but browser refresh hits FastAPI first. Without catch-all route, `/transcribe/123` returns 404. Implement 404 exception handler that returns index.html for non-API paths. Mount API routes BEFORE static files.
+4. **CORS Header Exposure**: Browsers block TUS uploads if response headers aren't exposed through CORS. Cloudflare configuration must include `expose_headers` for TUS protocol headers (Location, Upload-Offset, etc.). Works in development, fails in production if missed.
 
-5. **FastAPI BackgroundTasks for ML inference** — BackgroundTasks run in event loop, blocking other requests. No persistence (server restart loses tasks), no retry mechanism, no progress tracking. Use Celery + Redis for all tasks >5 seconds. Store task state in database, not in-memory.
+5. **Cloudflare Rate Limiting False Positives**: Multiple rapid chunk requests from same IP can trigger DDoS protection. A 500MB file with 50MB chunks generates 10 requests in quick succession. Solution: Add WAF rule to exclude `/uploads/` endpoint from rate limiting, or use unproxied subdomain for uploads.
+
+**Phase-specific warnings:**
+- **Backend Setup Phase**: Must configure CORS to expose TUS headers before frontend integration
+- **Frontend Integration Phase**: Must set chunk size to 50MB; testing with larger chunks will work locally but fail through Cloudflare
+- **Deployment Phase**: Cloudflare WAF rules must exclude upload endpoint from rate limiting
+
+**Rejected approach:** Custom chunking using `File.slice()` and manual session tracking. Research shows this requires building session state management, retry logic, resume detection, and assembly validation from scratch. Every one of these has well-documented failure modes (race conditions, memory leaks, off-by-one errors). TUS protocol solves all of these through standardization.
 
 ## Implications for Roadmap
 
-Based on research, the roadmap must prioritize infrastructure over UI features. Critical pitfalls cluster around WebSocket reliability, task queuing, and file handling — all foundational concerns that must be solved before building upload forms or transcript viewers. The recommended phase structure addresses these dependencies explicitly.
+Based on research, this feature follows a clear four-phase structure with minimal risk to existing functionality.
 
-### Phase 1: WebSocket & Task Infrastructure
-**Rationale:** WebSocket connection stability is the highest-risk technical challenge. Must be foundational before building any progress UI. Task queuing (Celery/ARQ) is required for ML inference persistence and progress tracking.
+### Phase 1: Backend TUS Integration
+**Rationale:** Establish upload capability before modifying frontend. Backend can be tested independently with `tus-js-client` in isolation. Keeps existing frontend working throughout.
 
-**Delivers:** WebSocket endpoint with ConnectionManager, heartbeat mechanism, reconnection logic. Task queue setup (Celery + Redis) with progress emission. Task status endpoint for fallback polling.
+**Delivers:**
+- TUS router mounted at `/uploads/` endpoint
+- CORS configuration exposing TUS headers
+- Chunk storage and cleanup infrastructure
+- Post-upload hook triggering existing transcription pipeline
 
-**Addresses:** Pitfall 1 (connection loss), Pitfall 5 (BackgroundTasks blocking), Pitfall 6 (CORS for WebSocket)
+**Addresses:**
+- Cloudflare 100MB limit (chunks configured at 50MB)
+- Memory exhaustion (tuspyserver writes chunks to disk)
+- Orphaned storage (built-in expiration)
 
-**Avoids:** Building progress UI before backend can reliably push updates. Using BackgroundTasks for ML tasks.
+**Avoids:**
+- Race conditions (tuspyserver handles state atomically)
+- Session state loss (persisted to files_dir)
 
-**Research flag:** Standard pattern (FastAPI WebSocket docs, Celery docs). No additional research needed.
+**Research flags:** Standard implementation following tuspyserver documentation. No additional research needed.
 
-### Phase 2: File Upload Infrastructure
-**Rationale:** File handling pitfalls (memory exhaustion, event loop blocking) must be solved before building upload UI. Streaming patterns required for audio/video files >100MB.
+### Phase 2: Frontend TUS Integration
+**Rationale:** With backend proven, add frontend TUS client. File size decision layer keeps existing flow working for small files.
 
-**Delivers:** Streaming file upload handler with chunk processing, aiofiles integration, file size validation, format validation (MIME type + extension + magic bytes). Upload progress tracking separate from processing progress.
+**Delivers:**
+- tus-js-client integrated with react-dropzone
+- File size threshold (100MB) decision logic in `useUploadOrchestration.ts`
+- Progress UI showing upload percentage (TUS onProgress callback)
+- Resume capability via localStorage fingerprinting
 
-**Addresses:** Pitfall 2 (memory exhaustion), Pitfall 3 (event loop blocking), Features (drag-drop multi-file upload)
+**Uses:**
+- tus-js-client v4.3.1 with configured chunk size
+- Existing react-dropzone for file selection (no UI changes)
+- Existing progress components with new upload phase
 
-**Avoids:** Naive `file.read()` pattern that causes OOM crashes. Synchronous file I/O blocking event loop.
+**Implements:**
+- Upload decision layer (architecture component)
+- Two-phase progress (uploading -> processing)
 
-**Research flag:** Standard pattern (FastAPI file upload docs). No additional research needed.
+**Avoids:**
+- WebSocket state desynchronization (keep upload progress in HTTP layer)
+- Off-by-one errors in Content-Range (TUS handles protocol math)
 
-### Phase 3: Build Integration & SPA Serving
-**Rationale:** Embedding React in FastAPI requires correct static file configuration and catch-all routing. Must be set up before building complex frontend features.
+**Research flags:** Standard implementation. TUS client API documentation is comprehensive.
 
-**Delivers:** Vite configuration (`base: '/ui/'`), SPAStaticFiles handler with 404 catch-all, development proxy for `/api` and `/ws` endpoints. Docker multi-stage build copying `dist/` to container.
+### Phase 3: Resilience & Polish
+**Rationale:** With core flow working, add error handling and edge case coverage identified in pitfalls research.
 
-**Addresses:** Pitfall 4 (React Router 404), Stack (Vite + FastAPI integration)
+**Delivers:**
+- Automatic retry with exponential backoff (TUS retryDelays configuration)
+- Clear error messages for permanent failures
+- Cancel button integration (abort TUS upload)
+- Upload speed and time remaining indicators
 
-**Avoids:** CORS configuration complexity by serving from same origin. 404 errors on page refresh.
+**Addresses:**
+- Poor error recovery UX (table stakes feature)
+- Auto-retry logic (table stakes feature)
+- Cancel handling (table stakes feature)
 
-**Research flag:** Standard pattern (FastAPI static files, Vite base path). No additional research needed.
+**Avoids:**
+- Confirmation dialogs on cancel (anti-feature from research)
+- Per-chunk error UI (anti-feature - users don't care which chunk failed)
 
-### Phase 4: Core Upload Flow
-**Rationale:** With infrastructure complete, build the primary user workflow: upload files, start transcription, get task ID.
+**Research flags:** Standard patterns covered in feature research. No additional research needed.
 
-**Delivers:** Upload page with drag-drop (react-dropzone), file queue display, language selection dropdown, filename-based language detection (A03/A04/A05 pattern), form validation, upload mutation with TanStack Query.
+### Phase 4: Cloudflare Deployment
+**Rationale:** Cloudflare-specific configuration can only be validated in production-like environment. Separate phase ensures testing with actual proxy behavior.
 
-**Addresses:** Features (drag-drop upload, multi-file, language selection, auto-detection)
+**Delivers:**
+- Cloudflare CORS rules for TUS headers
+- WAF rule excluding `/uploads/` from rate limiting
+- Verification of 50MB chunk size through proxy
+- Monitoring for 413 errors (chunk size issues)
 
-**Uses:** Stack (react-dropzone, TanStack Query mutations, shadcn/ui components)
+**Addresses:**
+- Cloudflare rate limiting false positives (critical pitfall)
+- CORS header exposure (critical pitfall)
 
-**Research flag:** Standard pattern (react-dropzone docs, TanStack Query mutations). No additional research needed.
+**Avoids:**
+- Cloudflare timeout during assembly (tuspyserver handles asynchronously)
 
-### Phase 5: Real-Time Progress Tracking
-**Rationale:** Now that WebSocket infrastructure is proven reliable, build the UI layer for progress updates.
-
-**Delivers:** useWebSocket custom hook with reconnection, useTaskProgress hook subscribing to task updates, ProgressBar component with stages (Uploading, Queued, Transcribing, Aligning, Diarizing, Complete), percentage display, ETA calculation.
-
-**Addresses:** Features (real-time progress via WebSocket), Pitfall 7 (progress desync)
-
-**Implements:** Architecture (WebSocket client hook, progress state in Zustand)
-
-**Avoids:** Progress desync by including sequence numbers in messages. Race conditions from out-of-order updates.
-
-**Research flag:** Standard pattern (WebSocket best practices). No additional research needed.
-
-### Phase 6: Transcript Viewer & Export
-**Rationale:** Display transcription results with professional formatting and export options.
-
-**Delivers:** TranscriptViewer component with speaker labels, paragraph-level timestamps, clickable timestamps (jump to audio position if word-level data available). Export modal with format selection (SRT, VTT, TXT, JSON). Format conversion utilities.
-
-**Addresses:** Features (transcript viewer, speaker labels, timestamps, export formats)
-
-**Uses:** Stack (shadcn/ui Table, Modal components)
-
-**Research flag:** Format specs (SRT/VTT) are well-documented. Standard pattern. No additional research needed.
-
-### Phase 7: Model Management (v1.x)
-**Rationale:** Differentiator feature unique to self-hosted Whisper. Can be added after core transcription workflow is validated.
-
-**Delivers:** Models page listing available models (tiny, base, small, medium, large), download manager with progress tracking, model status indicators (available, downloading, failed), model selection integrated into upload form.
-
-**Addresses:** Features (model management UI, model selection dropdown)
-
-**Implements:** Architecture (separate admin panel, independent of transcription flow)
-
-**Research flag:** WhisperX model download API needs investigation during phase planning. Likely needs `/gsd:research-phase` for API contract details.
-
-### Phase 8: Advanced Features (v2+)
-**Rationale:** Defer high-complexity features until product-market fit established and user feedback collected.
-
-**Delivers:** Word-level click-to-play navigation, confidence score display, batch queue management (pause, reorder, cancel), dark mode toggle.
-
-**Addresses:** Features (click-to-play, confidence scores, batch queue, dark mode)
-
-**Research flag:** Word-level timestamps require API investigation. Click-to-play audio sync is complex. Likely needs `/gsd:research-phase` during planning.
+**Research flags:** Cloudflare-specific configuration needs validation in staging environment with actual proxy.
 
 ### Phase Ordering Rationale
 
-**Why infrastructure first:** Critical pitfalls (WebSocket drops, memory exhaustion, event loop blocking) affect foundational code that UI features depend on. Refactoring file upload patterns after building the UI is costly. Solving these problems first enables rapid feature development in later phases.
+**Why backend-first:** tuspyserver can be tested with curl or standalone TUS client before touching existing frontend. Reduces risk of breaking working upload flow.
 
-**Why WebSocket before upload UI:** Upload UI shows progress, but progress requires reliable WebSocket connection. Building upload UI first leads to rework when WebSocket implementation requires changes (heartbeat, reconnection, fallback polling).
+**Why decision layer matters:** Files under 100MB continue using existing fast path (`/speech-to-text`). Only large files incur TUS overhead. This preserves current user experience for majority of uploads.
 
-**Why build integration early:** React Router 404 pitfall affects all frontend routes. Static file serving must be correct before building multiple pages. Vite configuration affects development workflow — better to solve early.
+**Why resilience is separate phase:** Core upload-and-transcribe flow must work before adding retry/resume complexity. Easier to debug when error handling is layered on top of working foundation.
 
-**Why model management deferred:** Core workflow (upload, transcribe, export) validates the product concept. Model management is a power-user feature that can be added after validating demand. It's architecturally independent (separate page), so deferring doesn't create technical debt.
+**Why Cloudflare configuration is last:** WAF rules and CORS settings can only be validated with production-like traffic patterns. Backend and frontend must be working before introducing proxy-specific issues.
+
+**Dependency insight:** WebSocket progress infrastructure is reused, not modified. Upload progress comes from TUS `onProgress` callback (HTTP), transcription progress comes from existing WebSocket. These are sequential phases, not parallel streams.
 
 ### Research Flags
 
-Phases likely needing deeper research during planning:
-- **Phase 7 (Model Management):** WhisperX model download API contract unclear from public docs. Needs investigation of model storage paths, download progress callbacks, and model switching without restart.
-- **Phase 8 (Click-to-Play):** Audio player synchronization with word-level timestamps is complex. May need research into HTML5 audio API, timeline scrubbing, and word boundary alignment.
-
 Phases with standard patterns (skip research-phase):
-- **Phase 1 (WebSocket & Task Infrastructure):** FastAPI WebSocket and Celery are well-documented with established patterns.
-- **Phase 2 (File Upload Infrastructure):** Streaming file uploads with aiofiles is standard pattern in FastAPI docs.
-- **Phase 3 (Build Integration):** Vite + FastAPI static files serving is documented in multiple sources.
-- **Phase 4 (Upload Flow):** react-dropzone and TanStack Query mutations are standard React patterns.
-- **Phase 5 (Progress Tracking):** WebSocket client patterns and reconnection logic are well-established.
-- **Phase 6 (Transcript Viewer):** SRT/VTT export formats have clear specifications.
+- **Phase 1 (Backend)**: tuspyserver documentation is comprehensive; FastAPI integration is straightforward
+- **Phase 2 (Frontend)**: tus-js-client API is well-documented; integration pattern is standard
+- **Phase 3 (Resilience)**: Error handling patterns are generic; UX research already captured expectations
+
+Phases needing validation during implementation:
+- **Phase 4 (Cloudflare)**: WAF rules and CORS configuration are environment-specific; needs testing in staging with actual proxy before production
+
+**No deep research needed:** This feature is well-understood with mature libraries. Implementation follows established patterns. Cloudflare configuration is documented; just needs hands-on validation.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All recommendations based on official docs (Vite 7, React 19, TanStack Query 5, Zustand 5). Version compatibility verified across 2026 release notes. |
-| Features | MEDIUM-HIGH | Feature analysis based on competitive research (Otter, Descript, Rev, Sonix) and 8+ transcription software comparisons. Table stakes features consistent across sources. Differentiators (model selection) specific to self-hosted context. |
-| Architecture | HIGH | WebSocket + task queue + streaming uploads is standard pattern for ML-backed web apps. FastAPI static files serving documented in official guides. Multiple verified implementation examples. |
-| Pitfalls | HIGH | All 7 pitfalls verified via official GitHub discussions, FastAPI issues, and community guides. WebSocket timeout issues, memory exhaustion, and event loop blocking are well-documented production failures. |
+| Stack | HIGH | TUS protocol is mature (2013); tus-js-client and tuspyserver actively maintained; proven Cloudflare compatibility |
+| Features | HIGH | Uploadcare, FileStack, and NN/g provide authoritative UX research; feature expectations are consistent across sources |
+| Architecture | HIGH | Integration pattern is clean; existing WebSocket and transcription pipeline remain unchanged; parallel flow reduces risk |
+| Pitfalls | HIGH | Pitfalls verified across multiple implementations (ownCloud, rclone, TUS-PHP); prevention strategies are proven |
 
 **Overall confidence:** HIGH
 
-Research synthesis is based on 200+ sources including official documentation (FastAPI, Vite, TanStack Query, React Router), verified implementation guides, GitHub discussions with maintainer responses, and competitive feature analysis. Stack recommendations align with 2026 React ecosystem consensus (shadcn/ui adoption, TanStack Query + Zustand pattern, Vite as default). Architecture patterns are proven in production at scale.
-
 ### Gaps to Address
 
-**WhisperX API progress callbacks:** Research assumes WhisperX can emit progress during transcription, alignment, and diarization stages. Needs verification during Phase 1 planning. If API doesn't support progress callbacks, may need to poll task status or estimate progress based on file size.
+Research identified three areas needing attention during implementation:
 
-**Model download mechanism:** Model management features (Phase 7) assume models can be downloaded via API calls. Needs investigation of WhisperX's model storage, HuggingFace integration, and whether download progress can be tracked. If models must be manually installed via CLI, Phase 7 scope changes to model selection only.
+- **Cloudflare WAF rules**: Documentation describes configuration, but exact rule syntax depends on Cloudflare plan level. Validate in staging before production deployment. Test with multiple file sizes (50MB, 200MB, 500MB) through proxy.
 
-**Word-level timestamp availability:** Click-to-play feature (Phase 8) requires word-level timestamps from WhisperX API. If only segment-level or paragraph-level timestamps available, feature must be redesigned around paragraph navigation instead.
+- **Cleanup scheduler timing**: tuspyserver defaults to 5-day expiration. WhisperX usage patterns may warrant shorter TTL (e.g., 24 hours for single-server deployment). Monitor orphaned chunk growth during beta to tune expiration.
 
-**Audio player requirements:** Click-to-play assumes audio files are stored and accessible to browser for playback. If audio files are deleted after transcription, feature requires keeping audio or streaming from original upload. Needs file retention policy decision during Phase 8 planning.
+- **Resume UX messaging**: Research shows users expect "Resume upload of filename.mp4? (450MB remaining)" prompt, but TUS automatic resume via fingerprinting is silent. Consider whether explicit resume UI adds value or just confusion. Test with real users.
 
-**Concurrent task limits:** Research doesn't specify optimal concurrent ML task limits. Depends on GPU memory and CPU resources. Needs load testing during Phase 1 to determine queue configuration (e.g., max 2 concurrent GPU tasks).
+**Validation approach:**
+1. Deploy to staging with Cloudflare proxy enabled
+2. Test uploads from slow/interrupted connections
+3. Monitor chunk storage and cleanup behavior
+4. Gather user feedback on resume experience
 
 ## Sources
 
 ### Primary (HIGH confidence)
-
-**Official Documentation:**
-- FastAPI WebSockets — https://fastapi.tiangolo.com/advanced/websockets/
-- FastAPI Static Files — https://fastapi.tiangolo.com/tutorial/static-files/
-- FastAPI File Uploads — https://fastapi.tiangolo.com/tutorial/request-files/
-- Vite 7.3 Release Notes — https://vite.dev/releases
-- TanStack Query v5 Overview — https://tanstack.com/query/latest/docs/framework/react/overview
-- React Router 7.13 Changelog — https://reactrouter.com/changelog
-- Zustand v5 Migration — https://zustand.docs.pmnd.rs/migrations/migrating-to-v5
-- TailwindCSS v4 Vite Plugin — https://tailwindcss.com/docs
-- Bun 1.3.6 Release — https://github.com/oven-sh/bun/releases
-
-**GitHub Discussions (Verified):**
-- FastAPI WebSocket timeout issues — https://github.com/fastapi/fastapi/discussions/11340
-- React Router 404 on refresh — https://github.com/fastapi/fastapi/discussions/11502
-- BackgroundTasks blocking — https://github.com/fastapi/fastapi/discussions/11210
-- Uploading large files — https://github.com/fastapi/fastapi/discussions/9828
-- Streaming file uploads — https://github.com/fastapi/fastapi/issues/2578
+- [TUS Protocol Specification](https://tus.io/protocols/resumable-upload) - Resumable upload standard
+- [tus-js-client GitHub](https://github.com/tus/tus-js-client) - v4.3.1 release notes and API documentation
+- [tuspyserver PyPI](https://pypi.org/project/tuspyserver/) - v4.2.3 documentation
+- [tuspyserver GitHub](https://github.com/edihasaj/tuspy-fast-api) - FastAPI integration patterns
+- [Cloudflare Connection Limits](https://developers.cloudflare.com/fundamentals/reference/connection-limits/) - 100MB request body limit
+- [Cloudflare Rate Limiting Best Practices](https://developers.cloudflare.com/waf/rate-limiting-rules/best-practices/) - WAF configuration
+- [FastAPI Request Files](https://fastapi.tiangolo.com/tutorial/request-files/) - File upload patterns
+- [Uploadcare UX Best Practices](https://uploadcare.com/blog/file-uploader-ux-best-practices/) - Upload feature research
+- [Google Cloud Resumable Uploads](https://cloud.google.com/storage/docs/resumable-uploads) - Session state management patterns
 
 ### Secondary (MEDIUM confidence)
-
-**Integration Guides:**
-- FastAPI + WebSockets + React — https://medium.com/@suganthi2496/fastapi-websockets-react-real-time-features-for-your-modern-apps-b8042a10fd90
-- Serving React with FastAPI — https://davidmuraya.com/blog/serving-a-react-frontend-application-with-fastapi/
-- FastAPI File Uploads — https://davidmuraya.com/blog/fastapi-file-uploads/
-- Embedding React in FastAPI monorepo — https://medium.com/@asafshakarzy/embedding-a-react-frontend-inside-a-fastapi-python-package-in-a-monorepo-c00f99e90471
-- Celery Progress with FastAPI — https://celery.school/celery-progress-bars-with-fastapi-htmx
-- FastAPI Background Tasks vs ARQ — https://davidmuraya.com/blog/fastapi-background-tasks-arq-vs-built-in/
-
-**Competitive Research:**
-- Reduct: 8 Best Transcription Software — https://reduct.video/blog/transcription-software-for-video/
-- Sonix: Trint vs Rev vs Sonix — https://sonix.ai/resources/trint-vs-rev-vs-sonix/
-- Cybernews: Otter AI Review 2026 — https://cybernews.com/ai-tools/otter-ai-review/
-- All About AI: Descript Review — https://www.allaboutai.com/ai-reviews/descript-ai/
-
-**Feature-Specific Research:**
-- AssemblyAI: Speaker Diarization Guide — https://www.assemblyai.com/blog/what-is-speaker-diarization-and-how-does-it-work
-- Sonix: VTT to SRT Conversion — https://sonix.ai/resources/how-to-convert-vtt-to-srt/
-- Rev: Transcript Editor Guide — https://www.rev.com/blog/rev-transcript-editor-guide
-- ElevenLabs: Audio to Text with Word Timestamps — https://elevenlabs.io/audio-to-text
-
-**State Management & Best Practices:**
-- State Management in React 2026 — https://www.nucamp.co/blog/state-management-in-2026-redux-context-api-and-modern-patterns
-- Zustand + TanStack Query patterns — https://dev.to/martinrojas/federated-state-done-right-zustand-tanstack-query-and-the-patterns-that-actually-work-27c0
-- React WebSocket Best Practices — https://maybe.works/blogs/react-websocket
-- WebSocket Reconnection Strategies — https://dev.to/hexshift/robust-websocket-reconnection-strategies-in-javascript-with-exponential-backoff-40n1
+- [Cloudinary Chunked Upload Guidelines](https://support.cloudinary.com/hc/en-us/articles/208263735-Guidelines-for-implementing-chunked-upload-to-Cloudflare) - Content-Range math
+- [Cloudflare Community: TUS behind proxy](https://community.cloudflare.com/t/upload-with-tus-protocol-returns-413-for-large-videos-623-mb/603198) - Chunk size confirmation
+- [ownCloud Orphaned Chunks Issue](https://github.com/owncloud/core/issues/26981) - Cleanup patterns
+- [FastAPI Discussion #9828](https://github.com/fastapi/fastapi/discussions/9828) - Large file upload patterns
+- [Transloadit: Chunking and Parallel Uploads](https://transloadit.com/devtips/optimizing-online-file-uploads-with-chunking-and-parallel-uploads/) - Performance patterns
 
 ### Tertiary (LOW confidence)
-
-- react-dropzone version 14.3.x — npm registry (verify before install)
-- Chunked file uploads guide — https://arnabgupta.hashnode.dev/mastering-chunked-file-uploads-with-fastapi-and-nodejs-a-step-by-step-guide
-- TUS resumable uploads — https://tus.io/ (consider for v2+ if resumable uploads needed)
+- [Medium: Async File Uploads in FastAPI](https://medium.com/@connect.hashblock/async-file-uploads-in-fastapi-handling-gigabyte-scale-data-smoothly-aec421335680) - Memory management patterns (verify independently)
+- [DEV.to: Large File Uploads](https://dev.to/leapcell/how-to-handle-large-file-uploads-without-losing-your-mind-3dck) - General patterns (ecosystem survey only)
 
 ---
-*Research completed: 2026-01-27*
+*Research completed: 2026-01-29*
 *Ready for roadmap: yes*

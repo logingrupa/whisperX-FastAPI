@@ -1,581 +1,591 @@
-# Architecture Research
+# Architecture Research: Chunked Uploads Integration
 
-**Domain:** React + FastAPI Integration for Transcription UI
-**Researched:** 2026-01-27
+**Domain:** Chunked file uploads for WhisperX transcription app
+**Researched:** 2026-01-29
 **Confidence:** HIGH
+**Constraint:** Cloudflare 100MB limit requires chunking for files > 100MB
 
-## Standard Architecture
+## Executive Summary
 
-### System Overview
+This research documents how chunked uploads integrate with the existing WhisperX FastAPI + React architecture. The system already has streaming uploads (POST /upload/stream), WebSocket progress tracking, and a transcription pipeline. Chunked uploads add a new flow for large files that bypasses proxy limits while reusing existing infrastructure.
 
-```
-                                    Single Container
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │                         FastAPI Application                           │  │
-│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────┐  │  │
-│  │  │   /api/*        │  │   /ws/*         │  │   /ui/*             │  │  │
-│  │  │   REST API      │  │   WebSocket     │  │   Static Files      │  │  │
-│  │  │   (existing)    │  │   (new)         │  │   (new)             │  │  │
-│  │  └────────┬────────┘  └────────┬────────┘  └─────────┬───────────┘  │  │
-│  │           │                    │                     │              │  │
-│  │           ▼                    ▼                     ▼              │  │
-│  │  ┌─────────────────────────────────────────────────────────────┐   │  │
-│  │  │                    Services Layer                           │   │  │
-│  │  │  TaskManagementService │ AudioProcessingService │ FileService │  │  │
-│  │  └───────────────────────────────────────┬─────────────────────┘   │  │
-│  │                                          │                          │  │
-│  │  ┌───────────────────────────────────────┴─────────────────────┐   │  │
-│  │  │                    Domain Layer                              │   │  │
-│  │  │  Task Entity │ ITaskRepository │ ML Service Interfaces       │   │  │
-│  │  └───────────────────────────────────────────────────────────────┘   │  │
-│  │                                                                       │  │
-│  │  ┌───────────────────────────────────────────────────────────────┐   │  │
-│  │  │                  Infrastructure Layer                          │   │  │
-│  │  │  SQLAlchemy Repository │ WhisperX ML Services │ WebSocket Hub  │   │  │
-│  │  └───────────────────────────────────────────────────────────────┘   │  │
-│  └──────────────────────────────────────────────────────────────────────┘  │
-│                                                                             │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │                         React SPA (Built)                             │  │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌────────────┐  │  │
-│  │  │   Upload    │  │  Progress   │  │  Transcript │  │   Export   │  │  │
-│  │  │   Page      │  │  Tracker    │  │  Viewer     │  │   Modal    │  │  │
-│  │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └─────┬──────┘  │  │
-│  │         │                │                │               │         │  │
-│  │         ▼                ▼                ▼               ▼         │  │
-│  │  ┌─────────────────────────────────────────────────────────────┐   │  │
-│  │  │                    State Management                          │   │  │
-│  │  │  Zustand Store (UI state) │ TanStack Query (server state)    │   │  │
-│  │  └─────────────────────────────────────────────────────────────┘   │  │
-│  │                                          │                          │  │
-│  │  ┌───────────────────────────────────────┴─────────────────────┐   │  │
-│  │  │                    API/Transport Layer                       │   │  │
-│  │  │  fetch/axios (REST) │ WebSocket Client (progress)            │   │  │
-│  │  └─────────────────────────────────────────────────────────────┘   │  │
-│  └──────────────────────────────────────────────────────────────────────┘  │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+**Key integration points:**
+- New chunked upload API endpoints (session create, chunk upload, finalize)
+- Reuse existing WebSocket progress infrastructure for upload progress
+- Finalize endpoint triggers existing /speech-to-text transcription flow
+- Frontend decision layer: small files use existing flow, large files use chunked flow
 
-### Component Responsibilities
-
-| Component | Responsibility | Typical Implementation |
-|-----------|----------------|------------------------|
-| FastAPI REST API | Handle CRUD operations, file uploads, task management | Existing `/speech-to-text`, `/tasks` endpoints |
-| WebSocket Endpoint | Push progress updates to connected clients | New `/ws/tasks/{task_id}` endpoint with ConnectionManager |
-| Static Files Server | Serve React build output (HTML, JS, CSS, assets) | SPAStaticFiles mounted at `/ui` |
-| React Upload Page | File selection, drag-drop, language detection | Form component with axios/fetch upload |
-| React Progress Tracker | Display real-time progress during transcription | WebSocket client + progress bar component |
-| React Transcript Viewer | Display results with speaker labels, timestamps | Formatted transcript with export options |
-| Zustand Store | Manage UI state (current task, modals, preferences) | Global store for cross-component state |
-| TanStack Query | Cache and sync server state (task list, task details) | Queries with polling for task status |
-| WebSocket Client | Maintain connection, handle reconnection, dispatch updates | Custom hook with reconnection logic |
-
-## Recommended Project Structure
+## Existing Architecture (Reference)
 
 ```
-whisperx/
-├── app/                              # Existing FastAPI backend
-│   ├── api/
-│   │   ├── audio_api.py              # Existing - add progress hooks
-│   │   ├── task_api.py               # Existing
-│   │   ├── websocket_api.py          # NEW: WebSocket endpoint
-│   │   └── ui_api.py                 # NEW: SPA serving
-│   ├── core/
-│   │   └── websocket_manager.py      # NEW: Connection manager
-│   ├── services/
-│   │   └── audio_processing_service.py  # Modify: emit progress events
-│   └── main.py                       # Modify: mount UI routes
-│
-├── ui/                               # NEW: React frontend source
-│   ├── src/
-│   │   ├── components/               # Reusable UI components
-│   │   │   ├── FileUpload/
-│   │   │   ├── ProgressBar/
-│   │   │   ├── TranscriptViewer/
-│   │   │   └── ExportModal/
-│   │   ├── pages/                    # Route-level components
-│   │   │   ├── UploadPage.tsx
-│   │   │   ├── TasksPage.tsx
-│   │   │   └── TranscriptPage.tsx
-│   │   ├── hooks/                    # Custom React hooks
-│   │   │   ├── useWebSocket.ts       # WebSocket connection hook
-│   │   │   ├── useTaskProgress.ts    # Progress tracking hook
-│   │   │   └── useLanguageDetect.ts  # Filename -> language
-│   │   ├── stores/                   # Zustand stores
-│   │   │   └── uiStore.ts            # UI state (modals, prefs)
-│   │   ├── api/                      # API client functions
-│   │   │   ├── tasks.ts              # Task CRUD operations
-│   │   │   └── upload.ts             # File upload with progress
-│   │   ├── lib/                      # Utilities
-│   │   │   ├── websocket.ts          # WebSocket client class
-│   │   │   └── export.ts             # SRT/VTT/JSON formatters
-│   │   ├── App.tsx                   # Root component
-│   │   └── main.tsx                  # Entry point
-│   ├── public/                       # Static assets
-│   ├── index.html                    # Vite entry
-│   ├── vite.config.ts                # Vite config (base: /ui/)
-│   └── package.json                  # Bun/npm dependencies
-│
-└── app/frontend/dist/                # Built output (gitignored)
-    ├── index.html
-    ├── assets/
-    │   ├── index-[hash].js
-    │   └── index-[hash].css
-    └── ...
+Current Flow (files < 100MB):
+
+[React Upload]
+     |
+     | POST /speech-to-text (multipart)
+     v
+[FastAPI audio_api.py]
+     |
+     | Save to temp, create task
+     v
+[Background Task] -----> [WebSocket /ws/tasks/{id}]
+     |                         |
+     | Process audio           | Progress updates
+     v                         v
+[Transcription Pipeline]  [React Progress UI]
 ```
 
-### Structure Rationale
+## New Components
 
-- **`ui/` at root level**: Separates frontend source from Python code, clear boundary
-- **`app/frontend/dist/`**: Build output inside app package for easy importing in FastAPI
-- **`components/` with folders**: Each component gets folder for `.tsx`, `.css`, tests
-- **`hooks/` for custom logic**: Reusable state logic separate from components
-- **`stores/` for Zustand**: Centralized state definitions
-- **`api/` for network calls**: All fetch/axios calls in one place for maintainability
+### 1. Upload Session Model (Database)
 
-## Architectural Patterns
+New table to track chunked upload sessions:
 
-### Pattern 1: SPA Static Files with Catch-All
-
-**What:** Serve React build from FastAPI, with fallback to index.html for client-side routing
-**When to use:** Embedded deployment, single container, avoiding CORS
-**Trade-offs:** Simpler deployment vs. less flexible scaling
-
-**Example:**
 ```python
-# app/api/ui_api.py
-from pathlib import Path
-from fastapi import APIRouter
-from fastapi.staticfiles import StaticFiles
-from starlette.exceptions import HTTPException as StarletteHTTPException
+# app/infrastructure/database/models.py (addition)
+class UploadSession(Base):
+    """Track chunked upload sessions."""
+    __tablename__ = "upload_sessions"
 
-class SPAStaticFiles(StaticFiles):
-    """Static files handler that falls back to index.html for SPA routing."""
-
-    async def get_response(self, path: str, scope):
-        try:
-            return await super().get_response(path, scope)
-        except StarletteHTTPException as ex:
-            if ex.status_code == 404:
-                # Return index.html for client-side routing
-                return await super().get_response("index.html", scope)
-            raise ex
-
-# In main.py - mount AFTER API routes
-app.mount("/ui", SPAStaticFiles(directory="app/frontend/dist", html=True), name="ui")
+    id = Column(String, primary_key=True)  # UUID
+    filename = Column(String, nullable=False)
+    total_size = Column(BigInteger, nullable=False)
+    total_chunks = Column(Integer, nullable=False)
+    received_chunks = Column(Integer, default=0)
+    status = Column(String, default="uploading")  # uploading, complete, expired, failed
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, onupdate=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+    # Transcription parameters (stored at session create)
+    language = Column(String, nullable=True)
+    model = Column(String, nullable=True)
+    task_params = Column(JSON, nullable=True)
 ```
 
-### Pattern 2: WebSocket Connection Manager
+### 2. Chunked Upload API Router
 
-**What:** Manage multiple WebSocket connections per task, enable broadcasting progress
-**When to use:** Real-time progress updates to multiple clients watching same task
-**Trade-offs:** In-memory state limits to single process; use Redis for multi-process
+New endpoints for chunked upload flow:
 
-**Example:**
 ```python
-# app/core/websocket_manager.py
-from fastapi import WebSocket
-from collections import defaultdict
-
-class TaskProgressManager:
-    """Manages WebSocket connections for task progress updates."""
-
-    def __init__(self):
-        # task_id -> list of connected websockets
-        self.active_connections: dict[str, list[WebSocket]] = defaultdict(list)
-
-    async def connect(self, task_id: str, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections[task_id].append(websocket)
-
-    def disconnect(self, task_id: str, websocket: WebSocket):
-        self.active_connections[task_id].remove(websocket)
-        if not self.active_connections[task_id]:
-            del self.active_connections[task_id]
-
-    async def send_progress(self, task_id: str, progress: dict):
-        """Broadcast progress to all clients watching this task."""
-        for connection in self.active_connections.get(task_id, []):
-            try:
-                await connection.send_json(progress)
-            except Exception:
-                # Connection closed, will be cleaned up
-                pass
-
-# Singleton instance
-progress_manager = TaskProgressManager()
+# app/api/chunked_upload_api.py (new file)
+chunked_upload_router = APIRouter(prefix="/upload/chunked", tags=["Chunked Upload"])
 ```
 
-### Pattern 3: Progress Emission from Background Tasks
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/upload/chunked/session` | POST | Create upload session, return session_id |
+| `/upload/chunked/{session_id}/chunk` | POST | Upload single chunk (with index) |
+| `/upload/chunked/{session_id}/finalize` | POST | Assemble chunks, trigger transcription |
+| `/upload/chunked/{session_id}/status` | GET | Check session status (for resume) |
+| `/upload/chunked/{session_id}/abort` | DELETE | Cancel upload, cleanup chunks |
 
-**What:** Background processing emits progress events that WebSocket broadcasts
-**When to use:** Long-running tasks (transcription) where users need feedback
-**Trade-offs:** Adds complexity to processing logic; must handle missing connections
+### 3. Chunk Storage Directory Structure
 
-**Example:**
-```python
-# app/services/audio_processing_service.py
-async def process_audio_task(
-    task_id: str,
-    file_path: str,
-    progress_callback: Callable[[str, dict], Awaitable[None]] | None = None
-):
-    """Process audio with progress reporting."""
-
-    async def emit_progress(stage: str, percent: int, message: str):
-        if progress_callback:
-            await progress_callback(task_id, {
-                "stage": stage,
-                "percent": percent,
-                "message": message
-            })
-
-    await emit_progress("transcription", 0, "Starting transcription...")
-    result = await transcription_service.transcribe(file_path)
-    await emit_progress("transcription", 100, "Transcription complete")
-
-    await emit_progress("alignment", 0, "Aligning words...")
-    aligned = await alignment_service.align(result)
-    await emit_progress("alignment", 100, "Alignment complete")
-
-    # ... diarization, speaker assignment
-
-    await emit_progress("complete", 100, "Processing complete")
-    return final_result
+```
+{UPLOAD_DIR}/
+  chunked/
+    {session_id}/
+      chunk_0000
+      chunk_0001
+      chunk_0002
+      ...
+      metadata.json  # Total chunks, filename, etc.
 ```
 
-### Pattern 4: Hybrid State Management (TanStack Query + Zustand)
+### 4. Frontend Chunked Upload Service
 
-**What:** TanStack Query for server state (tasks), Zustand for UI state (modals, preferences)
-**When to use:** Apps with both server-synced data and local UI state
-**Trade-offs:** Two libraries vs. one; clearer separation of concerns
-
-**Example:**
 ```typescript
-// hooks/useTasks.ts - Server state with TanStack Query
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchTasks, createTask, fetchTask } from '../api/tasks';
-
-export function useTasks() {
-  return useQuery({
-    queryKey: ['tasks'],
-    queryFn: fetchTasks,
-    refetchInterval: 5000, // Poll for updates
-  });
+// frontend/src/lib/api/chunkedUploadApi.ts (new file)
+export interface ChunkedUploadOptions {
+  file: File;
+  chunkSize?: number;  // Default 50MB (under Cloudflare 100MB limit)
+  onProgress?: (progress: ChunkProgress) => void;
+  language: LanguageCode;
+  model: WhisperModel;
 }
 
-export function useTask(taskId: string) {
-  return useQuery({
-    queryKey: ['tasks', taskId],
-    queryFn: () => fetchTask(taskId),
-    refetchInterval: (data) =>
-      data?.status === 'processing' ? 1000 : false, // Poll only while processing
-  });
+export interface ChunkProgress {
+  uploadedChunks: number;
+  totalChunks: number;
+  uploadedBytes: number;
+  totalBytes: number;
+  percentage: number;
+  currentSpeed: number;  // bytes/sec
 }
-
-// stores/uiStore.ts - UI state with Zustand
-import { create } from 'zustand';
-
-interface UIState {
-  selectedTaskId: string | null;
-  exportModalOpen: boolean;
-  setSelectedTask: (id: string | null) => void;
-  openExportModal: () => void;
-  closeExportModal: () => void;
-}
-
-export const useUIStore = create<UIState>((set) => ({
-  selectedTaskId: null,
-  exportModalOpen: false,
-  setSelectedTask: (id) => set({ selectedTaskId: id }),
-  openExportModal: () => set({ exportModalOpen: true }),
-  closeExportModal: () => set({ exportModalOpen: false }),
-}));
 ```
 
-### Pattern 5: File Upload with Progress Tracking
+## Modified Components
 
-**What:** Track upload progress separately from processing progress
-**When to use:** Large file uploads where users need upload feedback
-**Trade-offs:** Requires XMLHttpRequest or axios onUploadProgress; not native fetch
+### 1. useUploadOrchestration.ts
 
-**Example:**
+Add decision logic for chunked vs single upload:
+
 ```typescript
-// api/upload.ts
-import axios from 'axios';
+// Modified section
+const CHUNK_THRESHOLD = 100 * 1024 * 1024; // 100MB - Cloudflare limit
 
-export interface UploadProgress {
-  stage: 'uploading' | 'processing';
-  percent: number;
-}
-
-export async function uploadFile(
-  file: File,
-  options: {
-    language?: string;
-    onProgress?: (progress: UploadProgress) => void;
+const processFile = useCallback(async (item: FileQueueItem) => {
+  if (item.file.size > CHUNK_THRESHOLD) {
+    // Use chunked upload flow
+    await processFileChunked(item);
+  } else {
+    // Use existing single-file flow
+    await processFileSingle(item);
   }
-): Promise<{ task_id: string }> {
-  const formData = new FormData();
-  formData.append('file', file);
-  if (options.language) {
-    formData.append('language', options.language);
-  }
+}, [processFileChunked, processFileSingle]);
+```
 
-  const response = await axios.post('/api/speech-to-text', formData, {
-    onUploadProgress: (event) => {
-      if (event.total) {
-        options.onProgress?.({
-          stage: 'uploading',
-          percent: Math.round((event.loaded / event.total) * 100),
-        });
-      }
-    },
-  });
+### 2. WebSocket Progress Messages
 
-  return response.data;
-}
+Extend existing progress schema to include upload progress:
+
+```python
+# app/schemas/websocket_schemas.py (addition)
+class UploadProgressMessage(BaseModel):
+    type: Literal["upload_progress"] = "upload_progress"
+    session_id: str
+    uploaded_chunks: int
+    total_chunks: int
+    percentage: int
+    timestamp: datetime
+```
+
+### 3. Progress Emitter
+
+Add upload progress emission capability:
+
+```python
+# app/infrastructure/websocket/progress_emitter.py (addition)
+def emit_upload_progress(
+    self,
+    session_id: str,
+    uploaded_chunks: int,
+    total_chunks: int,
+) -> None:
+    """Emit upload progress update."""
+    percentage = int((uploaded_chunks / total_chunks) * 100)
+    coro = self.manager.send_to_task(session_id, {
+        "type": "upload_progress",
+        "session_id": session_id,
+        "uploaded_chunks": uploaded_chunks,
+        "total_chunks": total_chunks,
+        "percentage": percentage,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+    # ... schedule on main event loop
 ```
 
 ## Data Flow
 
-### Request Flow
+### Chunked Upload Flow (files > 100MB)
 
 ```
-[User selects file]
-    │
-    ▼
-[FileUpload Component] ──────────────────────────────────────────┐
-    │                                                            │
-    │ POST /api/speech-to-text                                   │
-    │ (multipart/form-data)                                      │
-    │                                                            │
-    ▼                                                            │
-[FastAPI audio_api.py]                                           │
-    │                                                            │
-    │ validate file, create Task                                 │
-    │                                                            │
-    ▼                                                            │
-[TaskManagementService] ───► [SQLAlchemy Repository] ───► [SQLite]
-    │                                                            │
-    │ schedule BackgroundTask                                    │
-    │                                                            │
-    ▼                                                            │
-[Return task_id immediately] ────────────────────────────────────┤
-                                                                 │
-                              ┌───────────────────────────────────┘
-                              │
-[React receives task_id]      │ (async)
-    │                         │
-    ▼                         ▼
-[Connect WebSocket]      [Background: process_audio_task()]
-    │                         │
-    │  ws://host/ws/tasks/id  │ transcribe → align → diarize
-    │                         │
-    ▼                         │
-[WebSocket Endpoint] ◄────────┤ emit progress via manager
-    │                         │
-    │ send_json(progress)     │
-    │                         │
-    ▼                         ▼
-[ProgressBar updates]    [Task marked complete]
-                              │
-                              │ update repository
-                              ▼
-                         [WebSocket sends final result]
-                              │
-                              ▼
-                         [TranscriptViewer displays result]
+[User drops file > 100MB]
+     |
+     v
+[Frontend: Calculate chunks needed]
+     |
+     | POST /upload/chunked/session
+     | { filename, total_size, total_chunks, language, model }
+     v
+[Backend: Create UploadSession in DB]
+     |
+     | Returns { session_id, chunk_size }
+     v
+[Frontend: Connect WebSocket /ws/tasks/{session_id}]
+     |
+     v
+[Frontend: Upload chunks in sequence]
+     |
+     +---> [Chunk 0] POST /upload/chunked/{id}/chunk?index=0
+     |         |
+     |         v
+     |     [Backend: Save chunk_0000, update received_chunks]
+     |         |
+     |         v
+     |     [Backend: Emit upload_progress via WebSocket]
+     |
+     +---> [Chunk 1] POST /upload/chunked/{id}/chunk?index=1
+     |     ...
+     +---> [Chunk N] POST /upload/chunked/{id}/chunk?index=N
+     |
+     v
+[Frontend: All chunks uploaded]
+     |
+     | POST /upload/chunked/{session_id}/finalize
+     v
+[Backend: Assemble chunks into single file]
+     |
+     | Concatenate chunk_0000 + chunk_0001 + ... + chunk_N
+     v
+[Backend: Validate assembled file (magic bytes, size)]
+     |
+     v
+[Backend: Trigger transcription pipeline]
+     |
+     | Create Task entity (same as /speech-to-text)
+     | Add background task (process_audio_common)
+     v
+[Backend: Emit transcription progress via same WebSocket]
+     |
+     v
+[Frontend: Same progress UI as before]
+     |
+     v
+[Transcription Complete]
 ```
 
-### State Management
+### Decision Flow (Frontend)
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         React Application                                │
-│                                                                         │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │                    TanStack Query Cache                           │  │
-│  │  ┌────────────────┐  ┌────────────────┐  ┌────────────────────┐  │  │
-│  │  │ ['tasks']      │  │ ['tasks', id]  │  │ ['models']         │  │  │
-│  │  │ (all tasks)    │  │ (single task)  │  │ (loaded models)    │  │  │
-│  │  └───────┬────────┘  └───────┬────────┘  └─────────┬──────────┘  │  │
-│  └──────────┼───────────────────┼───────────────────────┼───────────┘  │
-│             │                   │                       │              │
-│             │ useQuery          │ useQuery              │ useQuery     │
-│             ▼                   ▼                       ▼              │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐     │
-│  │  TasksPage       │  │  TranscriptPage  │  │  ModelsPage      │     │
-│  └──────────────────┘  └──────────────────┘  └──────────────────┘     │
-│             │                   │                       │              │
-│             │                   │                       │              │
-│  ┌──────────┴───────────────────┴───────────────────────┴──────────┐  │
-│  │                     Zustand UI Store                             │  │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │  │
-│  │  │ selectedTask │  │ exportModal  │  │ uploadProgress       │   │  │
-│  │  │ (string|null)│  │ (boolean)    │  │ { stage, percent }   │   │  │
-│  │  └──────────────┘  └──────────────┘  └──────────────────────┘   │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                         │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │                    WebSocket Subscription                         │  │
-│  │  task_id ──► useTaskProgress hook ──► progress state ──► UI      │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+[File Selected]
+     |
+     v
+[Check file.size]
+     |
+     +--- < 100MB ---> [Use existing /speech-to-text flow]
+     |                      |
+     |                      v
+     |                 [Single POST, get task_id]
+     |                      |
+     |                      v
+     |                 [WebSocket progress]
+     |
+     +--- >= 100MB --> [Use chunked upload flow]
+                            |
+                            v
+                       [Create session, get session_id]
+                            |
+                            v
+                       [Upload chunks, session_id = task_id for WS]
+                            |
+                            v
+                       [Finalize, get transcription task_id]
+                            |
+                            v
+                       [WebSocket progress (same as before)]
 ```
 
-### Key Data Flows
+## Endpoint Design
 
-1. **File Upload Flow:** User drops file -> FormData POST -> FastAPI saves file -> Returns task_id -> React opens WebSocket -> Background processes -> WebSocket pushes progress -> UI updates
+### POST /upload/chunked/session
 
-2. **Task List Flow:** TanStack Query polls `/api/tasks` every 5s -> Cache updated -> Components re-render with fresh data -> No manual state management needed
+Create a new upload session.
 
-3. **Progress Update Flow:** Background task emits progress -> WebSocket manager broadcasts to subscribers -> React hook receives JSON -> Updates local state -> ProgressBar re-renders
+**Request:**
+```json
+{
+  "filename": "recording.mp4",
+  "total_size": 524288000,
+  "total_chunks": 10,
+  "language": "en",
+  "model": "large-v3"
+}
+```
 
-4. **Export Flow:** User clicks export -> Zustand opens modal -> User selects format -> Format util transforms transcript -> Browser downloads file
+**Response:**
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "chunk_size": 52428800,
+  "expires_at": "2026-01-29T14:30:00Z"
+}
+```
 
-## Scaling Considerations
+### POST /upload/chunked/{session_id}/chunk
 
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| 0-100 users | Single container, in-memory WebSocket manager, SQLite, embedded React |
-| 100-1k users | Consider PostgreSQL, keep single container, add health monitoring |
-| 1k+ users | Split containers (API + workers), Redis for WebSocket pub/sub, S3 for files |
+Upload a single chunk.
 
-### Scaling Priorities
+**Query Parameters:**
+- `index` (int, required): Zero-based chunk index
 
-1. **First bottleneck:** ML processing (GPU-bound). Fix: Queue with dedicated workers, limit concurrent tasks
-2. **Second bottleneck:** WebSocket connections (memory-bound). Fix: Redis pub/sub for multi-process, connection limits
+**Request:**
+- Content-Type: application/octet-stream
+- Body: Raw chunk bytes
 
-## Anti-Patterns
+**Response:**
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "chunk_index": 3,
+  "received_chunks": 4,
+  "total_chunks": 10,
+  "status": "uploading"
+}
+```
 
-### Anti-Pattern 1: Polling for Progress
+### POST /upload/chunked/{session_id}/finalize
 
-**What people do:** Use setInterval or TanStack Query refetchInterval for progress updates
-**Why it's wrong:** Creates unnecessary server load, delayed feedback, wastes resources
-**Do this instead:** WebSockets for real-time progress, polling only for task list
+Assemble chunks and trigger transcription.
 
-### Anti-Pattern 2: Storing Progress in Database
+**Response:**
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "task_id": "660e8400-e29b-41d4-a716-446655440001",
+  "status": "processing",
+  "message": "File assembled, transcription started"
+}
+```
 
-**What people do:** Write every progress update to database, poll database for progress
-**Why it's wrong:** Excessive writes, database becomes bottleneck, slower than WebSocket
-**Do this instead:** In-memory progress via WebSocket, only persist final state
+### GET /upload/chunked/{session_id}/status
 
-### Anti-Pattern 3: Separate CORS Configuration
+Check upload status (for resume after reconnect).
 
-**What people do:** Run React dev server on :3000, FastAPI on :8000, configure CORS
-**Why it's wrong:** Production complexity, CORS security risks, two services to manage
-**Do this instead:** Embed static build in FastAPI, same origin, no CORS needed (for this project's scale)
+**Response:**
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "uploading",
+  "received_chunks": 4,
+  "total_chunks": 10,
+  "missing_chunks": [4, 5, 6, 7, 8, 9],
+  "expires_at": "2026-01-29T14:30:00Z"
+}
+```
 
-### Anti-Pattern 4: Redux for Simple UI State
+### DELETE /upload/chunked/{session_id}/abort
 
-**What people do:** Use Redux for everything including modal open/close state
-**Why it's wrong:** Boilerplate overhead, unnecessary complexity for simple state
-**Do this instead:** Zustand for UI state (simpler), TanStack Query for server state (built for it)
+Cancel upload and cleanup.
 
-### Anti-Pattern 5: Blocking File Upload
-
-**What people do:** Wait for entire file upload before returning response
-**Why it's wrong:** Bad UX for large files, no progress feedback, timeout risks
-**Do this instead:** Return task_id immediately, process in background, push progress via WebSocket
+**Response:**
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "aborted",
+  "message": "Upload cancelled, chunks deleted"
+}
+```
 
 ## Integration Points
 
-### External Services
+### With Existing WebSocket Infrastructure
 
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| WhisperX ML | Python function calls via service interfaces | Already integrated via DDD pattern |
-| SQLite/PostgreSQL | SQLAlchemy ORM via repository pattern | Already integrated |
-| HuggingFace (diarization) | Pyannote via WhisperX | Requires HF_TOKEN env var |
+The chunked upload system reuses the existing WebSocket infrastructure:
 
-### Internal Boundaries
+| Component | Reused? | How |
+|-----------|---------|-----|
+| ConnectionManager | YES | Session ID used as task_id for connection |
+| Progress Emitter | EXTENDED | New emit_upload_progress method |
+| WebSocket endpoint | YES | /ws/tasks/{session_id} works unchanged |
+| Message buffering | YES | Handles race condition of late WS connect |
 
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| React <-> FastAPI REST | HTTP fetch/axios | Standard request-response |
-| React <-> FastAPI WS | WebSocket JSON messages | Real-time, bidirectional |
-| API <-> Services | Python function calls | Via dependency injection |
-| Services <-> Infrastructure | Protocol interfaces | DDD pattern maintained |
-| Background Task <-> WebSocket | In-memory manager | Same process; use Redis for multi-process |
+### With Existing Transcription Pipeline
 
-## Build Order Implications
+After assembly, the finalize endpoint reuses the existing pipeline:
 
-Based on component dependencies, recommended implementation order:
+```python
+# In finalize endpoint
+async def finalize_upload(session_id: str):
+    # 1. Assemble chunks
+    assembled_path = assemble_chunks(session_id)
 
-### Phase 1: Foundation (No React dependency)
-1. **WebSocket endpoint** (`/ws/tasks/{task_id}`) - Can test with wscat/Postman
-2. **ConnectionManager** - Manages connections, broadcasting
-3. **Progress emission** - Modify audio_processing_service to emit progress
+    # 2. Load audio (same as audio_api.py)
+    audio = process_audio_file(assembled_path)
 
-### Phase 2: Static Serving (Minimal React)
-4. **SPAStaticFiles handler** - Serve any React build at /ui
-5. **Vite configuration** - Configure base path, build output
-6. **Basic React app** - Hello world served from FastAPI
+    # 3. Create Task (same entity as /speech-to-text)
+    task = DomainTask(
+        uuid=str(uuid4()),
+        status=TaskStatus.processing,
+        file_name=session.filename,
+        audio_duration=get_audio_duration(audio),
+        language=session.language,
+        # ... same fields
+    )
 
-### Phase 3: Core UI (React features)
-7. **API client layer** - fetch/axios wrappers for /api endpoints
-8. **TanStack Query setup** - Provider, hooks for tasks
-9. **Task list page** - Display existing tasks
+    # 4. Schedule background processing (same function)
+    background_tasks.add_task(process_audio_common, audio_params)
 
-### Phase 4: Upload Flow
-10. **File upload component** - Drag-drop, progress tracking
-11. **Language detection hook** - Parse A03/A04/A05 from filename
-12. **Upload page** - Complete upload flow
-
-### Phase 5: Real-time Progress
-13. **WebSocket client hook** - Connection, reconnection, messages
-14. **Progress tracking** - Subscribe to task progress
-15. **Progress UI** - Progress bar, stage indicators
-
-### Phase 6: Results & Export
-16. **Transcript viewer** - Display with speakers, timestamps
-17. **Export utilities** - SRT, VTT, JSON formatters
-18. **Export modal** - Format selection, download
-
-### Dependency Chain
+    return {"task_id": task.uuid, "status": "processing"}
 ```
-WebSocket Backend ─────────────────────────────────────────────────┐
-        │                                                          │
-        ▼                                                          │
-Static Serving ─► React Setup ─► API Client ─► TanStack Query     │
-                                     │                             │
-                                     ▼                             │
-                              Upload Component ─► Language Detect   │
-                                     │                             │
-                                     ▼                             │
-                              WebSocket Hook ◄─────────────────────┘
-                                     │
-                                     ▼
-                              Progress UI ─► Transcript Viewer ─► Export
+
+### With Existing FileService
+
+Extend FileService with chunk-specific methods:
+
+```python
+# app/services/file_service.py (additions)
+class FileService:
+    # ... existing methods ...
+
+    @staticmethod
+    def save_chunk(session_id: str, chunk_index: int, chunk_data: bytes) -> Path:
+        """Save a single chunk to session directory."""
+        session_dir = UPLOAD_DIR / "chunked" / session_id
+        session_dir.mkdir(parents=True, exist_ok=True)
+        chunk_path = session_dir / f"chunk_{chunk_index:04d}"
+        with open(chunk_path, "wb") as f:
+            f.write(chunk_data)
+        return chunk_path
+
+    @staticmethod
+    def assemble_chunks(session_id: str, total_chunks: int, output_filename: str) -> Path:
+        """Concatenate all chunks into final file."""
+        session_dir = UPLOAD_DIR / "chunked" / session_id
+        output_path = UPLOAD_DIR / f"{session_id}_{output_filename}"
+
+        with open(output_path, "wb") as output:
+            for i in range(total_chunks):
+                chunk_path = session_dir / f"chunk_{i:04d}"
+                with open(chunk_path, "rb") as chunk:
+                    shutil.copyfileobj(chunk, output)
+
+        # Cleanup chunks after assembly
+        shutil.rmtree(session_dir)
+
+        return output_path
 ```
+
+## Build Order
+
+Suggested implementation sequence based on dependencies:
+
+### Phase 1: Backend Foundation
+1. **UploadSession database model** - Table for tracking sessions
+2. **Session repository** - CRUD operations for sessions
+3. **Chunk storage utility** - FileService extensions
+
+### Phase 2: Core Endpoints
+4. **POST /session** - Create session endpoint
+5. **POST /chunk** - Chunk upload endpoint
+6. **Assembly service** - Chunk concatenation logic
+7. **POST /finalize** - Assembly + transcription trigger
+
+### Phase 3: Progress & Monitoring
+8. **Upload progress emission** - WebSocket integration
+9. **GET /status** - Session status endpoint
+10. **DELETE /abort** - Cleanup endpoint
+
+### Phase 4: Frontend Integration
+11. **Chunked upload service** - API client functions
+12. **File slicer utility** - Split file into chunks
+13. **Upload orchestration update** - Decision logic (chunked vs single)
+14. **Progress UI integration** - Show chunk progress
+
+### Phase 5: Resilience
+15. **Retry logic** - Chunk retry on failure
+16. **Resume logic** - Check status, upload missing chunks
+17. **Session cleanup scheduler** - APScheduler job for expired sessions
+
+### Dependency Graph
+
+```
+[Database Model] ──> [Repository] ──> [Create Session Endpoint]
+                                              |
+                                              v
+[FileService Extensions] ──────────> [Chunk Upload Endpoint]
+                                              |
+                                              v
+[Assembly Service] ──────────────────> [Finalize Endpoint]
+                                              |
+                           ┌──────────────────┴──────────────────┐
+                           v                                     v
+             [Progress Emission]                    [Existing Transcription]
+                    |                                            |
+                    v                                            v
+             [Frontend Chunked Service]              [Same WebSocket Progress]
+                    |
+                    v
+             [Orchestration Update]
+```
+
+## Error Handling
+
+### Chunk Upload Failures
+
+```typescript
+// Frontend retry logic
+async function uploadChunkWithRetry(
+  sessionId: string,
+  chunkIndex: number,
+  chunk: Blob,
+  maxRetries = 3
+): Promise<void> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      await uploadChunk(sessionId, chunkIndex, chunk);
+      return;
+    } catch (error) {
+      if (attempt === maxRetries - 1) throw error;
+      await sleep(1000 * Math.pow(2, attempt)); // Exponential backoff
+    }
+  }
+}
+```
+
+### Session Expiry
+
+Backend cleanup job removes expired sessions:
+
+```python
+async def cleanup_expired_sessions():
+    """Remove sessions and chunks that have expired."""
+    expired_sessions = session_repo.get_expired()
+    for session in expired_sessions:
+        session_dir = UPLOAD_DIR / "chunked" / session.id
+        if session_dir.exists():
+            shutil.rmtree(session_dir)
+        session_repo.delete(session.id)
+```
+
+### Assembly Validation
+
+After assembly, validate before processing:
+
+```python
+def validate_assembled_file(file_path: Path, expected_size: int) -> None:
+    """Validate assembled file matches expectations."""
+    actual_size = file_path.stat().st_size
+    if actual_size != expected_size:
+        raise ValidationError(f"Size mismatch: expected {expected_size}, got {actual_size}")
+
+    # Validate magic bytes
+    is_valid, msg, detected = validate_magic_bytes(file_path, file_path.suffix)
+    if not is_valid:
+        raise ValidationError(f"Invalid file format: {msg}")
+```
+
+## Small Files (No Chunking)
+
+For files under 100MB, the existing flow remains unchanged:
+
+```typescript
+// Frontend decision
+if (file.size < CHUNK_THRESHOLD) {
+  // Use existing startTranscription() from transcriptionApi.ts
+  const result = await startTranscription({ file, language, model });
+  // Returns { identifier, message } - task_id for WebSocket
+}
+```
+
+The existing `/speech-to-text` endpoint handles:
+- Multipart form upload
+- File validation
+- Task creation
+- Background processing
+- WebSocket progress
+
+No changes needed to this flow.
 
 ## Sources
 
 ### Official Documentation
-- [FastAPI WebSockets](https://fastapi.tiangolo.com/advanced/websockets/) - HIGH confidence
-- [FastAPI Static Files](https://fastapi.tiangolo.com/tutorial/static-files/) - HIGH confidence
-- [TanStack Query Overview](https://tanstack.com/query/latest/docs/framework/react/overview) - HIGH confidence
-- [Zustand GitHub](https://github.com/pmndrs/zustand) - HIGH confidence
+- [FastAPI Request Files](https://fastapi.tiangolo.com/tutorial/request-files/) - File upload patterns
+- [FastAPI WebSockets](https://fastapi.tiangolo.com/advanced/websockets/) - WebSocket integration
+- [streaming-form-data](https://streaming-form-data.readthedocs.io/en/latest/) - Streaming parser
 
-### Integration Guides
-- [FastAPI + WebSockets + React](https://medium.com/@suganthi2496/fastapi-websockets-react-real-time-features-for-your-modern-apps-b8042a10fd90) - MEDIUM confidence
-- [Serving React with FastAPI](https://davidmuraya.com/blog/serving-a-react-frontend-application-with-fastapi/) - HIGH confidence (code examples verified)
-- [FastAPI Full-Stack Template](https://github.com/fastapi/full-stack-fastapi-template) - HIGH confidence (official template)
-- [FastAPI React Router Support](https://gist.github.com/ultrafunkamsterdam/b1655b3f04893447c3802453e05ecb5e) - MEDIUM confidence
+### Chunked Upload Patterns
+- [Chunked File Uploads: FastApi & Nodejs Guide](https://arnabgupta.hashnode.dev/mastering-chunked-file-uploads-with-fastapi-and-nodejs-a-step-by-step-guide) - Implementation patterns
+- [fast-chunk-upload GitHub](https://github.com/p513817/fast-chunk-upload) - FastAPI chunked upload example
+- [FastAPI Discussions #9828](https://github.com/fastapi/fastapi/discussions/9828) - Large file upload patterns
 
-### State Management
-- [State Management in React 2026](https://www.c-sharpcorner.com/article/state-management-in-react-2026-best-practices-tools-real-world-patterns/) - MEDIUM confidence
-- [TanStack Query Long Polling Discussion](https://github.com/TanStack/query/discussions/3540) - MEDIUM confidence
+### Resumable Upload Protocols
+- [tus.io Protocol](https://tus.io/protocols/resumable-upload) - Resumable upload standard (reference)
+- [Uppy Tus Documentation](https://uppy.io/docs/tus/) - Client-side implementation patterns
 
-### File Upload
-- [Uploading Files Using FastAPI](https://betterstack.com/community/guides/scaling-python/uploading-files-using-fastapi/) - HIGH confidence
-- [React File Upload with Progress](https://dev.to/jbrocher/react-tips-tricks-uploading-a-file-with-a-progress-bar-3m5p) - MEDIUM confidence
+### React Integration
+- [Uppy React Documentation](https://uppy.io/docs/react/) - React file upload patterns
 
 ---
-*Architecture research for: React + FastAPI Integration*
-*Researched: 2026-01-27*
+*Architecture research for: Chunked uploads integration*
+*Researched: 2026-01-29*

@@ -1,341 +1,522 @@
-# Pitfalls Research
+# Pitfalls Research: Chunked File Uploads
 
-**Domain:** React Frontend for FastAPI ML Backend (WhisperX Transcription)
-**Researched:** 2026-01-27
-**Confidence:** HIGH (verified via official docs, GitHub discussions, community sources)
+**Domain:** Chunked file uploads for large media files through Cloudflare proxy
+**Context:** Adding chunked uploads to existing WhisperX transcription app (FastAPI + React + WebSocket)
+**Researched:** 2026-01-29
+**Confidence:** HIGH (verified across multiple authoritative sources)
+
+---
 
 ## Critical Pitfalls
 
-### Pitfall 1: WebSocket Connection State Loss During Long Transcriptions
+Mistakes that cause data corruption, upload failures, or require architectural rewrites.
 
-**What goes wrong:**
-WebSocket connections drop silently during long-running ML inference tasks (transcription can take 5-30+ minutes for large files). The React frontend shows stale progress or freezes. Users think the task failed when it is still running on the backend.
+### 1. Chunk Assembly Memory Exhaustion
 
-**Why it happens:**
-- Network infrastructure (routers, firewalls, proxies) terminates idle connections after 30-120 seconds
-- FastAPI/Uvicorn has default timeout settings that trigger during gaps between progress updates
-- React components unmount/remount (navigation, tab switching) without proper cleanup
-- No heartbeat mechanism to keep connections alive during ML processing gaps
+**What goes wrong:** Loading all chunks into memory before writing the final file causes server crashes with large files (500MB+). FastAPI's default `File()` parameter loads entire files into memory.
 
-**How to avoid:**
-1. Implement bidirectional heartbeat (ping/pong) every 15-30 seconds
-2. Decouple task state from WebSocket - store progress in Redis/database, WebSocket just broadcasts
-3. Use task ID pattern: client polls `/task/{id}/status` as fallback when WebSocket drops
-4. Implement `WebSocketDisconnect` exception handling on FastAPI side
-5. Add exponential backoff reconnection in React (1s, 2s, 4s... max 30s)
+**Why it happens:** Developers use the intuitive approach of collecting all chunks in memory, then writing once. Works in development with small files, catastrophic in production.
+
+**Consequences:**
+- Server runs out of memory and crashes
+- Other users' requests fail during assembly
+- Uvicorn worker killed by OOM, no graceful error to client
 
 **Warning signs:**
-- Progress bar freezes then jumps forward suddenly
-- Console shows "WebSocket connection closed unexpectedly"
-- Users report "it worked but showed failure message"
-- Different behavior in development vs production (proxies add timeouts)
+- Memory usage spikes during final chunk upload
+- Server becomes unresponsive during assembly phase
+- Works with 50MB files, fails with 200MB files
 
-**Phase to address:**
-Phase 1 (WebSocket Infrastructure) - Must be foundational before building progress UI
+**Prevention:**
+- Write each chunk directly to disk as it arrives using `aiofiles`
+- Use `request.stream()` instead of `UploadFile` for streaming writes
+- Final assembly: use file system append operations, not memory concatenation
+- Consider streaming chunks directly to final file position using seek operations
+
+**Phase:** Address in initial chunk upload endpoint implementation
+
+**Source:** [FastAPI File Upload Discussion](https://github.com/fastapi/fastapi/discussions/9828), [Async File Uploads in FastAPI](https://medium.com/@connect.hashblock/async-file-uploads-in-fastapi-handling-gigabyte-scale-data-smoothly-aec421335680)
 
 ---
 
-### Pitfall 2: Large Audio/Video Uploads Exhausting Memory
+### 2. Race Conditions in Parallel Chunk Uploads
 
-**What goes wrong:**
-Using `await file.read()` on uploaded audio/video files loads entire file into memory. A single 500MB video upload spikes server memory by 500MB. Under concurrent load, server crashes with OOM errors.
+**What goes wrong:** When multiple chunks upload simultaneously, concurrent writes to tracking state or the same file cause data corruption.
 
-**Why it happens:**
-- FastAPI tutorials show simple `file.read()` pattern that works for small files
-- Developers test with small files locally, never hitting memory limits
-- `UploadFile` spooling limit is small (~1MB by default before disk spillover)
-- No explicit chunk size control when iterating uploaded streams
+**Why it happens:** Frontend sends chunks in parallel for speed. Without proper synchronization, two threads may:
+- Update the same offset counter simultaneously
+- Write to overlapping file positions
+- Report conflicting completion status
 
-**How to avoid:**
-1. Stream uploads chunk-by-chunk using `async for chunk in file` pattern
-2. Use `aiofiles` for async disk writes to avoid blocking event loop
-3. Set explicit chunk sizes (1-5MB) for processing
-4. For very large files (>1GB), use presigned URL pattern - client uploads directly to S3/cloud storage
-5. Implement file size validation BEFORE accepting upload
+**Consequences:**
+- Corrupted files that play partially or have artifacts
+- Missing chunks in final file (looks complete but isn't)
+- SHA256 checksum mismatches
+- Silent corruption (worst case - file "works" but is damaged)
 
 **Warning signs:**
-- Server memory spikes correlate with file uploads
-- Uploads "work" with small files but fail with large ones
-- Concurrent uploads cause cascading failures
-- Process killed by OOM killer in production logs
+- Intermittent checksum failures
+- Audio/video has glitches at chunk boundaries
+- File size correct but content wrong
+- Issue appears only under load or with fast connections
 
-**Phase to address:**
-Phase 2 (File Upload Infrastructure) - Must be correct before building upload UI
+**Prevention:**
+- Use mutex/lock when updating upload session state
+- Each chunk writes to its own temporary file, merge sequentially at end
+- Verify chunk count and total bytes before marking complete
+- Use atomic file operations where possible
+- Consider ordered upload (chunk N+1 waits for N) for simplicity over parallelism
+
+**Phase:** Address in chunk upload endpoint design
+
+**Source:** [TUS-PHP Race Condition Issue](https://github.com/ankitpokhrel/tus-php/issues/257), [rclone Azure Race Condition](https://github.com/rclone/rclone/issues/7590)
 
 ---
 
-### Pitfall 3: Blocking Event Loop with Synchronous File I/O
+### 3. Off-by-One Errors in Content-Range Headers
 
-**What goes wrong:**
-Using synchronous `file.write()` or `shutil.copyfileobj()` in async FastAPI handlers blocks the entire event loop. During a large file write, ALL other requests queue up, causing timeouts and latency spikes.
+**What goes wrong:** Content-Range header math is incorrect, causing chunks to be misaligned or rejected.
 
-**Why it happens:**
-- Standard Python file I/O is synchronous
-- Wrapping sync code in `async def` doesn't make it async - it still blocks
-- Most FastAPI file upload tutorials use sync patterns
-- Easy to miss in testing when only one request at a time
+**Why it happens:** Content-Range uses inclusive byte ranges. `bytes 0-5999999/22744222` means bytes 0 through 5,999,999 (6MB total), not 6,000,001 bytes.
 
-**How to avoid:**
-1. Use `aiofiles` library for all file operations
-2. For CPU-bound operations, use `run_in_threadpool` from starlette.concurrency
-3. Keep async handlers truly async - no sync blocking code
-4. Move heavy file processing to background tasks or Celery workers
-5. Load test with concurrent uploads to catch blocking issues
+**Consequences:**
+- Server rejects chunks with 400 Bad Request
+- Chunks overlap, creating duplicated data
+- Chunks have gaps, creating missing data
+- File appears complete but has subtle corruption
 
 **Warning signs:**
-- Single upload causes all API endpoints to slow down
-- Response times spike during file processing
-- "Request timeout" errors during file operations
-- High latency variance under load
+- "Invalid Content-Range" errors
+- Final file size doesn't match original
+- Checksum always fails
+- First and last chunks work, middle chunks fail
 
-**Phase to address:**
-Phase 2 (File Upload Infrastructure) - Use async patterns from start
+**Prevention:**
+```javascript
+// Correct calculation
+const start = chunkIndex * chunkSize;
+const end = Math.min(start + chunkSize - 1, totalSize - 1); // -1 for inclusive
+const contentRange = `bytes ${start}-${end}/${totalSize}`;
+```
+- Write explicit unit tests for boundary conditions
+- Test with file sizes that are exact multiples of chunk size
+- Test with file sizes that have a small remainder chunk
+
+**Phase:** Address in frontend chunk upload implementation
+
+**Source:** [Cloudinary Chunked Upload Guidelines](https://support.cloudinary.com/hc/en-us/articles/208263735-Guidelines-for-implementing-chunked-upload-to-Cloudinary)
 
 ---
 
-### Pitfall 4: React Router 404 on Page Refresh with Embedded SPA
+### 4. Orphaned Chunks Storage Leak
 
-**What goes wrong:**
-React app works when navigating via links. User refreshes on `/transcribe/123` and gets 404 from FastAPI. The SPA routes aren't known to the backend, so it tries to find a literal `/transcribe/123` endpoint.
+**What goes wrong:** Incomplete uploads leave chunks on disk forever, slowly filling storage.
 
-**Why it happens:**
-- FastAPI `StaticFiles` mount serves files literally
-- React Router handles routes client-side, but refresh hits server first
-- No catch-all route configured for SPA fallback
-- Developers test navigation without refresh
+**Why it happens:** User closes browser, network fails, or client crashes mid-upload. Server has partial chunks but no cleanup trigger.
 
-**How to avoid:**
-1. Add 404 exception handler that returns `index.html` for non-API routes:
-   ```python
-   @app.exception_handler(404)
-   async def spa_fallback(request, exc):
-       if not request.url.path.startswith("/api"):
-           return FileResponse("dist/index.html")
-       raise exc
-   ```
-2. Mount API routes BEFORE static files mount
-3. Use path prefix for all API routes (`/api/*`)
-4. Test refresh on every frontend route during development
+**Consequences:**
+- Disk fills up over time
+- Storage costs increase (if using cloud storage)
+- No visibility into orphaned data
+- Manual cleanup becomes operational burden
 
 **Warning signs:**
-- 404 errors on refresh but not on navigation
-- Works in Vite dev server but breaks when served by FastAPI
-- Users bookmark pages that return 404 later
+- Disk usage grows faster than completed uploads
+- Many directories in temp upload folder with old timestamps
+- Storage alerts without corresponding increase in completed files
 
-**Phase to address:**
-Phase 3 (Build Integration) - Configure when embedding frontend
+**Prevention:**
+- Store upload session creation timestamp
+- Run background cleanup job (every hour or daily)
+- Delete sessions older than threshold (24 hours is reasonable)
+- Track session expiry in database, not just filesystem
+- Log cleanup operations for monitoring
+- Consider upload session TTL in database with automatic expiry
+
+**Phase:** Address in upload session management and background tasks
+
+**Source:** [ownCloud Orphaned Chunks Issue](https://github.com/owncloud/core/issues/26981), [AWS S3 Multipart Cleanup](https://kb.msp360.com/cloud-vendors/amazon-aws/removing-incomplete-multipart-uploads-chunks-with-a-lifecycle-policy)
 
 ---
 
-### Pitfall 5: FastAPI BackgroundTasks Blocking for ML Inference
+### 5. Upload Session State Loss
 
-**What goes wrong:**
-Using FastAPI's built-in `BackgroundTasks` for ML inference (transcription). Tasks run in the same event loop, blocking other requests. No progress tracking, no persistence (server restart loses tasks), no retry mechanism.
+**What goes wrong:** Server loses track of which chunks have been received, requiring re-upload of entire file.
 
 **Why it happens:**
-- `BackgroundTasks` is easy and built-in, seems like obvious choice
-- Works fine for quick tasks (send email, write log)
-- ML inference is CPU-bound and long-running - worst case for `BackgroundTasks`
-- No status tracking means frontend can't show real progress
+- Session state stored only in memory (lost on server restart)
+- Redis/database connection fails
+- Load balancer routes chunks to different servers without sticky sessions
+- Session token expires mid-upload
 
-**How to avoid:**
-1. Use Celery + Redis for all ML inference tasks
-2. Or use ARQ (async-native) if already in async ecosystem
-3. Never use `BackgroundTasks` for anything taking >5 seconds
-4. Implement task status endpoint: `GET /api/tasks/{task_id}/status`
-5. Store task state in Redis/database, not in-memory
+**Consequences:**
+- Users must restart large uploads from scratch
+- Frustration and abandonment for 500MB+ files
+- Wasted bandwidth
 
 **Warning signs:**
-- API becomes unresponsive during transcription
-- Server restart loses in-progress transcriptions
-- No way to query task progress from frontend
-- Tasks silently fail with no retry
+- Uploads fail after server deployments
+- Resuming upload reports "session not found"
+- Works in development, fails in production with multiple servers
 
-**Phase to address:**
-Phase 1 (Task Queue Setup) - Must be foundational infrastructure
+**Prevention:**
+- Persist session state to database, not memory
+- Include received chunk bitmap in session
+- For WhisperX (single server): SQLite or filesystem-based state is acceptable
+- Store: upload_id, total_size, chunk_size, received_chunks[], created_at, expires_at
+- Implement HEAD endpoint to query upload status for resumability
+
+**Phase:** Address in upload session design
+
+**Source:** [Google Cloud Resumable Uploads](https://cloud.google.com/storage/docs/resumable-uploads), [Box Chunked Uploads](https://developer.box.com/guides/uploads/chunked)
 
 ---
 
-### Pitfall 6: CORS Misconfiguration Breaking WebSocket in Production
+## Cloudflare-Specific Pitfalls
 
-**What goes wrong:**
-API calls work, WebSocket connections fail with 403. CORS configured for HTTP but not WebSocket. Works in development (same origin), breaks in production or when ports differ.
+Issues specific to running behind Cloudflare proxy.
 
-**Why it happens:**
-- WebSocket upgrade request is a regular HTTP request first
-- CORS must allow WebSocket handshake origin
-- Middleware order matters - CORS must be added first
-- 500 errors in handlers bypass CORS headers entirely
-- Using wildcard `*` in development but forgetting to configure production
+### 6. Cloudflare 100MB Per-Request Limit
 
-**How to avoid:**
-1. Configure CORS middleware with explicit origins (not `*` in production):
-   ```python
-   app.add_middleware(
-       CORSMiddleware,
-       allow_origins=["https://yourdomain.com"],
-       allow_credentials=True,
-       allow_methods=["*"],
-       allow_headers=["*"],
-   )
-   ```
-2. Add CORS middleware FIRST (before other middleware)
-3. Test WebSocket connections with production CORS settings locally
-4. Better: Serve frontend from same origin (embedded) to avoid CORS entirely
+**What goes wrong:** Individual chunk requests larger than 100MB are rejected with 413 error.
+
+**Why it happens:** Cloudflare Free/Pro plans have hard 100MB request body limit. This applies to each chunk request, not the total file.
+
+**Consequences:**
+- Large chunks rejected before reaching origin server
+- Confusing error for users (appears server-side but is proxy)
+- Chunked upload "works" but with artificially small chunks
 
 **Warning signs:**
-- "Failed to connect to WebSocket: HTTP 403"
-- Works locally but fails when deployed
-- HTTP endpoints work but WebSocket fails
-- CORS headers present on success but missing on errors
+- 413 Request Entity Too Large from Cloudflare (not your server)
+- Error occurs instantly (Cloudflare edge), not after transfer
+- Works when bypassing Cloudflare
 
-**Phase to address:**
-Phase 1 (WebSocket Infrastructure) - Configure with initial WebSocket setup
+**Prevention:**
+- Set chunk size to 50MB or less (safe margin under 100MB)
+- Document chunk size limit in frontend configuration
+- Return clear error message if chunk exceeds limit
+- Consider 20-25MB chunks for reliability over speed
+
+**Phase:** Address in chunk size configuration (both frontend and backend)
+
+**Source:** [Cloudflare Connection Limits](https://developers.cloudflare.com/fundamentals/reference/connection-limits/), [Cloudflare Upload Limit Discussion](https://community.cloudflare.com/t/unable-to-upload-big-file-on-cloudflare-using-proxy/498774)
 
 ---
 
-### Pitfall 7: Progress Tracking Desync Between Backend and Frontend
+### 7. Cloudflare Rate Limiting False Positives
 
-**What goes wrong:**
-Frontend shows 70% progress, but backend already completed (or failed). Progress updates arrive out of order or are lost. UI flickers between progress states. Task completes but frontend never updates.
+**What goes wrong:** Cloudflare blocks chunked uploads as suspected DDoS attack.
 
-**Why it happens:**
-- WebSocket messages can arrive out of order
-- No sequence numbers or timestamps on progress updates
-- React state updates batch unexpectedly with rapid messages
-- Network latency causes stale updates to arrive after final state
-- No reconciliation when WebSocket reconnects
+**Why it happens:** Multiple rapid requests from same IP (one per chunk) triggers rate limiting rules. A 500MB file with 10MB chunks = 50 requests in quick succession.
 
-**How to avoid:**
-1. Include monotonic sequence number in every progress message
-2. Discard messages with sequence < last received
-3. On reconnect, fetch full state snapshot before resuming stream
-4. Use React's `useReducer` instead of `useState` for complex state
-5. Backend should always send final state (complete/failed) even if client appears disconnected
+**Consequences:**
+- User blocked mid-upload with 429 error
+- Upload fails and cannot resume (session may expire during block)
+- Legitimate users treated as attackers
 
 **Warning signs:**
-- Progress bar jumps backwards sometimes
-- Final state doesn't match progress shown
-- Different browsers/tabs show different progress for same task
-- "Race condition" bugs that are hard to reproduce
+- Uploads fail after ~10-20 chunks
+- 429 Too Many Requests error
+- Works with small files, fails with large files
+- Issue appears for fast uploaders on good connections
 
-**Phase to address:**
-Phase 4 (Progress UI) - Design state protocol before building UI
+**Prevention:**
+- Configure Cloudflare rate limiting to exclude upload endpoints
+- Use WAF rule: `http.request.uri.path contains "/upload"` to bypass rate limit
+- Alternatively, add upload endpoint to allowed list
+- Consider using unproxied subdomain for uploads (e.g., `upload.example.com` DNS-only)
+- Add small delay between chunk uploads if rate limiting unavoidable
+
+**Phase:** Address in Cloudflare configuration during deployment
+
+**Source:** [Cloudflare Rate Limiting Best Practices](https://developers.cloudflare.com/waf/rate-limiting-rules/best-practices/), [Rate Limiting Behavior Discussion](https://community.cloudflare.com/t/rate-limiting-behavior/695221)
 
 ---
 
-## Technical Debt Patterns
+### 8. Cloudflare Timeout During Long Assembly
 
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| `file.read()` for uploads | Simple code | Memory exhaustion at scale | Never for audio/video files |
-| In-memory WebSocket connections | No Redis dependency | Single-process only, no scaling | Development only |
-| `BackgroundTasks` for inference | No Celery setup | Blocks event loop, no persistence | Never for ML tasks |
-| Wildcard CORS (`*`) | Quick fix for CORS errors | Security vulnerability, credential issues | Development only |
-| Polling instead of WebSocket | Simpler implementation | Higher latency, server load | Acceptable as fallback |
-| Single-file React bundle | Simple deployment | Slow initial load for large apps | MVP only, refactor for production |
+**What goes wrong:** Cloudflare times out the connection while server assembles final file.
 
-## Integration Gotchas
+**Why it happens:** After last chunk uploads, server may take 30+ seconds to:
+- Verify all chunks
+- Concatenate files
+- Calculate checksum
+- Move to final location
 
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| Vite + FastAPI | Building frontend but not copying `dist/` to container | Multi-stage Docker build, copy dist in final stage |
-| React Router + StaticFiles | No catch-all for SPA routes | 404 handler returns index.html for non-API paths |
-| WebSocket + Celery | Trying to send WebSocket from Celery worker | Celery updates Redis/DB, FastAPI broadcasts via WebSocket |
-| Presigned URLs + Large Files | Generating URL after receiving file | Generate URL first, client uploads directly to S3 |
-| Uvicorn + File Uploads | Default timeout too short | Configure `--timeout-keep-alive` and proxy timeouts |
+Cloudflare has connection timeout limits.
 
-## Performance Traps
+**Consequences:**
+- Client receives timeout error despite successful upload
+- File is assembled but client doesn't know
+- Retry logic re-uploads unnecessarily
 
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| Loading full file to memory | OOM crashes | Stream in chunks | >100MB files or >3 concurrent uploads |
-| Sync file I/O in async handlers | Request queue backup | Use aiofiles | >2 concurrent file operations |
-| Single-process WebSocket manager | WebSocket works but not across pods | Use Redis pub/sub for connection manager | Horizontal scaling (>1 replica) |
-| No connection limits | Server overwhelmed | Set max WebSocket connections | >100 concurrent users |
-| Huge progress update frequency | Frontend thrashing | Throttle to max 2-4 updates/second | Long transcriptions with many segments |
+**Warning signs:**
+- Uploads "fail" but files appear on server
+- Timeout occurs at 100% upload progress
+- Larger files fail more often
 
-## Security Mistakes
+**Prevention:**
+- Return 202 Accepted immediately after last chunk, assemble asynchronously
+- Use existing WebSocket infrastructure to report assembly progress
+- Send heartbeats during assembly to keep connection alive
+- Separate "upload complete" from "file ready" status
+- Add `/upload/{id}/status` endpoint to check assembly progress
 
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| CORS wildcard in production | Any site can call your API | Explicit origin allowlist |
-| No file type validation | Arbitrary file upload attacks | Validate MIME type AND file extension AND magic bytes |
-| No file size limits | DoS via huge uploads | Reject before reading: check Content-Length header |
-| Task IDs as sequential integers | Task enumeration/scraping | Use UUIDs for task IDs |
-| WebSocket without auth | Unauthorized access to progress | Validate JWT/session on WebSocket connect |
-| Storing uploads in web-accessible path | Direct file access bypassing API | Store uploads outside of static files directory |
+**Phase:** Address in upload completion flow design
 
-## UX Pitfalls
+**Source:** [Cloudflare Workers Limits](https://developers.cloudflare.com/workers/platform/limits/)
 
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| No upload progress indicator | User thinks upload is broken | Show upload percentage before processing starts |
-| Single "Processing..." state | User has no idea how long to wait | Show stages: "Uploading", "Queued", "Transcribing (45%)", "Finalizing" |
-| Losing state on refresh | User loses progress context | Persist task ID in URL, restore state on load |
-| No error details on failure | User can't retry correctly | Show specific error: "File too large" vs "Unsupported format" vs "Server error" |
-| Blocking UI during long operations | Frustrated users | Allow browsing/starting other tasks while one processes |
-| No cancellation option | Stuck watching unwanted task | Add cancel button that actually terminates background task |
+---
 
-## "Looks Done But Isn't" Checklist
+## Common Mistakes
 
-- [ ] **File Upload:** Often missing size limits - verify max file size is enforced BEFORE reading
-- [ ] **WebSocket:** Often missing reconnection logic - verify automatic reconnect after disconnect
-- [ ] **Progress Tracking:** Often missing error state - verify failed tasks show failure in UI
-- [ ] **Task Queue:** Often missing cleanup - verify completed tasks are cleaned up from Redis
-- [ ] **Static Files:** Often missing cache headers - verify production cache-control headers set
-- [ ] **Error Handling:** Often missing logging - verify errors are logged server-side with context
-- [ ] **CORS:** Often missing credentials - verify `allow_credentials=True` if using cookies/auth
-- [ ] **Docker Build:** Often missing .dockerignore - verify node_modules and __pycache__ excluded
+Frequently made errors that cause bugs or poor user experience.
 
-## Recovery Strategies
+### 9. Missing Chunk Order Validation
 
-| Pitfall | Recovery Cost | Recovery Steps |
-|---------|---------------|----------------|
-| Memory exhaustion from file reads | LOW | Refactor to streaming pattern, restart server |
-| Lost tasks from BackgroundTasks | MEDIUM | Migrate to Celery, replay failed tasks from logs |
-| Broken React routes | LOW | Add SPA fallback handler, redeploy |
-| WebSocket state desync | MEDIUM | Add sequence numbers, implement reconciliation on reconnect |
-| CORS blocking production | LOW | Update allowed origins, redeploy |
-| Blocked event loop | MEDIUM | Audit all sync code, migrate to aiofiles/threadpool |
+**What goes wrong:** Server accepts chunks out of order but assembles them in arrival order, not logical order.
 
-## Pitfall-to-Phase Mapping
+**Why it happens:** Network latency varies. Chunk 5 may arrive before chunk 4. Simple append-based assembly corrupts the file.
 
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| WebSocket connection drops | Phase 1: WebSocket Infrastructure | Test 30+ minute connection with no activity |
-| Memory exhaustion on upload | Phase 2: File Upload | Upload 1GB file while running memory profiler |
-| Event loop blocking | Phase 2: File Upload | Load test: 10 concurrent uploads, measure p99 latency |
-| React Router 404 | Phase 3: Build Integration | Refresh on every frontend route, verify no 404 |
-| BackgroundTasks for ML | Phase 1: Task Queue Setup | Restart server during task, verify task resumes |
-| CORS for WebSocket | Phase 1: WebSocket Infrastructure | Test WebSocket from different origin |
-| Progress desync | Phase 4: Progress UI | Rapidly send 100 progress updates, verify UI consistency |
+**Consequences:**
+- Corrupted files
+- Audio/video plays but is scrambled
+- Checksum fails
+
+**Warning signs:**
+- File corruption is intermittent
+- Small files work, large files sometimes fail
+- Fast connections have more issues (chunks arrive out of order)
+
+**Prevention:**
+- Store chunk index with each chunk
+- Name temp files with chunk index: `upload_abc_chunk_003.tmp`
+- Assemble by sorting chunk indices, not arrival time
+- Validate all chunks present before assembly (no gaps)
+
+**Phase:** Address in chunk storage and assembly logic
+
+**Source:** [Cloudinary Guidelines](https://support.cloudinary.com/hc/en-us/articles/208263735-Guidelines-for-implementing-chunked-upload-to-Cloudinary)
+
+---
+
+### 10. No Client-Side Chunk Integrity Verification
+
+**What goes wrong:** Network corruption goes undetected, resulting in corrupted uploads.
+
+**Why it happens:** Developer assumes TCP guarantees integrity (it mostly does, but edge cases exist). No checksum verification per chunk.
+
+**Consequences:**
+- Silent file corruption
+- Transcription fails or produces garbage
+- User blames app, not network
+
+**Warning signs:**
+- Rare, intermittent file corruption
+- Users on mobile/spotty networks have more issues
+- Files "look fine" but don't process correctly
+
+**Prevention:**
+- Calculate MD5 or SHA256 of each chunk on client
+- Send hash in `X-Chunk-Checksum` header
+- Server verifies hash before accepting chunk
+- Reject and request retry if mismatch
+- For extra safety: full file checksum after assembly
+
+**Phase:** Address in chunk upload protocol (both frontend and backend)
+
+**Source:** [AWS S3 Object Integrity](https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html), [TUS Protocol Checksum Extension](https://tus.io/protocols/resumable-upload)
+
+---
+
+### 11. Poor Error Recovery UX
+
+**What goes wrong:** Any error requires full re-upload instead of resuming from last successful chunk.
+
+**Why it happens:** Frontend doesn't track which chunks succeeded. Backend doesn't provide query endpoint for upload state.
+
+**Consequences:**
+- Users give up on large uploads
+- Bandwidth wasted on re-uploads
+- Perception of unreliable product
+
+**Warning signs:**
+- Support complaints about upload failures
+- High abandonment rate for large files
+- Users upload same file multiple times
+
+**Prevention:**
+- Frontend: track successful chunk indices locally (localStorage)
+- Backend: provide `GET /upload/{id}/status` endpoint returning received chunks
+- On resume: query status, upload only missing chunks
+- Show clear "Resuming from X%" message to user
+- Store upload state even across browser refresh
+
+**Phase:** Address in upload session management and frontend retry logic
+
+**Source:** [TUS Protocol](https://tus.io/protocols/resumable-upload)
+
+---
+
+### 12. WebSocket State Desynchronization
+
+**What goes wrong:** Upload progress shown via WebSocket gets out of sync with actual chunk upload state.
+
+**Why it happens:** WhisperX uses WebSocket for transcription progress. Adding upload progress to same WebSocket creates complexity:
+- Upload progress comes from HTTP chunk responses
+- Transcription progress comes from WebSocket
+- Mixing sources causes confusion
+
+**Consequences:**
+- Progress bar jumps backward
+- Completion announced before upload finished
+- User confusion about actual status
+
+**Warning signs:**
+- Progress bar not smooth
+- "Complete" shown but file still uploading
+- Frontend console shows state conflicts
+
+**Prevention:**
+- Keep upload progress in HTTP layer (XHR progress events)
+- WebSocket only for transcription/processing progress (current design)
+- Clear state machine: uploading (HTTP) -> processing (WebSocket) -> complete
+- Don't try to unify progress reporting too early
+
+**Phase:** Address in frontend state management design
+
+**Source:** Existing WhisperX codebase analysis (`useUploadOrchestration.ts`)
+
+---
+
+### 13. First Chunk Special Handling Forgotten
+
+**What goes wrong:** First chunk initializes upload session, but code treats all chunks identically.
+
+**Why it happens:** First chunk typically:
+- Creates upload session
+- Validates total file size
+- Returns upload ID for subsequent chunks
+
+Treating it like other chunks breaks the flow.
+
+**Consequences:**
+- Upload ID not available for chunks 2+
+- Duplicate session creation
+- Wasted server resources
+
+**Warning signs:**
+- Each chunk creates new session
+- Backend shows many orphaned single-chunk sessions
+- Chunk 2 returns "session not found"
+
+**Prevention:**
+- Explicit flow: `POST /upload/init` -> returns `upload_id`
+- All chunks include `upload_id` in URL or header
+- First chunk CAN include data, but session creation is separate concern
+- Alternative: first chunk has different endpoint or header flag
+
+**Phase:** Address in API endpoint design
+
+**Source:** [Cloudinary Guidelines](https://support.cloudinary.com/hc/en-us/articles/208263735-Guidelines-for-implementing-chunked-upload-to-Cloudinary)
+
+---
+
+### 14. Insufficient Logging for Debugging
+
+**What goes wrong:** Upload failures are undebuggable in production.
+
+**Why it happens:** Chunked uploads have many failure points. Without detailed logging:
+- Can't identify which chunk failed
+- Can't reproduce timing issues
+- Can't distinguish client vs server vs network issues
+
+**Consequences:**
+- Support tickets unresolvable
+- Same issues keep recurring
+- Frustrated users and developers
+
+**Warning signs:**
+- "Upload failed" with no actionable detail
+- Can't reproduce reported issues
+- Different behavior in dev vs production
+
+**Prevention:**
+Log at each step:
+- Session creation: upload_id, total_size, chunk_size, client_info
+- Each chunk: upload_id, chunk_index, received_bytes, duration, checksum
+- Assembly: upload_id, chunks_count, final_size, assembly_duration
+- Errors: upload_id, chunk_index, error_type, error_detail
+
+Include correlation ID (upload_id) in all logs for filtering.
+
+**Phase:** Address throughout implementation
+
+---
+
+## Prevention Strategies Summary
+
+| Pitfall | Prevention Strategy | Phase |
+|---------|---------------------|-------|
+| Memory exhaustion | Stream to disk, never hold in memory | Chunk endpoint |
+| Race conditions | Mutex on session state, separate chunk files | Chunk endpoint |
+| Off-by-one Content-Range | Unit tests for boundary math | Frontend upload |
+| Orphaned chunks | Background cleanup job with TTL | Background tasks |
+| Session state loss | Persist to database, not memory | Session management |
+| Cloudflare 100MB limit | 50MB chunk size max | Configuration |
+| Cloudflare rate limiting | WAF rule to exclude upload endpoint | Deployment |
+| Assembly timeout | Async assembly, return 202 immediately | Completion flow |
+| Chunk order corruption | Index-based storage and assembly | Storage logic |
+| No integrity verification | Checksum per chunk | Protocol design |
+| Poor error recovery | Resume endpoint, localStorage tracking | Frontend + API |
+| WebSocket desync | HTTP for upload, WebSocket for processing | State management |
+| First chunk special handling | Explicit session init endpoint | API design |
+| Insufficient logging | Structured logs with upload_id correlation | Throughout |
+
+---
+
+## Recommended Protocol: TUS vs Custom
+
+Based on research, two viable approaches:
+
+### Option 1: TUS Protocol (Recommended for complex cases)
+- Battle-tested, used by Cloudflare, Vimeo, Supabase
+- Handles resumability, checksums, expiration
+- Python server: `tusd` or `tus-py-client`
+- More complexity but proven reliability
+
+### Option 2: Custom Implementation (Acceptable for WhisperX scope)
+- Simpler, tailored to exact needs
+- Full control over behavior
+- Less code to maintain if kept minimal
+- Risk: reinventing solved problems
+
+**Recommendation for WhisperX:** Custom implementation is acceptable given:
+- Single server deployment (no distributed state issues)
+- Known, controlled client (own frontend)
+- Existing WebSocket infrastructure for progress
+- Simpler operational model
+
+If issues arise, TUS can be adopted later.
+
+---
 
 ## Sources
 
-**Official Documentation:**
-- [FastAPI WebSockets](https://fastapi.tiangolo.com/advanced/websockets/)
-- [FastAPI CORS](https://fastapi.tiangolo.com/tutorial/cors/)
-- [FastAPI Static Files](https://fastapi.tiangolo.com/tutorial/static-files/)
-- [FastAPI Background Tasks](https://fastapi.tiangolo.com/tutorial/background-tasks/)
+**Authoritative:**
+- [TUS Resumable Upload Protocol](https://tus.io/protocols/resumable-upload)
+- [Cloudflare Connection Limits](https://developers.cloudflare.com/fundamentals/reference/connection-limits/)
+- [Cloudflare Rate Limiting Best Practices](https://developers.cloudflare.com/waf/rate-limiting-rules/best-practices/)
+- [AWS S3 Object Integrity](https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html)
+- [Google Cloud Resumable Uploads](https://cloud.google.com/storage/docs/resumable-uploads)
+- [FastAPI Request Files Documentation](https://fastapi.tiangolo.com/tutorial/request-files/)
 
-**GitHub Discussions & Issues:**
-- [WebSocket timeout issues](https://github.com/fastapi/fastapi/discussions/11340)
-- [React Router 404 on refresh](https://github.com/fastapi/fastapi/discussions/11502)
-- [BackgroundTasks blocking application](https://github.com/fastapi/fastapi/discussions/11210)
-- [Uploading large files](https://github.com/fastapi/fastapi/discussions/9828)
-- [Streaming file uploads](https://github.com/fastapi/fastapi/issues/2578)
-
-**Community Guides:**
-- [Serving React with FastAPI](https://davidmuraya.com/blog/serving-a-react-frontend-application-with-fastapi/)
-- [FastAPI File Uploads](https://davidmuraya.com/blog/fastapi-file-uploads/)
-- [Celery Progress with FastAPI](https://celery.school/celery-progress-bars-with-fastapi-htmx)
-- [FastAPI Background Tasks vs ARQ](https://davidmuraya.com/blog/fastapi-background-tasks-arq-vs-built-in/)
-- [WebSocket Reconnection Strategies](https://dev.to/hexshift/robust-websocket-reconnection-strategies-in-javascript-with-exponential-backoff-40n1)
-- [React WebSocket Best Practices](https://maybe.works/blogs/react-websocket)
-- [Chunked File Uploads Guide](https://arnabgupta.hashnode.dev/mastering-chunked-file-uploads-with-fastapi-and-nodejs-a-step-by-step-guide)
-- [TUS Resumable Uploads](https://tus.io/)
-
----
-*Pitfalls research for: React Frontend + FastAPI ML Backend (WhisperX)*
-*Researched: 2026-01-27*
+**Community/Implementation:**
+- [FastAPI Large File Upload Discussion](https://github.com/fastapi/fastapi/discussions/9828)
+- [Cloudinary Chunked Upload Guidelines](https://support.cloudinary.com/hc/en-us/articles/208263735-Guidelines-for-implementing-chunked-upload-to-Cloudinary)
+- [ownCloud Orphaned Chunks Issue](https://github.com/owncloud/core/issues/26981)
+- [TUS-PHP Race Condition Issue](https://github.com/ankitpokhrel/tus-php/issues/257)
+- [rclone Azure Race Condition](https://github.com/rclone/rclone/issues/7590)
+- [Box Chunked Uploads Guide](https://developer.box.com/guides/uploads/chunked)
+- [Transloadit Chunking Guide](https://transloadit.com/devtips/optimizing-online-file-uploads-with-chunking-and-parallel-uploads/)

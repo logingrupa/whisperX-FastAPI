@@ -1,229 +1,225 @@
-# Feature Research: Transcription Workbench UI
+# Feature Landscape: Chunked File Uploads
 
-**Domain:** Speech-to-text transcription web application (React frontend for WhisperX API)
-**Researched:** 2026-01-27
-**Confidence:** MEDIUM-HIGH (based on comprehensive competitive analysis)
+**Domain:** Large file upload UX for audio/video transcription
+**Researched:** 2026-01-29
+**Confidence:** HIGH (verified across multiple authoritative sources)
 
-## Feature Landscape
+## Context
 
-### Table Stakes (Users Expect These)
+WhisperX transcription app with 500MB+ audio/video files. Need chunked uploads to work through Cloudflare's 100MB limit. Users currently have:
+- Drag-and-drop with react-dropzone
+- Multi-file queue with processing
+- Real-time WebSocket progress (for transcription stages)
+- File format validation (magic bytes)
 
-Features users assume exist. Missing these = product feels incomplete or unusable.
+---
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| **File Upload (Drag & Drop)** | Every modern transcription tool supports this - users don't want file dialogs | LOW | Standard HTML5 drag-drop API. Support common formats: MP3, WAV, MP4, MOV, M4A, FLAC, OGG |
-| **Multi-File Upload** | Users often batch process recordings from meetings/interviews | LOW | Extend single-file UI with queue display |
-| **Progress Indicator** | Transcription takes time; users need feedback that something is happening | MEDIUM | Must show per-file progress. WebSocket recommended for real-time updates |
-| **Transcript Viewer with Timestamps** | Core deliverable - users need to see results with time references | MEDIUM | Paragraph-level timestamps minimum. Display speaker labels if available |
-| **Speaker Labels/Diarization** | Expected for multi-speaker recordings (meetings, interviews, podcasts) | LOW (API provides) | Display "Speaker 1", "Speaker 2" etc. Allow manual renaming |
-| **Export to SRT/VTT** | Universal subtitle formats needed for video editing workflows | LOW | SRT most widely supported; VTT for web. Both are simple text formats |
-| **Export to Plain Text** | Basic format for copy/paste into documents | LOW | Strip timestamps, just clean text |
-| **Language Selection** | Users need to specify or verify audio language | LOW | Dropdown with common languages. Show auto-detected language from API |
-| **Basic Error Handling** | Clear messages when files fail or processing errors occur | MEDIUM | Don't erase user selections on error. Show actionable error messages |
-| **Responsive Layout** | Must work on desktop and tablet at minimum | MEDIUM | Standard CSS responsive design |
+## Table Stakes (Must Have)
 
-### Differentiators (Competitive Advantage)
+Features users expect for chunked uploads to feel complete. Missing any = upload feels broken.
 
-Features that set the product apart. Not required, but valuable for WhisperX-specific workflow.
+| Feature | Why Expected | Complexity | Testable Criteria |
+|---------|--------------|------------|-------------------|
+| **Overall file progress bar** | Users need to know upload status at a glance; transparent progress reduces anxiety | Low | Progress bar shows 0-100% for entire file, updates smoothly during upload |
+| **Smooth progress updates** | Chunked uploads can appear "jumpy" with large chunks; users expect linear progress | Low | Progress bar updates at least every 2-3 seconds for 500MB file |
+| **Automatic retry on failure** | Network hiccups are common; users expect system to handle them silently | Medium | Failed chunk retries automatically (max 3 attempts) before showing error |
+| **Clear error messages** | "Upload Failed" is useless; users need actionable information | Low | Error shows what happened + what to do: "Network error. Click to retry." |
+| **Cancel upload button** | Users must be able to stop an upload in progress | Low | Cancel button visible during upload; click stops upload immediately |
+| **Resume after page refresh** | Users accidentally close tabs; losing 80% of a 500MB upload is unacceptable | High | Upload resumes from last successful chunk after page reload |
+| **Upload speed indicator** | For large files, users want to estimate when upload will complete | Low | Shows "X MB/s" or "~Y minutes remaining" |
+| **File size validation before upload** | Prevent wasted time on files that will fail server-side limits | Low | Files over limit show error immediately, not after partial upload |
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| **Auto Language Detection from Filename** | Project-specific: A03=Latvian, A04=Russian, A05=English saves manual selection for known workflows | LOW | Regex pattern matching on filenames. Show detected language, allow override |
-| **Model Management UI** | Unique to self-hosted Whisper: download, switch, and monitor model status | MEDIUM | Not offered by SaaS tools (Otter, Rev). Key differentiator for power users |
-| **Model Size Selector** | Let users trade accuracy vs speed (tiny/base/small/medium/large) | LOW | Dropdown with model names + expected accuracy/speed notes |
-| **Real-Time WebSocket Progress** | Granular progress (not just spinning wheel) builds trust during long transcriptions | MEDIUM | WhisperX API must support progress callbacks. Show percentage + ETA |
-| **Word-Level Timestamps with Click-to-Play** | Click any word to jump to that point in audio - premium editing feature | HIGH | Requires word-level timestamps from API + audio player sync. Descript/Rev have this |
-| **Batch Processing Queue** | Process multiple files with queue management (pause, reorder, cancel) | MEDIUM | Goes beyond basic multi-upload to full job management |
-| **JSON Export with Full Metadata** | Developer/researcher export with all available data (confidence, timestamps, speakers) | LOW | Serialize full API response. Useful for NVivo, ATLAS.ti integration |
-| **Custom Dictionary/Vocabulary** | Improve accuracy for domain-specific terms, names, acronyms | HIGH | Requires WhisperX API support. Sonix/Trint offer this |
-| **Confidence Scores Display** | Show per-word confidence to flag potential errors for review | MEDIUM | Sonix does this well. Helps prioritize manual review effort |
-| **Dark Mode** | Developer preference, reduces eye strain for long editing sessions | LOW | CSS variables for theme switching |
+### Why These Are Table Stakes
 
-### Anti-Features (Commonly Requested, Often Problematic)
+Research consistently shows:
+- "Transparent progress reduces anxiety and improves the experience" - users abandon unclear uploads
+- "In the event of a network failure, continue uploading from the point of interruption instead of starting over" - modern expectation
+- "Provide informative error messages that help users correct mistakes" - vague errors cause support tickets
 
-Features that seem good but create problems. Deliberately NOT building these.
+---
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| **Real-Time Live Transcription** | "Otter does it!" | Requires streaming audio + different Whisper mode. Complex, different use case. WhisperX optimized for batch, not real-time | Focus on fast batch processing. Real-time is v2+ if demand proven |
-| **In-App Audio/Video Recording** | "Record directly in browser" | Browser recording quality varies. MediaRecorder API has format issues. Users have better recording tools | Accept file uploads only. Recording is a separate concern |
-| **Inline Transcript Editing** | "Let me fix mistakes in place" | Complex state management, undo/redo, sync with timestamps. Major engineering effort | Export to text editor. Consider v2 with Slate.js or ProseMirror |
-| **User Accounts & Authentication** | "Save my transcripts" | Adds backend complexity, data storage, privacy concerns. Not needed for local tool | Session-based storage. Export files for persistence |
-| **Automatic Meeting Bot Join** | "Join my Zoom like Otter" | Requires separate bot infrastructure, calendar integration. Completely different product | Users record meetings, then upload |
-| **AI Summarization/Chat** | "Ask questions about transcript" | Requires LLM integration, adds latency, scope creep. Otter/Descript territory | Clean transcript export. Users can paste into ChatGPT |
-| **Video Player with Transcript Sync** | "Watch video while reading" | Video handling complex. HTML5 video has format issues. Large files strain browser | Audio player only for click-to-play. Video editing in dedicated tools |
-| **Multi-Language in Same File** | "My interview switches between English and Spanish" | Whisper struggles with code-switching. Unreliable results | Transcribe as primary language. Note limitation in docs |
-| **Human Transcription Fallback** | "Send to human if accuracy low" | Requires marketplace/contractor management. Different business model | Export to Rev/GoTranscript for human review if needed |
+## Differentiators (Nice to Have)
+
+Features that enhance experience but aren't required for v1.1. Consider for v1.2+.
+
+| Feature | Value Proposition | Complexity | When to Build |
+|---------|-------------------|------------|---------------|
+| **Pause/resume button** | User-initiated pause for bandwidth management | Medium | When users report needing to pause for other activities |
+| **Per-chunk progress visualization** | Advanced users see granular upload detail | Medium | When debugging/transparency is requested |
+| **Background upload via Service Worker** | Upload continues if user navigates away from page | High | When users report losing uploads from navigation |
+| **Parallel chunk uploads** | Faster uploads on high-bandwidth connections | Medium | When upload speed is bottleneck for power users |
+| **Upload queue prioritization** | Drag to reorder which files upload first | Low | When users report needing to change order mid-batch |
+| **Upload bandwidth throttling** | Let users limit upload speed to preserve other network activity | Medium | When users report network congestion issues |
+| **Offline queue with auto-resume** | Queue files while offline, upload when connection returns | High | When mobile/unstable network users are significant |
+| **Pre-upload compression** | Client-side audio/video compression before upload | High | Only if transcription quality is unaffected |
+
+### Differentiation Notes
+
+- **Pause/resume** is highly valued: "Pause and resume functions give users control over their uploads"
+- **Background upload** is a power feature: "Service workers allow uploads to continue in the background, even if users navigate away"
+- **Parallel uploads** improve speed but add complexity: "Parallel uploading increases network utilization and improves upload speed"
+
+---
+
+## Anti-Features (Don't Build for v1.1)
+
+Features to explicitly exclude. Common mistakes or scope creep.
+
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| **Confirmation dialog on cancel** | Adds friction; cancel should be immediate + recoverable | Let users cancel instantly; file stays in queue for re-upload |
+| **Per-chunk error handling UI** | Overwhelming for users; they don't care which chunk failed | Show single "Upload failed" with retry; handle chunk logic internally |
+| **Chunk size configuration** | Users don't understand chunks; this is implementation detail | Auto-select optimal chunk size (5MB) based on testing |
+| **Upload history/persistence across sessions** | Scope creep; v1.1 is about working uploads, not upload management | Clear queue on session end; consider for v2 |
+| **Detailed upload analytics** | Nice for devs, confusing for users | Log internally; don't expose in UI |
+| **Multiple simultaneous file uploads** | Current architecture is sequential; adds complexity | Keep sequential processing; mark as future enhancement |
+| **Auto-resume after days** | TUS supports this, but adds state management complexity | Resume works within session; after 24h, require re-upload |
+| **Upload to multiple destinations** | Out of scope; we only need local server storage | Single destination; add if needed later |
+
+### Anti-Feature Rationale
+
+- **Confirmation dialogs:** "To balance safety and usability, optimally use confirmation dialogs only for required actions" - cancel is easily reversible
+- **Chunk configuration:** "The optimal chunk size depends on network conditions and browser limitations" - this is our problem, not user's
+- **Over-engineering resume:** "Returning an error in a timely manner and letting the user retry is a good UX practice" - don't over-promise
+
+---
+
+## UX Patterns
+
+### What Users Expect to See During Large Uploads
+
+**Visual State Progression:**
+1. File added -> File card with name, size, thumbnail (if applicable)
+2. Upload starts -> Progress bar appears, "Uploading..." status
+3. During upload -> Progress bar fills, speed indicator updates, time remaining shown
+4. Chunk fails (hidden) -> Auto-retry happens silently
+5. All retries fail -> Error state with "Retry" button and clear message
+6. Upload complete -> Checkmark, "Processing..." begins (existing WebSocket flow)
+
+**Progress Bar Behavior:**
+- Single progress bar per file (not per chunk)
+- Smooth animation between chunk completions
+- For 500MB file with 5MB chunks: updates every ~2-3 seconds on typical connection
+- Never regresses (goes backwards) - confuses users
+
+**Error Handling Hierarchy:**
+1. **Transient errors (network hiccup):** Retry silently with exponential backoff (1s, 2s, 4s)
+2. **Recoverable errors (server busy):** Retry with backoff, show "Retrying..." after 3rd attempt
+3. **Permanent errors (file too large, auth failed):** Stop immediately, show actionable error
+4. **User-initiated cancel:** Stop upload, keep file in queue as "Ready"
+
+**Cancel Behavior:**
+- Button appears immediately when upload starts
+- Click cancels current upload, no confirmation needed
+- File remains in queue with "Ready" status for re-upload
+- In-flight chunks are aborted (not completed then discarded)
+
+**Resume Behavior:**
+- On page refresh during upload: detect incomplete upload in localStorage
+- Show prompt: "Resume upload of filename.mp4? (450MB remaining)" with Resume/Start Over buttons
+- Resume continues from last confirmed chunk
+- Start Over clears saved state, begins fresh
+
+**Retry Behavior:**
+- Automatic retry: 3 attempts with exponential backoff (1s, 2s, 4s) + jitter
+- After 3 failures: show error state with manual "Retry" button
+- Manual retry: clears error, restarts from last successful chunk
+- "Retrying in X seconds..." message only shown after first visible failure
+
+### Multi-File Queue Behavior
+
+Current behavior (keep):
+- Sequential file processing (one at a time)
+- Queue shows all files with individual status
+- "Start All" processes queue in order
+
+Chunked upload additions:
+- Each file shows its own progress bar during upload
+- Other files in queue show "Queued" status
+- Failed files don't block queue (skip to next, user can retry later)
+
+---
 
 ## Feature Dependencies
 
 ```
-[Drag-Drop Upload]
+File Size Validation (pre-upload)
     |
     v
-[Progress Indicator] ----requires----> [WebSocket Connection]
+Chunked Upload Core (slicing + XHR)
+    |
+    +---> Progress Tracking (per-chunk -> aggregate)
+    |
+    +---> Auto-Retry Logic (per-chunk)
     |
     v
-[Transcript Viewer]
-    |-- requires --> [Speaker Labels] (from API)
-    |-- requires --> [Timestamps] (from API)
-    |-- enhances --> [Click-to-Play] --> requires --> [Audio Player]
+Cancel Handling (abort XHR)
     |
     v
-[Export (SRT/VTT/TXT/JSON)]
-
-[Model Management]
-    |-- requires --> [Model Download Progress]
-    |-- enhances --> [Model Size Selector]
-
-[Auto Language from Filename]
-    |-- enhances --> [Language Selection]
-    |-- independent of other features
-
-[Batch Queue]
-    |-- extends --> [Multi-File Upload]
-    |-- requires --> [Progress Indicator]
+Resume Logic (localStorage state)
+    |
+    v
+[Existing] WebSocket Progress (transcription stages)
 ```
 
-### Dependency Notes
+**Build Order Implications:**
+1. Core chunking + progress (table stakes, must work)
+2. Auto-retry (table stakes, prevents user frustration)
+3. Cancel (table stakes, user control)
+4. Resume (table stakes, prevents lost uploads)
+5. Speed indicator (table stakes, easy addition)
+6. Pause/resume button (differentiator, v1.2)
 
-- **Progress Indicator requires WebSocket:** HTTP polling is insufficient for long transcriptions. WebSocket provides real-time updates without hammering the server
-- **Click-to-Play requires Audio Player + Word Timestamps:** This is the most complex feature chain. Needs API to return word-level timing and frontend audio synchronization
-- **Export requires Transcript Viewer:** User must see results before exporting (or export all from batch queue)
-- **Model Management is independent:** Can be built as separate admin panel, not blocking core transcription flow
+---
 
-## MVP Definition
+## MVP Recommendation for v1.1
 
-### Launch With (v1)
+**Prioritize (Table Stakes):**
+1. Chunked upload with 5MB chunks (works through Cloudflare 100MB limit)
+2. Overall progress bar with smooth updates
+3. Automatic retry with exponential backoff (3 attempts)
+4. Clear error messages with retry button
+5. Cancel button (immediate, no confirmation)
+6. Upload speed + time remaining indicator
+7. Resume after page refresh (localStorage-based)
 
-Minimum viable product - what's needed to validate the concept.
+**Defer to v1.2:**
+- Pause/resume button (user-initiated pause)
+- Background upload via Service Worker
+- Parallel chunk uploads
 
-- [x] **Drag-drop file upload** - core interaction pattern
-- [x] **Single and multi-file support** - handle common batch workflows
-- [x] **Progress indicator via WebSocket** - trust-building feedback during processing
-- [x] **Language selection with auto-detection from filename** - project-specific differentiator (A03/A04/A05 pattern)
-- [x] **Transcript viewer with speaker labels and timestamps** - core deliverable
-- [x] **Export to SRT, VTT, TXT, JSON** - cover common export needs
-- [x] **Model selection dropdown** - let users choose accuracy/speed tradeoff
-- [x] **Basic error handling** - graceful failures with clear messages
+**Explicitly Exclude:**
+- Per-chunk UI
+- Chunk size configuration
+- Upload history persistence
+- Confirmation dialogs on cancel
 
-### Add After Validation (v1.x)
-
-Features to add once core is working and users provide feedback.
-
-- [ ] **Model download manager** - when users want to add new models
-- [ ] **Click-to-play word navigation** - when users do heavy editing
-- [ ] **Batch queue management** - when users process large volumes
-- [ ] **Confidence score display** - when accuracy review is priority
-- [ ] **Dark mode** - when requested
-
-### Future Consideration (v2+)
-
-Features to defer until product-market fit is established.
-
-- [ ] **Inline transcript editing** - significant engineering effort, needs clear demand
-- [ ] **Custom vocabulary/dictionary** - requires API support investigation
-- [ ] **Real-time streaming transcription** - different architecture, different use case
-- [ ] **Audio waveform visualization** - nice-to-have for pro editing
-
-## Feature Prioritization Matrix
-
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Drag-drop upload | HIGH | LOW | **P1** |
-| Progress indicator (WebSocket) | HIGH | MEDIUM | **P1** |
-| Transcript viewer + timestamps | HIGH | MEDIUM | **P1** |
-| Speaker labels display | HIGH | LOW | **P1** |
-| Export SRT/VTT/TXT/JSON | HIGH | LOW | **P1** |
-| Language selection | HIGH | LOW | **P1** |
-| Auto-language from filename | MEDIUM | LOW | **P1** |
-| Model selection | MEDIUM | LOW | **P1** |
-| Multi-file upload | MEDIUM | LOW | **P1** |
-| Error handling | HIGH | MEDIUM | **P1** |
-| Model download manager | MEDIUM | MEDIUM | **P2** |
-| Click-to-play | MEDIUM | HIGH | **P2** |
-| Batch queue management | MEDIUM | MEDIUM | **P2** |
-| Confidence scores | LOW | MEDIUM | **P2** |
-| Dark mode | LOW | LOW | **P3** |
-| Inline editing | HIGH | HIGH | **P3** |
-
-**Priority key:**
-- P1: Must have for launch (core transcription workflow)
-- P2: Should have, add when possible (power user features)
-- P3: Nice to have, future consideration (scope creep risk)
-
-## Competitor Feature Analysis
-
-| Feature | Otter.ai | Descript | Rev.com | Sonix | Our Approach |
-|---------|----------|----------|---------|-------|--------------|
-| File upload | Yes | Yes | Yes | Yes | Yes (drag-drop + multi-file) |
-| Real-time transcription | Yes (live) | No | No | No | No (batch focus) |
-| Speaker diarization | Yes | Yes | Yes | Yes | Yes (WhisperX provides) |
-| Word-level timestamps | Yes | Yes | Yes | Yes | Yes (P2 click-to-play) |
-| Inline editing | Yes | Yes (text=video) | Yes | Yes | No (export to editor) |
-| SRT/VTT export | Yes | Yes | Yes | Yes | Yes |
-| Model selection | N/A (cloud) | N/A | N/A | N/A | **Yes (differentiator)** |
-| Custom vocabulary | Yes | Yes | No | Yes | No (v2+) |
-| Confidence scores | No | No | No | Yes | P2 |
-| Price | $10-20/mo | $12-24/mo | $0.25/min | $10/hr | Free (self-hosted) |
-
-**Our competitive position:** We trade cloud convenience for local control. Users who want model selection, privacy (no cloud upload), and no per-minute costs will choose us. We don't compete on real-time or collaboration features.
-
-## UX Patterns to Follow
-
-Based on competitive analysis, these patterns are proven:
-
-1. **Clean dashboard on login** (Otter) - Recent transcriptions prominent, clear "Upload" CTA
-2. **Minimal learning curve** (Otter) - Drag file, see progress, get result
-3. **Timestamps at paragraph level** (Rev) - Clickable to jump to audio position
-4. **Speaker labels with color coding** - Visual distinction between speakers
-5. **Progress with percentage + ETA** - Not just spinner, actual feedback
-6. **Export button always visible** - Don't bury export in menus
-7. **State indicators** (Syncfusion pattern) - Inactive/Listening/Processing/Complete states clearly shown
-
-## UX Anti-Patterns to Avoid
-
-1. **Don't erase form data on errors** - If one file fails, don't clear the queue
-2. **Don't hide navigation in hamburger** - Key actions visible, not buried
-3. **Don't require account creation** - Tool should work immediately
-4. **Don't show raw API errors** - Translate to human-readable messages
-5. **Don't auto-play audio** - Let users initiate playback
-6. **Don't use confusing state labels** - "Processing" not "Syncing" or jargon
+---
 
 ## Sources
 
-### Transcription Software Reviews & Comparisons
-- [Reduct.video: 8 Best Transcription Software](https://reduct.video/blog/transcription-software-for-video/)
-- [Sonix: Trint vs Rev vs Sonix Comparison](https://sonix.ai/resources/trint-vs-rev-vs-sonix/)
-- [Cybernews: Otter AI Review 2026](https://cybernews.com/ai-tools/otter-ai-review/)
-- [All About AI: Descript AI Review](https://www.allaboutai.com/ai-reviews/descript-ai/)
+### Primary Sources (HIGH confidence)
+- [tus.io - Resumable upload protocol](https://tus.io/protocols/resumable-upload)
+- [Uppy Documentation - Progress bar](https://uppy.io/docs/progress-bar/)
+- [Uppy Documentation - Dashboard](https://uppy.io/docs/dashboard/)
+- [Uploadcare - UX best practices for file uploader](https://uploadcare.com/blog/file-uploader-ux-best-practices/)
+- [Uploadcare - How to handle large file uploads](https://uploadcare.com/blog/handling-large-file-uploads/)
 
-### Feature-Specific Research
-- [AssemblyAI: Speaker Diarization Guide](https://www.assemblyai.com/blog/what-is-speaker-diarization-and-how-does-it-work)
-- [Sonix: VTT to SRT Conversion](https://sonix.ai/resources/how-to-convert-vtt-to-srt/)
-- [Rev: Transcript Editor Guide](https://www.rev.com/blog/rev-transcript-editor-guide)
-- [ElevenLabs: Audio to Text with Word Timestamps](https://elevenlabs.io/audio-to-text)
+### Secondary Sources (MEDIUM confidence)
+- [Transloadit - Optimizing file uploads with chunking](https://transloadit.com/devtips/optimizing-online-file-uploads-with-chunking-and-parallel-uploads/)
+- [FileStack - Document Upload Apps Best Practices](https://blog.filestack.com/document-upload-apps-key-features-and-best-practices/)
+- [FileStack - Complete Guide to Handling Large File Uploads](https://blog.filestack.com/complete-guide-handling-large-file-uploads/)
+- [FastPix - Pause and Resume for Large Video Uploads](https://www.fastpix.io/blog/how-to-allow-users-to-upload-large-videos-with-pause-and-resume-features)
+- [PatternFly - Multiple file upload design guidelines](https://www.patternfly.org/components/file-upload/multiple-file-upload/design-guidelines/)
 
-### Progress & State Indicators
-- [GitHub: Whisper Progress Bar Discussion](https://github.com/openai/whisper/discussions/850)
-- [GitHub: Easy Whisper UI](https://github.com/mehtabmahir/easy-whisper-ui/releases)
-- [Syncfusion: SpeechToText Control](https://www.syncfusion.com/javascript-ui-controls/js-speech-to-text)
+### UX Pattern Sources (MEDIUM confidence)
+- [NN/g - Confirmation Dialogs](https://www.nngroup.com/articles/confirmation-dialog/)
+- [NN/g - Cancel vs Close](https://www.nngroup.com/articles/cancel-vs-close/)
+- [LogRocket - How to design nondestructive cancel buttons](https://blog.logrocket.com/ux-design/how-to-design-nondestructive-cancel-buttons/)
+- [AWS - Retry with backoff pattern](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/retry-backoff.html)
+- [Google Cloud - Retry strategy](https://cloud.google.com/storage/docs/retry-strategy)
 
-### Language Detection
-- [AssemblyAI: Automatic Language Detection](https://www.assemblyai.com/automatic-language-detection)
-- [Speechmatics: Language Identification](https://docs.speechmatics.com/speech-to-text/batch/language-identification)
-- [Google Cloud: Speech-to-Text Multiple Languages](https://cloud.google.com/speech-to-text/v2/docs/multiple-languages)
-
-### Model Management UX
-- [GitHub: Open-Whispr Model Management](https://github.com/HeroTools/open-whispr)
-- [GitHub: WhisperScript Discussion](https://github.com/openai/whisper/discussions/1028)
-
-### UX Anti-Patterns
-- [UI Patterns: User Interface Anti-Patterns](https://ui-patterns.com/blog/User-Interface-AntiPatterns)
-- [IdeaPeel: 11 Common UI/UX Design Mistakes](https://www.ideapeel.com/blogs/ui-ux-design-mistakes-how-to-fix-them)
-
----
-*Feature research for: WhisperX Transcription Workbench UI*
-*Researched: 2026-01-27*
-*Confidence: MEDIUM-HIGH*
+### Community Sources (LOW confidence - used for ecosystem survey only)
+- [DEV.to - How to handle large file uploads](https://dev.to/leapcell/how-to-handle-large-file-uploads-without-losing-your-mind-3dck)
+- [Medium - Chunked Resumable Uploads for Video](https://aditya007.medium.com/why-chunked-resumable-uploads-are-a-game-changer-for-video-processing-0554f2a36a98)
+- [Medium - Large Audio/Video upload system design](https://medium.com/@aditimishra_541/large-audio-video-upload-system-design-807af7f53f01)
