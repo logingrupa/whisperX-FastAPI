@@ -32,12 +32,12 @@ v1.1 enables uploads of files >100MB through Cloudflare's proxy by implementing 
   3. When final chunk received, file is assembled and transcription starts automatically
   4. Incomplete upload sessions are cleaned up after 10 minutes
   5. Existing /speech-to-text endpoint continues working unchanged
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 07-01: TUS router setup with tuspyserver
-- [ ] 07-02: Post-upload hook and transcription trigger
-- [ ] 07-03: Session cleanup scheduler
+- [ ] 07-01-PLAN.md -- TUS router setup with tuspyserver, CORS config, main.py integration
+- [ ] 07-02-PLAN.md -- Upload session service and transcription trigger hook
+- [ ] 07-03-PLAN.md -- Session cleanup scheduler with APScheduler
 
 ### Phase 8: Frontend Chunking
 **Goal**: Large files are automatically chunked and uploaded with unified progress display
@@ -91,7 +91,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 7. Backend Chunk Infrastructure | v1.1 | 0/3 | Not started | - |
+| 7. Backend Chunk Infrastructure | v1.1 | 0/3 | Planned | - |
 | 8. Frontend Chunking | v1.1 | 0/3 | Not started | - |
 | 9. Resilience and Polish | v1.1 | 0/3 | Not started | - |
 | 10. Integration and Deployment | v1.1 | 0/2 | Not started | - |
