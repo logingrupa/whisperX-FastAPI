@@ -66,31 +66,31 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BACK-01 | TBD | Pending |
-| BACK-02 | TBD | Pending |
-| BACK-03 | TBD | Pending |
-| BACK-04 | TBD | Pending |
-| BACK-05 | TBD | Pending |
-| BACK-06 | TBD | Pending |
-| FRONT-01 | TBD | Pending |
-| FRONT-02 | TBD | Pending |
-| FRONT-03 | TBD | Pending |
-| FRONT-04 | TBD | Pending |
-| FRONT-05 | TBD | Pending |
-| FRONT-06 | TBD | Pending |
-| RESIL-01 | TBD | Pending |
-| RESIL-02 | TBD | Pending |
-| RESIL-03 | TBD | Pending |
-| RESIL-04 | TBD | Pending |
-| INTEG-01 | TBD | Pending |
-| INTEG-02 | TBD | Pending |
-| INTEG-03 | TBD | Pending |
+| BACK-01 | Phase 7 | Pending |
+| BACK-02 | Phase 7 | Pending |
+| BACK-03 | Phase 7 | Pending |
+| BACK-04 | Phase 7 | Pending |
+| BACK-05 | Phase 7 | Pending |
+| BACK-06 | Phase 7 | Pending |
+| FRONT-01 | Phase 8 | Pending |
+| FRONT-02 | Phase 8 | Pending |
+| FRONT-03 | Phase 8 | Pending |
+| FRONT-04 | Phase 8 | Pending |
+| FRONT-05 | Phase 8 | Pending |
+| FRONT-06 | Phase 8 | Pending |
+| RESIL-01 | Phase 9 | Pending |
+| RESIL-02 | Phase 9 | Pending |
+| RESIL-03 | Phase 9 | Pending |
+| RESIL-04 | Phase 9 | Pending |
+| INTEG-01 | Phase 10 | Pending |
+| INTEG-02 | Phase 10 | Pending |
+| INTEG-03 | Phase 10 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 19 total
-- Mapped to phases: 0
-- Unmapped: 19 (roadmap pending)
+- Mapped to phases: 19
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-01-29*
-*Last updated: 2026-01-29 after initial definition*
+*Last updated: 2026-01-29 after roadmap creation*
