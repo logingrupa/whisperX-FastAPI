@@ -5,37 +5,25 @@
 See: .planning/PROJECT.md (updated 2026-01-29)
 
 **Core value:** Users can easily upload audio, transcribe with speaker identification, and export results — without touching the command line or API directly.
-**Current focus:** v1.0 shipped — planning next milestone
+**Current focus:** v1.1 Chunked Uploads — Cloudflare compatibility
 
 ## Current Position
 
-Phase: N/A (milestone complete)
-Plan: N/A
-Status: v1.0 shipped, ready for next milestone
-Last activity: 2026-01-29 — v1.0 milestone complete
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-01-29 — Milestone v1.1 started
 
-Progress: [##########] 100% SHIPPED
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
-**v1.0 Milestone:**
+**v1.0 Milestone (shipped):**
 - Total plans completed: 21
 - Total phases: 7 (including 5.1 inserted)
 - Timeline: 3 days (2026-01-27 → 2026-01-29)
 - Files modified: 83
 - Frontend LOC: 3,075 TypeScript/TSX
-
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 01-websocket-task-infrastructure | 2/2 | 12 min | 6 min |
-| 02-file-upload-infrastructure | 2/2 | 13 min | 6.5 min |
-| 03-build-integration-spa-serving | 3/3 | 12 min | 4 min |
-| 04-core-upload-flow | 4/4 | 15 min | 3.75 min |
-| 05-real-time-progress-tracking | 4/4 | 12 min | 3 min |
-| 05.1-upload-transcription-trigger | 2/2 | 4.5 min | 2.25 min |
-| 06-transcript-viewer-export | 4/4 | 12 min | 3 min |
 
 ## Accumulated Context
 
@@ -65,9 +53,9 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-29
-Stopped at: v1.0 milestone complete
+Stopped at: Defining v1.1 requirements
 Resume file: None
-Next action: `/gsd:new-milestone` to start v1.1 or v2.0
+Next action: Complete requirements → roadmap
 
 ---
-*v1.0 Frontend UI shipped 2026-01-29*
+*v1.1 Milestone started 2026-01-29*

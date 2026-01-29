@@ -8,6 +8,19 @@ A production-ready web frontend for the WhisperX speech-to-text API. Users can u
 
 Users can easily upload audio, transcribe with speaker identification, and export results — without touching the command line or API directly.
 
+## Current Milestone: v1.1 Chunked Uploads
+
+**Goal:** Enable uploads of files >100MB through Cloudflare proxy by implementing chunked upload with server-side reassembly.
+
+**Target features:**
+- Split large files into 50MB chunks on frontend
+- Upload chunks in parallel (3 concurrent)
+- Reassemble chunks on backend
+- Resume capability on connection failure
+- Seamless UX (user sees single upload, not chunks)
+
+---
+
 ## Requirements
 
 ### Validated
@@ -99,4 +112,4 @@ Users can easily upload audio, transcribe with speaker identification, and expor
 | Lazy load transcripts on expand | Avoids unnecessary API calls | Good |
 
 ---
-*Last updated: 2026-01-29 after v1.0 milestone completion*
+*Last updated: 2026-01-29 after v1.1 milestone start*
