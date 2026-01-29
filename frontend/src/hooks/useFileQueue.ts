@@ -101,6 +101,21 @@ export function useFileQueue() {
   }, []);
 
   /**
+   * Update upload speed and ETA metrics for a file (during upload phase)
+   */
+  const updateFileUploadMetrics = useCallback((
+    id: string,
+    uploadSpeed: string,
+    uploadEta: string
+  ) => {
+    setQueue(previousQueue =>
+      previousQueue.map(item =>
+        item.id === id ? { ...item, uploadSpeed, uploadEta } : item
+      )
+    );
+  }, []);
+
+  /**
    * Set backend task ID for a file (after upload starts)
    */
   const setFileTaskId = useCallback((id: string, taskId: string) => {
@@ -179,6 +194,7 @@ export function useFileQueue() {
     updateFileSettings,
     updateFileStatus,
     updateFileProgress,
+    updateFileUploadMetrics,
     setFileTaskId,
     completeFile,
     setFileError,

@@ -17,7 +17,9 @@ import { useCallback, useRef, useEffect } from 'react';
 import { useFileQueue, type UseFileQueueReturn } from './useFileQueue';
 import { useTaskProgress, type TaskProgressState, type TaskErrorState, type ConnectionState } from './useTaskProgress';
 import { startTranscription } from '@/lib/api/transcriptionApi';
+import { SIZE_THRESHOLD } from '@/lib/upload/constants';
 import type { FileQueueItem } from '@/types/upload';
+import { useTusUpload, isTusSupported } from '@/hooks/useTusUpload';
 
 interface UseUploadOrchestrationReturn extends UseFileQueueReturn {
   /** Start processing a single file */
@@ -41,11 +43,14 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
     queue,
     updateFileStatus,
     updateFileProgress,
+    updateFileUploadMetrics,
     setFileTaskId,
     completeFile,
     setFileError,
     isFileReady,
   } = fileQueue;
+
+  const { startTusUpload } = useTusUpload();
 
   // Track current file being processed for WebSocket subscription
   const currentFileIdRef = useRef<string | null>(null);
@@ -103,6 +108,45 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
   });
 
   /**
+   * Process a large file via TUS chunked upload.
+   * TaskId is pre-generated and sent as metadata so WebSocket can subscribe immediately on success.
+   */
+  const processViaTus = useCallback((item: FileQueueItem) => {
+    currentFileIdRef.current = item.id;
+    updateFileStatus(item.id, 'uploading');
+    updateFileProgress(item.id, 0, 'uploading');
+
+    // Pre-generate task ID for WebSocket subscription
+    const taskId = crypto.randomUUID();
+
+    const metadata: Record<string, string> = {
+      filename: item.file.name,
+      filetype: item.file.type || 'application/octet-stream',
+      language: item.selectedLanguage || 'auto',
+      taskId: taskId,
+    };
+
+    startTusUpload(item.file, metadata, {
+      onProgress: (percentage, speed, eta) => {
+        updateFileProgress(item.id, percentage, 'uploading');
+        updateFileUploadMetrics(item.id, speed, eta);
+      },
+      onSuccess: (returnedTaskId) => {
+        // Store task ID and transition to processing
+        setFileTaskId(item.id, returnedTaskId);
+        currentTaskIdRef.current = returnedTaskId;
+        updateFileStatus(item.id, 'processing');
+        updateFileProgress(item.id, 100, 'uploading');
+      },
+      onError: (errorMessage) => {
+        setFileError(item.id, 'Upload failed', errorMessage);
+        currentFileIdRef.current = null;
+        currentTaskIdRef.current = null;
+      },
+    });
+  }, [startTusUpload, updateFileStatus, updateFileProgress, updateFileUploadMetrics, setFileTaskId, setFileError]);
+
+  /**
    * Process a single file: upload -> get task ID -> start WebSocket
    */
   const processFile = useCallback(async (item: FileQueueItem) => {
@@ -112,6 +156,13 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
       return;
     }
 
+    // Route: large files via TUS, small files via direct upload
+    if (item.file.size >= SIZE_THRESHOLD && isTusSupported()) {
+      processViaTus(item);
+      return;
+    }
+
+    // Existing direct upload flow (unchanged)
     // Set as current processing file
     currentFileIdRef.current = item.id;
 
@@ -145,7 +196,7 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
     // Update status to processing (WebSocket will take over progress updates)
     updateFileStatus(item.id, 'processing');
     updateFileProgress(item.id, 5, 'queued');
-  }, [isFileReady, updateFileStatus, updateFileProgress, setFileTaskId, setFileError]);
+  }, [isFileReady, processViaTus, updateFileStatus, updateFileProgress, setFileTaskId, setFileError]);
 
   /**
    * Start processing a single file by ID
