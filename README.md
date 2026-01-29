@@ -17,17 +17,7 @@
 
 ## Fork Information
 
-This is a fork of [pavelzbornik/whisperX-FastAPI](https://github.com/pavelzbornik/whisperX-FastAPI) with added **Web UI** at `/ui`.
-
-### v1.0 Frontend UI (shipped 2026-01-29)
-
-- Drag-and-drop file upload with multi-file queue
-- Real-time transcription progress via WebSockets
-- Auto-detect language from filename (A03=Latvian, A04=Russian, A05=English)
-- Transcript viewer with speaker labels and timestamps
-- Export to SRT, VTT, TXT, and JSON formats
-
-**Access the UI at:** `http://localhost:8000/ui`
+This is a fork of [pavelzbornik/whisperX-FastAPI](https://github.com/pavelzbornik/whisperX-FastAPI) with an added **Web UI** at `/ui`.
 
 ### Syncing with Upstream
 
@@ -49,6 +39,128 @@ If you cloned this fork and need to set up upstream:
 ```bash
 git remote add upstream https://github.com/pavelzbornik/whisperX-FastAPI.git
 ```
+
+---
+
+## Web UI (v1.0)
+
+The frontend provides a user-friendly interface for transcription without touching the command line or API directly.
+
+**Access the UI at:** `http://localhost:8000/ui`
+
+### Features
+
+- **Drag-and-drop file upload** — Drop audio/video files directly onto the page or click to browse
+- **Multi-file queue** — Upload multiple files and process them sequentially
+- **Real-time progress** — WebSocket-based live updates showing transcription stage and percentage
+- **Language auto-detection** — Detects language from filename patterns (A03=Latvian, A04=Russian, A05=English)
+- **Configurable settings** — Select language and Whisper model per file before processing
+- **Transcript viewer** — Expandable view with speaker labels, timestamps, and word-level segments
+- **Export formats** — Download results as SRT, VTT, TXT, or JSON
+
+### Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| Framework | React 19 + TypeScript |
+| Build Tool | Vite 7 |
+| Package Manager | Bun |
+| Styling | Tailwind CSS v4 |
+| UI Components | shadcn/ui + Radix UI |
+| Real-time | WebSockets (react-use-websocket) |
+| File Upload | react-dropzone |
+
+### Frontend Installation
+
+**Prerequisites:**
+- [Bun](https://bun.sh/) package manager (v1.0+)
+- Node.js 18+ (for some dev tools)
+
+**Development Setup:**
+
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install dependencies
+bun install
+
+# Start development server (with API proxy to backend)
+bun dev
+```
+
+The dev server runs at `http://localhost:5173` with automatic proxy to the backend at port 8000.
+
+**Production Build:**
+
+```bash
+# Build optimized production bundle
+cd frontend
+bun run build
+```
+
+This outputs to `frontend/dist/` which is automatically served by FastAPI at `/ui`.
+
+### Architecture
+
+```
+frontend/
+├── src/
+│   ├── components/
+│   │   ├── ui/           # shadcn/ui components (button, card, progress, etc.)
+│   │   ├── upload/       # Upload flow components
+│   │   │   ├── UploadDropzone.tsx    # Drag-drop zone
+│   │   │   ├── FileQueueList.tsx     # Queue management
+│   │   │   ├── FileQueueItem.tsx     # Individual file card
+│   │   │   ├── FileProgress.tsx      # Progress bar + stage
+│   │   │   ├── LanguageSelect.tsx    # Language dropdown
+│   │   │   └── ModelSelect.tsx       # Whisper model dropdown
+│   │   └── transcript/   # Result viewing components
+│   │       ├── TranscriptViewer.tsx  # Main viewer
+│   │       ├── TranscriptSegmentRow.tsx  # Segment display
+│   │       └── DownloadButtons.tsx   # Export buttons
+│   ├── hooks/
+│   │   └── useUploadOrchestration.ts # Main state management
+│   ├── lib/
+│   │   ├── api/          # API client functions
+│   │   └── utils.ts      # Shared utilities
+│   ├── types/            # TypeScript interfaces
+│   └── App.tsx           # Main application
+├── vite.config.ts        # Vite config with API proxy
+└── package.json
+```
+
+### How It Works
+
+1. **File Selection** — User drops files or clicks to browse. Files are validated (format, magic bytes) and added to the queue with auto-detected language.
+
+2. **Queue Management** — Each file shows as a card with language/model dropdowns. Users can remove files, change settings, or start processing.
+
+3. **Upload & Transcription** — When started, the file is uploaded via `POST /upload/simple`, then transcription is triggered via `POST /speech-to-text`. The backend returns a task ID.
+
+4. **Real-time Progress** — Frontend connects to `ws://host/ws/task/{taskId}` and receives progress updates as the backend processes. Stages: uploading → transcribing → aligning → diarizing → combining.
+
+5. **Result Display** — On completion, the transcript viewer shows segments with speaker labels and timestamps. Users can expand to see word-level detail.
+
+6. **Export** — Download buttons generate SRT, VTT, TXT, or JSON formats client-side from the transcript data.
+
+### Configuration
+
+The frontend uses Vite's proxy in development to forward API requests:
+
+```typescript
+// vite.config.ts
+server: {
+  proxy: {
+    '/speech-to-text': 'http://localhost:8000',
+    '/task': 'http://localhost:8000',
+    '/upload': 'http://localhost:8000',
+    '/ws': { target: 'ws://localhost:8000', ws: true },
+  }
+}
+```
+
+In production, the frontend is served directly by FastAPI at `/ui`, so no proxy is needed.
 
 ---
 
