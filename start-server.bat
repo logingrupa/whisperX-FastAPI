@@ -8,6 +8,11 @@ echo.
 REM Get the directory where this script lives (project root)
 set "SCRIPT_DIR=%~dp0"
 
+REM Add ffmpeg to PATH (winget installs to user-specific location)
+for /d %%i in ("%LOCALAPPDATA%\Microsoft\WinGet\Packages\Gyan.FFmpeg*") do (
+    for /d %%j in ("%%i\ffmpeg-*-full_build\bin") do set "PATH=%%j;%PATH%"
+)
+
 REM Activate venv using absolute path
 call "%SCRIPT_DIR%.venv\Scripts\activate.bat"
 
