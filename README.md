@@ -13,6 +13,45 @@
 ![whisperx](https://img.shields.io/badge/whisperx-3.7.4-green.svg)
 <!-- BADGES:END -->
 
+---
+
+## Fork Information
+
+This is a fork of [pavelzbornik/whisperX-FastAPI](https://github.com/pavelzbornik/whisperX-FastAPI) with added **Web UI** at `/ui`.
+
+### v1.0 Frontend UI (shipped 2026-01-29)
+
+- Drag-and-drop file upload with multi-file queue
+- Real-time transcription progress via WebSockets
+- Auto-detect language from filename (A03=Latvian, A04=Russian, A05=English)
+- Transcript viewer with speaker labels and timestamps
+- Export to SRT, VTT, TXT, and JSON formats
+
+**Access the UI at:** `http://localhost:8000/ui`
+
+### Syncing with Upstream
+
+To get updates from the original repository:
+
+```bash
+# Fetch latest from original repo
+git fetch upstream
+
+# Merge updates into your branch
+git merge upstream/main
+
+# Push to your fork
+git push origin main
+```
+
+If you cloned this fork and need to set up upstream:
+
+```bash
+git remote add upstream https://github.com/pavelzbornik/whisperX-FastAPI.git
+```
+
+---
+
 The whisperX API is a tool for enhancing and analyzing audio content. This API provides a suite of services for processing audio and video files, including transcription, alignment, diarization, and combining transcript with diarization results.
 
 ## Documentation
