@@ -9,12 +9,12 @@ Requirements for chunked upload capability. Enables files up to 500MB through Cl
 
 ### Backend Infrastructure
 
-- [ ] **BACK-01**: System creates upload session with unique ID when chunked upload starts
-- [ ] **BACK-02**: System receives and stores individual chunks (50MB each) to temp directory
-- [ ] **BACK-03**: System tracks which chunks received per session
-- [ ] **BACK-04**: System assembles chunks into final file when all received
-- [ ] **BACK-05**: System triggers existing transcription pipeline after assembly
-- [ ] **BACK-06**: System cleans up incomplete sessions after 10 minutes
+- [x] **BACK-01**: System creates upload session with unique ID when chunked upload starts
+- [x] **BACK-02**: System receives and stores individual chunks (50MB each) to temp directory
+- [x] **BACK-03**: System tracks which chunks received per session
+- [x] **BACK-04**: System assembles chunks into final file when all received
+- [x] **BACK-05**: System triggers existing transcription pipeline after assembly
+- [x] **BACK-06**: System cleans up incomplete sessions after 10 minutes
 
 ### Frontend Chunking
 
@@ -66,12 +66,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BACK-01 | Phase 7 | Pending |
-| BACK-02 | Phase 7 | Pending |
-| BACK-03 | Phase 7 | Pending |
-| BACK-04 | Phase 7 | Pending |
-| BACK-05 | Phase 7 | Pending |
-| BACK-06 | Phase 7 | Pending |
+| BACK-01 | Phase 7 | Complete |
+| BACK-02 | Phase 7 | Complete |
+| BACK-03 | Phase 7 | Complete |
+| BACK-04 | Phase 7 | Complete |
+| BACK-05 | Phase 7 | Complete |
+| BACK-06 | Phase 7 | Complete |
 | FRONT-01 | Phase 8 | Pending |
 | FRONT-02 | Phase 8 | Pending |
 | FRONT-03 | Phase 8 | Pending |
@@ -93,4 +93,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-01-29*
-*Last updated: 2026-01-29 after roadmap creation*
+*Last updated: 2026-01-29 after Phase 7 completion*

@@ -15,7 +15,7 @@ v1.1 enables uploads of files >100MB through Cloudflare's proxy by implementing 
 - Integer phases (7, 8, 9, 10): Planned v1.1 work
 - Decimal phases (7.1, 7.2): Urgent insertions if needed
 
-- [ ] **Phase 7: Backend Chunk Infrastructure** - TUS router, storage, and transcription hook
+- [x] **Phase 7: Backend Chunk Infrastructure** - TUS router, storage, and transcription hook
 - [ ] **Phase 8: Frontend Chunking** - TUS client, file size routing, progress UI
 - [ ] **Phase 9: Resilience and Polish** - Retry, cancel, resume, error handling
 - [ ] **Phase 10: Integration and Deployment** - Cloudflare config, end-to-end validation
@@ -35,9 +35,9 @@ v1.1 enables uploads of files >100MB through Cloudflare's proxy by implementing 
 **Plans**: 3 plans
 
 Plans:
-- [ ] 07-01-PLAN.md -- TUS router setup with tuspyserver, CORS config, main.py integration
-- [ ] 07-02-PLAN.md -- Upload session service and transcription trigger hook
-- [ ] 07-03-PLAN.md -- Session cleanup scheduler with APScheduler
+- [x] 07-01-PLAN.md -- TUS router setup with tuspyserver, CORS config, main.py integration
+- [x] 07-02-PLAN.md -- Upload session service and transcription trigger hook
+- [x] 07-03-PLAN.md -- Session cleanup scheduler with APScheduler
 
 ### Phase 8: Frontend Chunking
 **Goal**: Large files are automatically chunked and uploaded with unified progress display
@@ -91,7 +91,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 7. Backend Chunk Infrastructure | v1.1 | 0/3 | Planned | - |
+| 7. Backend Chunk Infrastructure | v1.1 | 3/3 | ✓ Complete | 2026-01-29 |
 | 8. Frontend Chunking | v1.1 | 0/3 | Not started | - |
 | 9. Resilience and Polish | v1.1 | 0/3 | Not started | - |
 | 10. Integration and Deployment | v1.1 | 0/2 | Not started | - |
@@ -101,4 +101,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-01-29*
-*Last updated: 2026-01-29*
+*Last updated: 2026-01-29 after Phase 7 completion*
