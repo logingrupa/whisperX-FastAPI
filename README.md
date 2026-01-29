@@ -85,11 +85,28 @@ cd frontend
 # Install dependencies
 bun install
 
-# Start development server (with API proxy to backend)
+# Start development server (frontend only, proxies to backend)
 bun dev
+
+# Or start both backend and frontend together
+bun dev:full
 ```
 
-The dev server runs at `http://localhost:5173` with automatic proxy to the backend at port 8000.
+The dev server runs at `http://localhost:5173` with automatic proxy to the backend.
+
+**Remote Backend Configuration:**
+
+To connect to a backend running on a different machine:
+
+```bash
+# Copy the example env file
+cp .env.example .env
+
+# Edit .env and set your backend URL
+# VITE_API_URL=http://192.168.1.100:8000
+```
+
+The `VITE_API_URL` configures where the Vite dev server proxies API requests.
 
 **Production Build:**
 
