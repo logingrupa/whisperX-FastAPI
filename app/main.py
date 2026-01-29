@@ -13,11 +13,13 @@ from contextlib import asynccontextmanager  # noqa: E402
 
 from dotenv import load_dotenv  # noqa: E402
 from fastapi import FastAPI, status  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse, RedirectResponse  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
 from app.api import service_router, stt_router, task_router, websocket_router  # noqa: E402
 from app.api.streaming_upload_api import streaming_upload_router  # noqa: E402
+from app.api.tus_upload_api import tus_upload_router, TUS_UPLOAD_DIR  # noqa: E402
 from app.api.exception_handlers import (  # noqa: E402
     domain_error_handler,
     generic_error_handler,
@@ -66,6 +68,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Store main event loop for WebSocket progress emission from background tasks
     set_main_loop(asyncio.get_running_loop())
 
+    # Ensure TUS upload directory exists
+    TUS_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
     logging.info("Application lifespan started - dependency container initialized")
 
     save_openapi_json(app)
@@ -88,6 +93,10 @@ tags_metadata = [
     {
         "name": "Tasks Management",
         "description": "Manage tasks.",
+    },
+    {
+        "name": "TUS Upload",
+        "description": "TUS protocol resumable upload endpoints for chunked file uploads",
     },
     {
         "name": "Health",
@@ -127,6 +136,27 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# TUS protocol headers that must be exposed via CORS for browser clients
+TUS_HEADERS: list[str] = [
+    "Location",
+    "Upload-Offset",
+    "Upload-Length",
+    "Tus-Resumable",
+    "Tus-Version",
+    "Tus-Extension",
+    "Tus-Max-Size",
+    "Upload-Expires",
+]
+
+# CORS middleware - must be added before routers for TUS header exposure
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=TUS_HEADERS,
+)
+
 # Register exception handlers
 app.add_exception_handler(TaskNotFoundError, task_not_found_handler)
 app.add_exception_handler(ValidationError, validation_error_handler)
@@ -140,6 +170,7 @@ app.include_router(task_router)
 app.include_router(service_router)
 app.include_router(websocket_router)
 app.include_router(streaming_upload_router)
+app.include_router(tus_upload_router)
 
 
 @app.get("/", include_in_schema=False)
