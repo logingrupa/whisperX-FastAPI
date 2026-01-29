@@ -36,6 +36,7 @@ from app.core.exceptions import (  # noqa: E402
     ValidationError,
 )
 from app.docs import generate_db_schema, save_openapi_json  # noqa: E402
+from app.infrastructure.scheduler import start_cleanup_scheduler, stop_cleanup_scheduler  # noqa: E402
 from app.infrastructure.database import Base, engine  # noqa: E402
 from app.infrastructure.websocket import set_main_loop  # noqa: E402
 from app.spa_handler import setup_spa_routes  # noqa: E402
@@ -75,7 +76,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     save_openapi_json(app)
     generate_db_schema(Base.metadata.tables.values())
+    start_cleanup_scheduler()
     yield
+    stop_cleanup_scheduler()
 
     # Clean up container on shutdown
     logging.info("Shutting down application")
