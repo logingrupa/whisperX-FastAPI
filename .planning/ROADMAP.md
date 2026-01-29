@@ -48,12 +48,12 @@ Plans:
   2. Files under 100MB use existing upload flow (no TUS overhead)
   3. Progress bar shows upload percentage, speed (MB/s), and time remaining
   4. Upload completes and transcription begins automatically
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 08-01: tus-js-client integration with react-dropzone
-- [ ] 08-02: File size routing logic in useUploadOrchestration
-- [ ] 08-03: Unified progress UI with speed and ETA
+- [ ] 08-01-PLAN.md -- TUS library foundation: tus-js-client, upload wrapper, speed tracker, Vite proxy, backend taskId
+- [ ] 08-02-PLAN.md -- File size routing: useTusUpload hook, orchestration dual-path routing, taskId handoff
+- [ ] 08-03-PLAN.md -- Progress UI: speed/ETA display in FileProgress, human verification
 
 ### Phase 9: Resilience and Polish
 **Goal**: Uploads survive failures and users can control the process
