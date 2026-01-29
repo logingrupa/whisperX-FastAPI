@@ -39,6 +39,8 @@ dependencies = [
     "tqdm==4.67.1",
     "uvicorn==0.40.0",
     "whisperx==3.7.4",
+    "tuspyserver==4.2.3",
+    "apscheduler==3.10.4",
     "streaming-form-data>=1.19.0",
     "aiofiles>=25.1.0",
     "puremagic>=1.30",
