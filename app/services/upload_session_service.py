@@ -88,10 +88,11 @@ class UploadSessionService:
                 audio_duration,
             )
 
-            # 3. Create domain task
+            # 3. Create domain task (use client-provided taskId if available)
             language = metadata.get("language", "auto")
+            task_id = metadata.get("taskId") or str(uuid4())
             task = DomainTask(
-                uuid=str(uuid4()),
+                uuid=task_id,
                 status=TaskStatus.processing,
                 file_name=filename,
                 audio_duration=audio_duration,

@@ -54,8 +54,13 @@ export default defineConfig(({ mode }) => {
           target: apiUrl,
           changeOrigin: true,
         },
-        // File upload endpoint
+        // File upload endpoint (direct POST)
         '/upload': {
+          target: apiUrl,
+          changeOrigin: true,
+        },
+        // TUS chunked upload endpoint (tuspyserver)
+        '/uploads': {
           target: apiUrl,
           changeOrigin: true,
         },
