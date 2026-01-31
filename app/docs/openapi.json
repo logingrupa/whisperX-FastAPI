@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "whisperX REST service",
-    "description": "\n    # whisperX RESTful API\n\n    Welcome to the whisperX RESTful API! This API provides a suite of audio processing services to enhance and analyze your audio content.\n\n    ## Documentation:\n\n    For detailed information on request and response formats, consult the [WhisperX Documentation](https://github.com/m-bain/whisperX).\n\n    ## Services:\n\n    Speech-2-Text provides a suite of audio processing services to enhance and analyze your audio content. The following services are available:\n\n    1. Transcribe: Transcribe an audio/video  file into text.\n    2. Align: Align the transcript to the audio/video file.\n    3. Diarize: Diarize an audio/video file into speakers.\n    4. Combine Transcript and Diarization: Combine the transcript and diarization results.\n\n    ## Supported file extensions:\n    AUDIO_EXTENSIONS = {'.aac', '.ogg', '.oga', '.awb', '.wma', '.mp3', '.wav', '.amr', '.m4a'}\n\n    VIDEO_EXTENSIONS = {'.wmv', '.mov', '.avi', '.mp4', '.mkv'}\n\n    ",
+    "description": "\n    # whisperX RESTful API\n\n    Welcome to the whisperX RESTful API! This API provides a suite of audio processing services to enhance and analyze your audio content.\n\n    ## Documentation:\n\n    For detailed information on request and response formats, consult the [WhisperX Documentation](https://github.com/m-bain/whisperX).\n\n    ## Services:\n\n    Speech-2-Text provides a suite of audio processing services to enhance and analyze your audio content. The following services are available:\n\n    1. Transcribe: Transcribe an audio/video  file into text.\n    2. Align: Align the transcript to the audio/video file.\n    3. Diarize: Diarize an audio/video file into speakers.\n    4. Combine Transcript and Diarization: Combine the transcript and diarization results.\n\n    ## Supported file extensions:\n    AUDIO_EXTENSIONS = {'.mp3', '.oga', '.amr', '.m4a', '.ogg', '.awb', '.wav', '.wma', '.aac'}\n\n    VIDEO_EXTENSIONS = {'.avi', '.wmv', '.mp4', '.mov', '.mkv'}\n\n    ",
     "version": "0.0.1"
   },
   "paths": {
@@ -1983,6 +1983,376 @@
         }
       }
     },
+    "/uploads/files/{uuid}": {
+      "head": {
+        "tags": [
+          "TUS Upload",
+          "Tus"
+        ],
+        "summary": "Core Head Route",
+        "operationId": "core_head_route_uploads_files__uuid__head",
+        "parameters": [
+          {
+            "name": "uuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Uuid"
+            }
+          },
+          {
+            "name": "tus-resumable",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Tus-Resumable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "TUS Upload",
+          "Tus"
+        ],
+        "summary": "Core Patch Route",
+        "operationId": "core_patch_route_uploads_files__uuid__patch",
+        "parameters": [
+          {
+            "name": "uuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Uuid"
+            }
+          },
+          {
+            "name": "post_request",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Post Request"
+            }
+          },
+          {
+            "name": "content-length",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Content-Length"
+            }
+          },
+          {
+            "name": "upload-offset",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Upload-Offset"
+            }
+          },
+          {
+            "name": "upload-length",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "title": "Upload-Length"
+            }
+          },
+          {
+            "name": "content-type",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Content-Type"
+            }
+          },
+          {
+            "name": "tus-resumable",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Tus-Resumable"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "TUS Upload",
+          "Tus"
+        ],
+        "summary": "Extension Termination Route",
+        "operationId": "extension_termination_route_uploads_files__uuid__delete",
+        "parameters": [
+          {
+            "name": "uuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Uuid"
+            }
+          },
+          {
+            "name": "tus-resumable",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Tus-Resumable"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/uploads/files/": {
+      "options": {
+        "tags": [
+          "TUS Upload",
+          "Tus"
+        ],
+        "summary": "Core Options Route",
+        "operationId": "core_options_route_uploads_files__options",
+        "parameters": [
+          {
+            "name": "tus-resumable",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Tus-Resumable"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "TUS Upload",
+          "Tus"
+        ],
+        "summary": "Extension Creation Route",
+        "operationId": "extension_creation_route_uploads_files__post",
+        "parameters": [
+          {
+            "name": "upload-metadata",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Upload-Metadata"
+            }
+          },
+          {
+            "name": "upload-length",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "title": "Upload-Length"
+            }
+          },
+          {
+            "name": "upload-defer-length",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "title": "Upload-Defer-Length"
+            }
+          },
+          {
+            "name": "upload-concat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Upload-Concat"
+            }
+          },
+          {
+            "name": "tus-resumable",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Tus-Resumable"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/uploads/files": {
+      "post": {
+        "tags": [
+          "TUS Upload",
+          "Tus"
+        ],
+        "summary": "Extension Creation Route",
+        "operationId": "extension_creation_route_uploads_files_post",
+        "parameters": [
+          {
+            "name": "upload-metadata",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Upload-Metadata"
+            }
+          },
+          {
+            "name": "upload-length",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "title": "Upload-Length"
+            }
+          },
+          {
+            "name": "upload-defer-length",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "title": "Upload-Defer-Length"
+            }
+          },
+          {
+            "name": "upload-concat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Upload-Concat"
+            }
+          },
+          {
+            "name": "tus-resumable",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Tus-Resumable"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -2646,6 +3016,10 @@
     {
       "name": "Tasks Management",
       "description": "Manage tasks."
+    },
+    {
+      "name": "TUS Upload",
+      "description": "TUS protocol resumable upload endpoints for chunked file uploads"
     },
     {
       "name": "Health",
