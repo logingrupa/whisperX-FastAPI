@@ -5,6 +5,7 @@ when a TUS chunked upload completes. This is the single integration point betwee
 tuspyserver's upload completion hook and the existing speech-to-text pipeline.
 """
 
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -79,7 +80,13 @@ class UploadSessionService:
             if not is_valid:
                 raise ValueError(f"Invalid file type: magic bytes validation failed - {message}")
 
-            # 2. Load audio and measure duration
+            # 2. Rename TUS file with original extension (TUS stores as hash ID without extension)
+            renamed_path = str(Path(file_path).parent / (Path(file_path).name + extension))
+            shutil.move(file_path, renamed_path)
+            logger.info("Renamed TUS file: %s -> %s", file_path, renamed_path)
+            file_path = renamed_path
+
+            # 3. Load audio and measure duration
             audio = process_audio_file(file_path)
             audio_duration = get_audio_duration(audio)
             logger.info(
@@ -88,7 +95,7 @@ class UploadSessionService:
                 audio_duration,
             )
 
-            # 3. Create domain task (use client-provided taskId if available)
+            # 4. Create domain task (use client-provided taskId if available)
             language = metadata.get("language", "auto")
             task_id = metadata.get("taskId") or str(uuid4())
             task = DomainTask(
@@ -104,7 +111,7 @@ class UploadSessionService:
             identifier = self._repository.add(task)
             logger.info("TUS upload task created: ID %s for file %s", identifier, filename)
 
-            # 4. Build processing params with defaults
+            # 5. Build processing params with defaults
             model_params = WhisperModelParams()
             if language and language != "auto":
                 model_params.language = language
@@ -120,7 +127,7 @@ class UploadSessionService:
                 callback_url=None,
             )
 
-            # 5. Schedule background transcription (non-blocking)
+            # 6. Schedule background transcription (non-blocking)
             background_tasks.add_task(process_audio_common, params)
             logger.info("Background transcription scheduled for task %s", identifier)
 
