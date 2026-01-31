@@ -20,11 +20,15 @@ from app.infrastructure.storage.magic_validator import validate_magic_bytes
 from app.schemas import (
     AlignmentParams,
     ASROptions,
+    ComputeType,
+    Device,
     DiarizationParams,
     SpeechToTextProcessingParams,
+    TaskEnum,
     TaskStatus,
     TaskType,
     VADOptions,
+    WhisperModel,
     WhisperModelParams,
 )
 from app.services.whisperx_wrapper_service import process_audio_common
@@ -111,10 +115,20 @@ class UploadSessionService:
             identifier = self._repository.add(task)
             logger.info("TUS upload task created: ID %s for file %s", identifier, filename)
 
-            # 5. Build processing params with defaults
-            model_params = WhisperModelParams()
-            if language and language != "auto":
-                model_params.language = language
+            # 5. Build processing params with explicit defaults
+            # WhisperModelParams fields use Field(Query(...)) for FastAPI DI,
+            # but Query objects don't resolve when constructed directly.
+            model_params = WhisperModelParams(
+                language=language if language and language != "auto" else "en",
+                task=TaskEnum.TRANSCRIBE,
+                model=WhisperModel.tiny,
+                device=Device.cuda,
+                device_index=0,
+                threads=0,
+                batch_size=8,
+                chunk_size=20,
+                compute_type=ComputeType.float16,
+            )
 
             params = SpeechToTextProcessingParams(
                 audio=audio,
