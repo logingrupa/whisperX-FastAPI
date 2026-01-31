@@ -48,12 +48,13 @@ Plans:
   2. Files under 100MB use existing upload flow (no TUS overhead)
   3. Progress bar shows upload percentage, speed (MB/s), and time remaining
   4. Upload completes and transcription begins automatically
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 Plans:
 - [ ] 08-01-PLAN.md -- TUS library foundation: tus-js-client, upload wrapper, speed tracker, Vite proxy, backend taskId
 - [ ] 08-02-PLAN.md -- File size routing: useTusUpload hook, orchestration dual-path routing, taskId handoff
 - [ ] 08-03-PLAN.md -- Progress UI: speed/ETA display in FileProgress, human verification
+- [ ] 08-04-PLAN.md -- Gap closure: TUS file extension rename + gc_files date parsing fix
 
 ### Phase 9: Resilience and Polish
 **Goal**: Uploads survive failures and users can control the process
@@ -91,14 +92,14 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 7. Backend Chunk Infrastructure | v1.1 | 3/3 | ✓ Complete | 2026-01-29 |
-| 8. Frontend Chunking | v1.1 | 0/3 | Not started | - |
+| 7. Backend Chunk Infrastructure | v1.1 | 3/3 | Complete | 2026-01-29 |
+| 8. Frontend Chunking | v1.1 | 0/4 | In progress | - |
 | 9. Resilience and Polish | v1.1 | 0/3 | Not started | - |
 | 10. Integration and Deployment | v1.1 | 0/2 | Not started | - |
 
-**Total Plans:** 11 (estimate, refined during planning)
+**Total Plans:** 12 (estimate, refined during planning)
 **Requirements Coverage:** 19/19 mapped
 
 ---
 *Roadmap created: 2026-01-29*
-*Last updated: 2026-01-29 after Phase 7 completion*
+*Last updated: 2026-01-31 after Phase 8 UAT gap closure planning*
