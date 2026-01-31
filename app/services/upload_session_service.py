@@ -23,6 +23,7 @@ from app.schemas import (
     ComputeType,
     Device,
     DiarizationParams,
+    InterpolateMethod,
     SpeechToTextProcessingParams,
     TaskEnum,
     TaskStatus,
@@ -116,8 +117,8 @@ class UploadSessionService:
             logger.info("TUS upload task created: ID %s for file %s", identifier, filename)
 
             # 5. Build processing params with explicit defaults
-            # WhisperModelParams fields use Field(Query(...)) for FastAPI DI,
-            # but Query objects don't resolve when constructed directly.
+            # All schema classes use Field(Query(...)) for FastAPI DI, but Query
+            # objects don't resolve to actual values when constructed directly.
             model_params = WhisperModelParams(
                 language=language if language and language != "auto" else "en",
                 task=TaskEnum.TRANSCRIBE,
@@ -133,11 +134,31 @@ class UploadSessionService:
             params = SpeechToTextProcessingParams(
                 audio=audio,
                 identifier=identifier,
-                vad_options=VADOptions(),
-                asr_options=ASROptions(),
+                vad_options=VADOptions(vad_onset=0.5, vad_offset=0.363),
+                asr_options=ASROptions(
+                    beam_size=5,
+                    best_of=5,
+                    patience=1.0,
+                    length_penalty=1.0,
+                    temperatures=0.0,
+                    compression_ratio_threshold=2.4,
+                    log_prob_threshold=-1.0,
+                    no_speech_threshold=0.6,
+                    initial_prompt=None,
+                    suppress_tokens=[-1],
+                    suppress_numerals=False,
+                    hotwords=None,
+                ),
                 whisper_model_params=model_params,
-                alignment_params=AlignmentParams(),
-                diarization_params=DiarizationParams(),
+                alignment_params=AlignmentParams(
+                    align_model=None,
+                    interpolate_method=InterpolateMethod.nearest,
+                    return_char_alignments=False,
+                ),
+                diarization_params=DiarizationParams(
+                    min_speakers=None,
+                    max_speakers=None,
+                ),
                 callback_url=None,
             )
 
