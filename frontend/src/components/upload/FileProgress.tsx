@@ -11,6 +11,8 @@ interface FileProgressProps {
   uploadSpeed?: string;
   /** Estimated time remaining (e.g., "2m 15s") */
   uploadEta?: string;
+  /** Whether the upload is currently retrying after a network error */
+  isRetrying?: boolean;
   className?: string;
 }
 
@@ -27,6 +29,7 @@ export function FileProgress({
   showSpinner = true,
   uploadSpeed,
   uploadEta,
+  isRetrying = false,
   className,
 }: FileProgressProps) {
   return (
@@ -40,7 +43,12 @@ export function FileProgress({
           {percentage}%
         </span>
       </div>
-      {(uploadSpeed || uploadEta) && (
+      {isRetrying ? (
+        <div className="flex justify-between text-xs mt-1">
+          <span className="text-amber-500 font-medium">Retrying...</span>
+          <span className="text-muted-foreground">{percentage}% uploaded</span>
+        </div>
+      ) : (uploadSpeed || uploadEta) && (
         <div className="flex justify-between text-xs text-muted-foreground mt-1">
           <span>{uploadSpeed || ''}</span>
           <span>{uploadEta || ''}</span>

@@ -23,6 +23,8 @@ function App() {
     handleStartAll,
     handleStartFile,
     handleRetry,
+    handleCancel,
+    retryingFileId,
     connectionState,
     reconnect,
   } = useUploadOrchestration();
@@ -42,6 +44,8 @@ function App() {
           onStartAll={handleStartAll}
           onStartFile={handleStartFile}
           onRetry={handleRetry}
+          onCancel={handleCancel}
+          retryingFileId={retryingFileId}
           pendingCount={pendingCount}
           readyCount={readyCount}
         />

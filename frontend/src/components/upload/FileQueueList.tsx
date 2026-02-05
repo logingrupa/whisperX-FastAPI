@@ -15,6 +15,8 @@ interface FileQueueListProps {
   onStartAll?: () => void;
   onStartFile?: (id: string) => void;
   onRetry?: (id: string) => void;
+  onCancel?: (id: string) => void;
+  retryingFileId?: string | null;
   pendingCount: number;
   readyCount: number;
 }
@@ -36,6 +38,8 @@ export function FileQueueList({
   onStartAll,
   onStartFile,
   onRetry,
+  onCancel,
+  retryingFileId,
   pendingCount,
   readyCount,
 }: FileQueueListProps) {
@@ -91,6 +95,8 @@ export function FileQueueList({
               onUpdateSettings={onUpdateSettings}
               onStart={onStartFile}
               onRetry={onRetry}
+              onCancel={onCancel}
+              isRetrying={retryingFileId === item.id}
             />
           ))}
         </div>

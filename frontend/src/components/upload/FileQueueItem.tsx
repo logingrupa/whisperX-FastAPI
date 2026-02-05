@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Play, AlertCircle, CheckCircle2, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Play, Square, AlertCircle, CheckCircle2, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,8 @@ interface FileQueueItemProps {
   ) => void;
   onStart?: (id: string) => void;
   onRetry?: (id: string) => void;
+  onCancel?: (id: string) => void;
+  isRetrying?: boolean;
   onShowErrorDetails?: (errorMessage: string, technicalDetail?: string) => void;
 }
 
@@ -63,6 +65,8 @@ export function FileQueueItem({
   onUpdateSettings,
   onStart,
   onRetry,
+  onCancel,
+  isRetrying,
   onShowErrorDetails,
 }: FileQueueItemProps) {
   const isPending = item.status === 'pending';
@@ -227,6 +231,18 @@ export function FileQueueItem({
                 </Button>
               )}
 
+              {/* Cancel button (uploading stage only) */}
+              {onCancel && item.progressStage === 'uploading' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onCancel(item.id)}
+                  title="Cancel upload"
+                >
+                  <Square className="h-4 w-4" />
+                </Button>
+              )}
+
               {/* Retry button (error only) */}
               {onRetry && isError && (
                 <Button
@@ -260,6 +276,7 @@ export function FileQueueItem({
               showSpinner={true}
               uploadSpeed={item.uploadSpeed}
               uploadEta={item.uploadEta}
+              isRetrying={isRetrying}
             />
           )}
 
