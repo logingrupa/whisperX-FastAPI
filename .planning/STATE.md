@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-29)
 
 **Core value:** Users can upload large audio/video files (>100MB) through Cloudflare proxy without failures
-**Current focus:** Phase 8 - Frontend Chunking
+**Current focus:** Phase 9 - Resilience and Polish
 
 ## Current Position
 
-Phase: 8 of 10 (Frontend Chunking)
-Plan: 4 of 4 in current phase (gap closure plan complete)
-Status: Phase 8 complete
-Last activity: 2026-01-31 - Completed 08-04-PLAN.md
+Phase: 9 of 10 (Resilience and Polish)
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-02-05 - Completed 09-01-PLAN.md
 
-Progress: [============        ] 55% (6/11)
+Progress: [==============      ] 64% (7/11)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6 (v1.1)
+- Total plans completed: 7 (v1.1)
 - Average duration: 2.8 min
-- Total execution time: 0.28 hours
+- Total execution time: 0.33 hours
 
 **By Phase:**
 
@@ -29,11 +29,11 @@ Progress: [============        ] 55% (6/11)
 |-------|-------|-------|----------|
 | 7 | 3/3 | 10m | 3.3m |
 | 8 | 3/4 | 7m | 2.3m |
-| 9 | 0/3 | - | - |
+| 9 | 1/3 | 3m | 3.0m |
 | 10 | 0/2 | - | - |
 
 **Recent Trend:**
-- Last 5 plans: 07-02 (2m), 07-03 (3m), 08-01 (3m), 08-02 (2m), 08-04 (2m)
+- Last 5 plans: 07-03 (3m), 08-01 (3m), 08-02 (2m), 08-04 (2m), 09-01 (3m)
 - Trend: Consistent velocity
 
 *Updated after each plan completion*
@@ -60,10 +60,14 @@ Recent decisions affecting current work:
 - [08-02]: File size routing at >= 80MB with isTusSupported() fallback
 - [08-02]: updateFileUploadMetrics in useFileQueue (SRP) rather than orchestration-local state
 - [08-04]: Force-committed vendor patch (file.py) to git for traceability
+- [09-01]: Exponential backoff [1000, 2000, 4000] for TUS retry (3 attempts, RESIL-01)
+- [09-01]: Permanent HTTP statuses (413, 415, 403, 410) never retried via onShouldRetry
+- [09-01]: Duck-typed error classifier avoids runtime tus-js-client import
+- [09-01]: Fire-and-forget async IIFE for resume preserves synchronous hook return
 
 ### Pending Todos
 
-- Re-run UAT tests to confirm 08-04 bug fixes resolve Tests 2, 4, and 5
+- None
 
 ### Blockers/Concerns
 
@@ -73,6 +77,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-01-31
-Stopped at: Completed 08-04-PLAN.md
+Last session: 2026-02-05
+Stopped at: Completed 09-01-PLAN.md
 Resume file: None
