@@ -65,12 +65,11 @@ Plans:
   2. User can click cancel and upload stops immediately
   3. User refreshes page mid-upload and can resume from where they left off
   4. If all retries fail, user sees actionable error message (not generic "Upload Failed")
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 09-01: Retry logic with exponential backoff
-- [ ] 09-02: Cancel button and localStorage resume
-- [ ] 09-03: Error messaging and edge cases
+- [ ] 09-01-PLAN.md -- Retry with exponential backoff, error classifier, localStorage resume flow
+- [ ] 09-02-PLAN.md -- Cancel button, retrying indicator, classified error wiring in UI
 
 ### Phase 10: Integration and Deployment
 **Goal**: Chunked uploads work reliably through Cloudflare in production
@@ -94,12 +93,12 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 7. Backend Chunk Infrastructure | v1.1 | 3/3 | Complete | 2026-01-29 |
 | 8. Frontend Chunking | v1.1 | 0/4 | In progress | - |
-| 9. Resilience and Polish | v1.1 | 0/3 | Not started | - |
+| 9. Resilience and Polish | v1.1 | 0/2 | Not started | - |
 | 10. Integration and Deployment | v1.1 | 0/2 | Not started | - |
 
-**Total Plans:** 12 (estimate, refined during planning)
+**Total Plans:** 11 (refined during Phase 9 planning)
 **Requirements Coverage:** 19/19 mapped
 
 ---
 *Roadmap created: 2026-01-29*
-*Last updated: 2026-01-31 after Phase 8 UAT gap closure planning*
+*Last updated: 2026-02-05 after Phase 9 planning*
