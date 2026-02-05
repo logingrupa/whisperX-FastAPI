@@ -13,7 +13,7 @@
  * 4. Receive progress updates via WebSocket for all 5 stages
  * 5. Complete or error state
  */
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect, useState } from 'react';
 import { useFileQueue, type UseFileQueueReturn } from './useFileQueue';
 import { useTaskProgress, type TaskProgressState, type TaskErrorState, type ConnectionState } from './useTaskProgress';
 import { startTranscription } from '@/lib/api/transcriptionApi';
@@ -28,6 +28,10 @@ interface UseUploadOrchestrationReturn extends UseFileQueueReturn {
   handleStartAll: () => void;
   /** Retry a failed file */
   handleRetry: (id: string) => void;
+  /** Cancel an in-progress upload */
+  handleCancel: (id: string) => void;
+  /** ID of the file currently in retry delay (null if none) */
+  retryingFileId: string | null;
   /** WebSocket connection state */
   connectionState: ConnectionState;
   /** Manual reconnection trigger */
@@ -55,6 +59,12 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
   // Track current file being processed for WebSocket subscription
   const currentFileIdRef = useRef<string | null>(null);
   const currentTaskIdRef = useRef<string | null>(null);
+
+  // Per-file abort functions for cancel support
+  const abortControllerRef = useRef<Map<string, () => void>>(new Map());
+
+  // Track which file is currently in retry delay (for UI indicator)
+  const [retryingFileId, setRetryingFileId] = useState<string | null>(null);
 
   // Find the file item for current processing
   const currentFile = queue.find(item => item.id === currentFileIdRef.current);
@@ -126,12 +136,15 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
       taskId: taskId,
     };
 
-    startTusUpload(item.file, metadata, {
+    const { abort } = startTusUpload(item.file, metadata, {
       onProgress: (percentage, speed, eta) => {
+        setRetryingFileId(null);
         updateFileProgress(item.id, percentage, 'uploading');
         updateFileUploadMetrics(item.id, speed, eta);
       },
       onSuccess: (returnedTaskId) => {
+        setRetryingFileId(null);
+        abortControllerRef.current.delete(item.id);
         // Store task ID and transition to processing
         setFileTaskId(item.id, returnedTaskId);
         currentTaskIdRef.current = returnedTaskId;
@@ -139,11 +152,15 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
         updateFileProgress(item.id, 100, 'uploading');
       },
       onError: (userMessage, technicalDetail, _isRetryable) => {
+        setRetryingFileId(null);
+        abortControllerRef.current.delete(item.id);
         setFileError(item.id, userMessage, technicalDetail);
         currentFileIdRef.current = null;
         currentTaskIdRef.current = null;
       },
+      onRetrying: () => setRetryingFileId(item.id),
     });
+    abortControllerRef.current.set(item.id, abort);
   }, [startTusUpload, updateFileStatus, updateFileProgress, updateFileUploadMetrics, setFileTaskId, setFileError]);
 
   /**
@@ -197,6 +214,27 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
     updateFileStatus(item.id, 'processing');
     updateFileProgress(item.id, 5, 'queued');
   }, [isFileReady, processViaTus, updateFileStatus, updateFileProgress, setFileTaskId, setFileError]);
+
+  /**
+   * Cancel an in-progress TUS upload.
+   * Calls abort (sends DELETE to server + clears localStorage) and resets file to pending.
+   */
+  const handleCancel = useCallback((id: string) => {
+    const abort = abortControllerRef.current.get(id);
+    if (abort) {
+      abort();
+      abortControllerRef.current.delete(id);
+    }
+    setRetryingFileId(null);
+    updateFileStatus(id, 'pending');
+    updateFileProgress(id, 0, 'uploading');
+    updateFileUploadMetrics(id, '', '');
+    // Clear processing refs if this was the active file
+    if (currentFileIdRef.current === id) {
+      currentFileIdRef.current = null;
+      currentTaskIdRef.current = null;
+    }
+  }, [updateFileStatus, updateFileProgress, updateFileUploadMetrics]);
 
   /**
    * Start processing a single file by ID
@@ -279,6 +317,8 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
     handleStartFile,
     handleStartAll,
     handleRetry,
+    handleCancel,
+    retryingFileId,
     connectionState,
     reconnect,
   };
