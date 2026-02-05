@@ -14,5 +14,5 @@ export const TUS_CHUNK_SIZE = 50 * 1024 * 1024;
 /** TUS endpoint matching tuspyserver router mount from Phase 7. */
 export const TUS_ENDPOINT = '/uploads/files/';
 
-/** Retry delays (ms) for transient upload failures. */
-export const TUS_RETRY_DELAYS = [0, 1000, 3000, 5000];
+/** Retry delays (ms) for transient upload failures -- exponential backoff, 3 attempts. */
+export const TUS_RETRY_DELAYS = [1000, 2000, 4000];
