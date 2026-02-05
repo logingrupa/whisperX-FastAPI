@@ -12,6 +12,7 @@
 import { useCallback } from 'react';
 
 import { createTusUpload, isTusSupported } from '@/lib/upload/tusUpload';
+import { classifyUploadError } from '@/lib/upload/tusErrorClassifier';
 import { UploadSpeedTracker } from '@/lib/upload/uploadMetrics';
 
 export { isTusSupported };
@@ -19,12 +20,15 @@ export { isTusSupported };
 interface TusUploadCallbacks {
   onProgress: (percentage: number, speed: string, eta: string) => void;
   onSuccess: (taskId: string) => void;
-  onError: (error: string) => void;
+  onError: (userMessage: string, technicalDetail: string, isRetryable: boolean) => void;
+  /** Fires when a retry is about to happen (before the delay). */
+  onRetrying?: () => void;
 }
 
 /**
  * Stateless hook that provides a function to start a TUS upload
- * with integrated speed and ETA tracking.
+ * with integrated speed and ETA tracking, resume from previous
+ * uploads, and classified error propagation.
  */
 export function useTusUpload() {
   const startTusUpload = useCallback(
@@ -52,11 +56,24 @@ export function useTusUpload() {
           callbacks.onSuccess(taskId);
         },
         onError: (error: Error) => {
-          callbacks.onError(error.message);
+          const classified = classifyUploadError(error);
+          callbacks.onError(
+            classified.userMessage,
+            classified.technicalDetail,
+            classified.isRetryable,
+          );
         },
+        onBeforeRetry: callbacks.onRetrying,
       });
 
-      upload.start();
+      // Async resume check + start (fire-and-forget, preserves sync return)
+      (async () => {
+        const previousUploads = await upload.findPreviousUploads();
+        if (previousUploads.length > 0) {
+          upload.resumeFromPreviousUpload(previousUploads[0]);
+        }
+        upload.start();
+      })();
 
       return { abort: () => upload.abort(true) };
     },

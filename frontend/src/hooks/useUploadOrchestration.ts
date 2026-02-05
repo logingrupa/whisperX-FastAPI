@@ -138,8 +138,8 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
         updateFileStatus(item.id, 'processing');
         updateFileProgress(item.id, 100, 'uploading');
       },
-      onError: (errorMessage) => {
-        setFileError(item.id, 'Upload failed', errorMessage);
+      onError: (userMessage, technicalDetail, _isRetryable) => {
+        setFileError(item.id, userMessage, technicalDetail);
         currentFileIdRef.current = null;
         currentTaskIdRef.current = null;
       },
