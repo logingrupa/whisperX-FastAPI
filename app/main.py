@@ -133,6 +133,17 @@ app = FastAPI(
 
     VIDEO_EXTENSIONS = {Config.VIDEO_EXTENSIONS}
 
+    ## Language-Specific Model Overrides:
+
+    Some languages have fine-tuned models that are automatically used when that language is selected.
+    The server-side `LANGUAGE_MODEL_OVERRIDES` configuration maps language codes to optimized CTranslate2
+    model paths. When an override is configured, the `model` parameter is ignored for that language and
+    the fine-tuned model is loaded instead.
+
+    Currently configured overrides:
+    - **`lv` (Latvian)**: Uses `AiLab-IMCS-UL/whisper-large-v3-lv-late-cv19` (CTranslate2 int8) —
+      a fine-tuned Whisper Large V3 with ~3.2% WER vs ~19.2% WER for stock Whisper on Latvian.
+
     """,
     version="0.0.1",
     openapi_tags=tags_metadata,

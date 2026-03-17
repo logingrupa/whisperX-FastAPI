@@ -15,7 +15,7 @@ from whisperx import (
 from whisperx.diarize import DiarizationPipeline
 
 from app.callbacks import post_task_callback
-from app.core.config import Config
+from app.core.config import Config, get_settings
 from app.core.logging import logger
 from app.domain.repositories.task_repository import ITaskRepository
 from app.domain.services.alignment_service import IAlignmentService
@@ -105,20 +105,31 @@ def transcribe_with_whisper(
         torch.set_num_threads(threads)
         faster_whisper_threads = threads
 
+    # Resolve language-specific model override (e.g. fine-tuned Latvian model)
+    settings = get_settings()
+    resolved_model, resolved_compute = settings.whisper.resolve_model_for_language(
+        model.value, language
+    )
+    if resolved_model != model.value:
+        logger.info(
+            "Language override active: language=%s, model=%s -> %s, compute=%s -> %s",
+            language, model.value, resolved_model, compute_type.value, resolved_compute,
+        )
+
     logger.debug(
         "Loading model with config - model: %s, device: %s, compute_type: %s, threads: %d, task: %s, language: %s",
-        model.value,
+        resolved_model,
         device.value,
-        compute_type.value,
+        resolved_compute,
         faster_whisper_threads,
         task,
         language,
     )
     loaded_model = load_model(
-        model.value,
+        resolved_model,
         device.value,
         device_index=device_index,
-        compute_type=compute_type.value,
+        compute_type=resolved_compute,
         asr_options=asr_options,
         vad_options=vad_options,
         language=language,

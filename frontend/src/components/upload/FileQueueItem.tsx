@@ -213,6 +213,18 @@ export function FileQueueItem({
                     onUpdateSettings(item.id, { selectedModel: value })
                   }
                 />
+                {item.selectedLanguage === 'lv' && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="outline" className="shrink-0 text-xs border-blue-400 text-blue-600">
+                        LV model
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Fine-tuned Latvian model (LATE-lv) will be used automatically</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
               </>
             )}
 

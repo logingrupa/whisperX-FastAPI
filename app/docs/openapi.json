@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "whisperX REST service",
-    "description": "\n    # whisperX RESTful API\n\n    Welcome to the whisperX RESTful API! This API provides a suite of audio processing services to enhance and analyze your audio content.\n\n    ## Documentation:\n\n    For detailed information on request and response formats, consult the [WhisperX Documentation](https://github.com/m-bain/whisperX).\n\n    ## Services:\n\n    Speech-2-Text provides a suite of audio processing services to enhance and analyze your audio content. The following services are available:\n\n    1. Transcribe: Transcribe an audio/video  file into text.\n    2. Align: Align the transcript to the audio/video file.\n    3. Diarize: Diarize an audio/video file into speakers.\n    4. Combine Transcript and Diarization: Combine the transcript and diarization results.\n\n    ## Supported file extensions:\n    AUDIO_EXTENSIONS = {'.mp3', '.oga', '.amr', '.m4a', '.ogg', '.awb', '.wav', '.wma', '.aac'}\n\n    VIDEO_EXTENSIONS = {'.avi', '.wmv', '.mp4', '.mov', '.mkv'}\n\n    ",
+    "description": "\n    # whisperX RESTful API\n\n    Welcome to the whisperX RESTful API! This API provides a suite of audio processing services to enhance and analyze your audio content.\n\n    ## Documentation:\n\n    For detailed information on request and response formats, consult the [WhisperX Documentation](https://github.com/m-bain/whisperX).\n\n    ## Services:\n\n    Speech-2-Text provides a suite of audio processing services to enhance and analyze your audio content. The following services are available:\n\n    1. Transcribe: Transcribe an audio/video  file into text.\n    2. Align: Align the transcript to the audio/video file.\n    3. Diarize: Diarize an audio/video file into speakers.\n    4. Combine Transcript and Diarization: Combine the transcript and diarization results.\n\n    ## Supported file extensions:\n    AUDIO_EXTENSIONS = {'.wav', '.aac', '.oga', '.wma', '.awb', '.m4a', '.mp3', '.ogg', '.amr'}\n\n    VIDEO_EXTENSIONS = {'.mov', '.mkv', '.wmv', '.mp4', '.avi'}\n\n    ## Language-Specific Model Overrides:\n\n    Some languages have fine-tuned models that are automatically used when that language is selected.\n    The server-side `LANGUAGE_MODEL_OVERRIDES` configuration maps language codes to optimized CTranslate2\n    model paths. When an override is configured, the `model` parameter is ignored for that language and\n    the fine-tuned model is loaded instead.\n\n    Currently configured overrides:\n    - **`lv` (Latvian)**: Uses `AiLab-IMCS-UL/whisper-large-v3-lv-late-cv19` (CTranslate2 int8) \u2014\n      a fine-tuned Whisper Large V3 with ~3.2% WER vs ~19.2% WER for stock Whisper on Latvian.\n\n    ",
     "version": "0.0.1"
   },
   "paths": {
@@ -21,7 +21,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "description": "Language to transcribe",
+              "description": "Language to transcribe (ISO 639-1 code). Some languages have server-side fine-tuned model overrides (e.g. 'lv' uses a dedicated Latvian model with ~6x better accuracy). When an override is active, the 'model' parameter is ignored.",
               "enum": [
                 "en",
                 "zh",
@@ -127,7 +127,7 @@
               "default": "en",
               "title": "Language"
             },
-            "description": "Language to transcribe"
+            "description": "Language to transcribe (ISO 639-1 code). Some languages have server-side fine-tuned model overrides (e.g. 'lv' uses a dedicated Latvian model with ~6x better accuracy). When an override is active, the 'model' parameter is ignored."
           },
           {
             "name": "task",
@@ -559,7 +559,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "description": "Language to transcribe",
+              "description": "Language to transcribe (ISO 639-1 code). Some languages have server-side fine-tuned model overrides (e.g. 'lv' uses a dedicated Latvian model with ~6x better accuracy). When an override is active, the 'model' parameter is ignored.",
               "enum": [
                 "en",
                 "zh",
@@ -665,7 +665,7 @@
               "default": "en",
               "title": "Language"
             },
-            "description": "Language to transcribe"
+            "description": "Language to transcribe (ISO 639-1 code). Some languages have server-side fine-tuned model overrides (e.g. 'lv' uses a dedicated Latvian model with ~6x better accuracy). When an override is active, the 'model' parameter is ignored."
           },
           {
             "name": "task",
@@ -1294,7 +1294,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "description": "Language to transcribe",
+              "description": "Language to transcribe (ISO 639-1 code). Some languages have server-side fine-tuned model overrides (e.g. 'lv' uses a dedicated Latvian model with ~6x better accuracy). When an override is active, the 'model' parameter is ignored.",
               "enum": [
                 "en",
                 "zh",
@@ -1400,7 +1400,7 @@
               "default": "en",
               "title": "Language"
             },
-            "description": "Language to transcribe"
+            "description": "Language to transcribe (ISO 639-1 code). Some languages have server-side fine-tuned model overrides (e.g. 'lv' uses a dedicated Latvian model with ~6x better accuracy). When an override is active, the 'model' parameter is ignored."
           },
           {
             "name": "task",

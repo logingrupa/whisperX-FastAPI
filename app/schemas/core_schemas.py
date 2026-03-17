@@ -315,7 +315,12 @@ class WhisperModelParams(BaseModel):
     language: str = Field(
         Query(
             default="en",  # Default language
-            description="Language to transcribe",
+            description=(
+                "Language to transcribe (ISO 639-1 code). "
+                "Some languages have server-side fine-tuned model overrides "
+                "(e.g. 'lv' uses a dedicated Latvian model with ~6x better accuracy). "
+                "When an override is active, the 'model' parameter is ignored."
+            ),
             enum=list(utils.LANGUAGES.keys()),
         )
     )

@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from whisperx import load_model
 
+from app.core.config import get_settings
 from app.core.logging import logger
 
 
@@ -76,6 +77,19 @@ class WhisperXTranscriptionService:
         if threads > 0:
             torch.set_num_threads(threads)
             faster_whisper_threads = threads
+
+        # Resolve language-specific model override (e.g. fine-tuned Latvian model)
+        settings = get_settings()
+        resolved_model, resolved_compute = settings.whisper.resolve_model_for_language(
+            model, language
+        )
+        if resolved_model != model:
+            self.logger.info(
+                "Language override active: language=%s, model=%s -> %s, compute=%s -> %s",
+                language, model, resolved_model, compute_type, resolved_compute,
+            )
+            model = resolved_model
+            compute_type = resolved_compute
 
         self.logger.debug(
             "Loading model with config - model: %s, device: %s, compute_type: %s, "

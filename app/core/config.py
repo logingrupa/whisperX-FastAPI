@@ -38,6 +38,14 @@ class WhisperSettings(BaseSettings):
         default="en",
         description="Default language for transcription",
     )
+    LANGUAGE_MODEL_OVERRIDES: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Language-specific model overrides. Maps ISO 639-1 language codes "
+            "to local CTranslate2 model paths or HuggingFace repo IDs. "
+            "Example: {'lv': '/path/to/ct2-int8'}"
+        ),
+    )
     DEVICE: Device = Field(
         default_factory=lambda: Device.cuda
         if torch.cuda.is_available()
@@ -69,6 +77,22 @@ class WhisperSettings(BaseSettings):
     def ALLOWED_EXTENSIONS(self) -> set[str]:
         """Compute allowed extensions by combining audio and video."""
         return self.AUDIO_EXTENSIONS | self.VIDEO_EXTENSIONS
+
+    def resolve_model_for_language(self, model: str, language: str) -> tuple[str, str]:
+        """
+        Resolve the model and compute type for a given language.
+
+        If a language-specific override is configured, returns the override
+        path and forces int8 compute type (CTranslate2 int8 models).
+        Otherwise returns the original model and compute type unchanged.
+
+        Returns:
+            Tuple of (model_name_or_path, compute_type)
+        """
+        override = self.LANGUAGE_MODEL_OVERRIDES.get(language)
+        if override:
+            return override, ComputeType.int8.value
+        return model, self.COMPUTE_TYPE.value
 
     @model_validator(mode="after")
     def validate_compute_type_for_cpu(self) -> "WhisperSettings":
