@@ -1,268 +1,194 @@
-# Project Research Summary
+# Project Research Summary — v1.2 Multi-User Auth + API Keys + Billing-Ready
 
-**Project:** WhisperX Transcription App - v1.1 Chunked Uploads
-**Domain:** Large file upload for audio/video transcription services
-**Researched:** 2026-01-29
+**Project:** WhisperX FastAPI App
+**Domain:** Multi-tenant SaaS auth retrofit onto existing single-user FastAPI/SQLite/React app
+**Researched:** 2026-04-29
 **Confidence:** HIGH
 
 ## Executive Summary
 
-WhisperX needs to support 500MB+ audio/video files through Cloudflare's 100MB per-request limit. Research shows the proven solution is implementing the TUS resumable upload protocol using **tus-js-client** (frontend) and **tuspyserver** (backend). This approach is battle-tested by Cloudflare Stream, Vimeo, and Supabase, provides automatic resume after network failures, and requires minimal changes to existing architecture.
+v1.2 converts trusted-deploy single-user app to multi-tenant SaaS. Bolt-on auth, not rewrite. Foundation: cookie session (HS256 JWT) + raw API key (`whsk_*`) dual-auth on ONE middleware. Argon2id passwords. Double-submit CSRF. SQLite-backed token bucket rate limit. Alembic migrations replace `Base.metadata.create_all()`. Stripe schema stub (no integration). Frontend gets router shell, auth pages, central `apiClient` wrapper, Vitest+RTL+MSW test infra.
 
-The recommended implementation keeps the existing react-dropzone UI and WebSocket progress infrastructure unchanged. Files under 100MB continue using the current single-request flow, while larger files are chunked at 50MB per request. The TUS protocol handles all complexity around resumability, retry logic, and session management. The backend tuspyserver library provides a FastAPI router that mounts alongside existing endpoints with post-upload hooks that trigger the existing transcription pipeline.
+Recommended: **9 atomic phases**, silent infra (10-12) → atomic backend+frontend cutover (13+14) → polish/verify (15-17) → optional stretch (18). Stack consolidated from all four researchers: argon2-cffi 25.1.0, PyJWT 2.12.1 (NOT python-jose — abandoned, FastAPI docs migrated), fastapi-csrf-protect 0.3.3, slowapi 0.1.9, alembic 1.18.4, stripe 15.1.0, typer 0.24.2; frontend zustand 5, react-hook-form 7.60, zod 3.25, vitest 3.2, RTL 16.1, MSW 2.13.
 
-Critical risks center on Cloudflare compatibility (chunk size must be under 100MB), storage management (orphaned chunks from incomplete uploads), and CORS configuration (TUS headers must be exposed). The research identified 8 table-stakes features users expect for large file uploads, including resume after page refresh, automatic retry, and smooth progress indicators. Implementation can follow a clear four-phase approach that minimizes risk by keeping existing flows intact.
+Top risks: (a) `tasks.user_id` FK backfill on populated `records.db` requires 3-step nullable→backfill→NOT NULL via batch_alter_table; (b) WS `/ws/tasks/{task_id}` zero-auth = cross-user leak — fix with single-use ticket query param NOT subprotocol (Cloudflare strips); (c) `Base.metadata.create_all()` at `app/main.py:48` must die same commit Alembic ships; (d) `allow_origins=["*"]` at `app/main.py:174` incompatible with cookie credentials — explicit allowlist mandatory; (e) Argon2 default `m_cost=65536` = login DoS — use OWASP `m=19456, t=2, p=1`; (f) per-user task scoping single missed `WHERE user_id` = data leak.
+
+## Conflict Resolutions (Researcher Disagreements)
+
+| Topic | ARCHITECTURE proposed | PITFALLS proposed | Decision | Rationale |
+|-------|----------------------|-------------------|----------|-----------|
+| WS auth transport | `Sec-WebSocket-Protocol` subprotocol | Single-use 60s ticket query param | **Ticket query param** | Cloudflare/some nginx/AWS ALB strip non-standard subprotocols silently. v1.3 Cloudflare prod target. Single-use, short-lived → URL-log leak window minimal. |
+| Rate-limit storage | SQLite token bucket + `BEGIN IMMEDIATE` | SQLite token bucket + `BEGIN IMMEDIATE` | **CONFIRMED** | WAL on. Worker-safe. Single-container = no Redis. Load test in Phase 16 to validate write-contention. |
+| Phase count | 8 phases | 9 phases (numbered 11-19) | **9 phases (10-18)** | Splitting admin CLI + frontend test infra + verification + docs as distinct phases is cleaner. v1.1 phase 10 (Cloudflare) deferred to v1.3 → resume numbering at 10. |
+| Stack libs | argon2-cffi, PyJWT, alembic, slowapi, vitest, MSW, RTL, zustand, RHF, zod | Same | **CONFIRMED — STACK.md table is canonical** | All 4 researchers aligned. python-jose explicitly rejected (abandoned ~3yr). |
 
 ## Key Findings
 
-### Recommended Stack
+### Recommended Stack (Consolidated)
 
-Research strongly recommends adopting the TUS resumable upload protocol over custom chunking implementations. TUS is an industry standard with mature client and server libraries that handle the edge cases that plague custom implementations.
+Existing stack stays. Adds 7 backend libs, 11 frontend. No replacements.
 
-**Core technologies:**
-- **tus-js-client v4.3.1**: Pure JavaScript TUS protocol client with automatic resume, configurable chunk size (set to 50MB), retry delays, and progress callbacks that integrate with existing UI
-- **tuspyserver v4.2.3**: FastAPI-native TUS server with dependency injection hooks, built-in cleanup (5-day default expiration), and minimal dependencies (only requires fastapi>=0.110)
-- **Existing stack preserved**: React-dropzone continues handling file selection, WebSocket continues handling transcription progress, no UI rewrites required
+| Layer | Package | Version | Purpose |
+|-------|---------|---------|---------|
+| Auth core | argon2-cffi | 25.1.0 | Argon2id password hash (OWASP) |
+| Auth core | PyJWT | 2.12.1 | JWT sign/verify (replaces python-jose) |
+| CSRF | fastapi-csrf-protect | 0.3.3 | Double-submit cookie via `Depends` |
+| Rate limit | slowapi | 0.1.9 | Sliding-window, custom key_func |
+| Migrations | alembic | 1.18.4 | Replaces `create_all()`; baseline workflow |
+| Billing stub | stripe | 15.1.0 | Schema-only, no runtime integration |
+| CLI | typer | 0.24.2 | `python -m app.cli create-admin` |
+| Frontend state | zustand | ^5.0.12 | Auth store (avoids Context re-render) |
+| Frontend forms | react-hook-form, zod, @hookform/resolvers | ^7.60.0, ^3.25.76, ^5.1.1 | Forms + validation |
+| Frontend test runner | vitest, @vitest/ui, jsdom | ^3.2.0, ^3.2.0, ^29.0.2 | Vite 7 needs vitest ≥3.2 |
+| Frontend test utils | @testing-library/react, user-event, jest-dom | ^16.1.0, ^14.6.1, ^6.6.3 | Component test utils |
+| Frontend mocking | msw | ^2.13.4 | API mocking |
 
-**Why TUS over custom chunking:**
-Custom implementations repeatedly suffer from memory exhaustion (loading all chunks into memory), race conditions (parallel chunk uploads), session state loss (in-memory tracking), and orphaned storage leaks. TUS solves these through standardized protocol headers (Upload-Offset, Location, Tus-Resumable), server-side state management, and proven Cloudflare compatibility when chunks are kept under 100MB.
+Stdlib only: `hashlib` (fingerprint sha256), `secrets` (api key gen + `compare_digest`), `datetime`/`timezone` (JWT exp).
 
-**Cloudflare constraint:** Chunk size must be configured to 50MB (safe margin under 100MB limit). Files exceeding 512MB may hit Cloudflare's cache reassembly limit, but this is acceptable for WhisperX's target use case.
+**Avoid:** python-jose, passlib, bcrypt for new hashes, fastapi-users, fastapi-limiter, redis, formik, yup, happy-dom, jotai, react-redux.
 
 ### Expected Features
 
-Research identified 8 table-stakes features that users expect from chunked upload systems. Missing any of these makes uploads feel broken.
+**Must have (P1, all in v1.2):** single-page register/login (generic-error enumeration prevention), HttpOnly+Secure+SameSite=Lax cookie session 7d sliding, logout-all-devices via `token_version`, API key UI (list/create-show-once/copy/revoke/soft-delete), free-tier counter visible, trial countdown banner, 429 retry-after UX, account dashboard with delete-account (type-email), IP throttle 3/hr register + 10/hr login per /24, device fingerprint, CSRF invisible double-submit, Pro upgrade stub + interest-capture modal.
 
-**Must have (table stakes):**
-- **Overall file progress bar**: Users need transparent progress to reduce anxiety; chunked uploads without smooth progress feel unresponsive
-- **Automatic retry on failure**: Network hiccups are common; system must retry silently (max 3 attempts with exponential backoff) before showing error
-- **Resume after page refresh**: Losing 80% of a 500MB upload on accidental browser close is unacceptable; localStorage-based session persistence is required
-- **Clear error messages**: "Upload Failed" is useless; errors must be actionable ("Network error. Click to retry")
-- **Cancel upload button**: Users must be able to stop uploads immediately without confirmation dialogs
-- **Upload speed indicator**: For large files, users want to estimate completion time (show "X MB/s" or "~Y minutes remaining")
-- **File size validation before upload**: Prevent wasted time uploading files that exceed server limits
-- **Smooth progress updates**: Progress bar must update every 2-3 seconds, not jump in large increments
+**Should have (defer v1.3):** email verification (needs SMTP), magic link login, per-key scopes UI, per-key expiration, active sessions list, usage charts, HaveIBeenPwned check, hCaptcha (env-flagged stub now).
 
-**Should have (competitive):**
-- **Pause/resume button**: User-initiated pause for bandwidth management (defer to v1.2)
-- **Background upload via Service Worker**: Upload continues if user navigates away (defer to v1.2)
-- **Parallel chunk uploads**: Faster uploads on high-bandwidth connections (defer - adds complexity)
+**Defer v2+:** TOTP 2FA, WebAuthn, team plans, refresh token rotation, email change flow.
 
-**Defer (v2+):**
-- Per-chunk progress visualization (overwhelming for users)
-- Chunk size configuration (implementation detail users don't understand)
-- Upload history/persistence across sessions (scope creep beyond v1.1)
-- Confirmation dialogs on cancel (adds friction; cancel should be immediate and reversible)
-
-**UX pattern:** Progress UI should show two distinct phases: "Uploading... X%" (driven by TUS onProgress callback) followed by "Processing..." (driven by existing WebSocket for transcription stages). Don't try to unify these too early.
+**Anti-features (do NOT build):** multi-step register wizard, required phone, username field, localStorage JWT, fake "Subscribe" button, custom payment form, GET endpoints that mutate, security questions, forced password rotation, plaintext API key storage, `?api_key=` query param.
 
 ### Architecture Approach
 
-The chunked upload system integrates as a parallel flow to the existing single-file upload, reusing most infrastructure.
+Bolt-on auth onto existing DI/repo conventions. Single `DualAuthMiddleware` replaces `BearerAuthMiddleware` at `app/core/auth.py` — same import, same registration site (`main.py:169`). Sets `request.state.user`, `.plan_tier`, `.auth_method`, `.api_key_id`. Per-user filtering at REPOSITORY layer (NOT API layer) — `ITaskRepository.set_user_scope(user_id)` pushes filter into SQL `WHERE`. CSRF via `Depends(verify_csrf)` route-level (NOT middleware) — bearer routes early-return. WebSocket auth via single-use ticket (60s TTL) query param + ownership check before `accept()`.
 
 **Major components:**
+1. `app/core/auth.py` `DualAuthMiddleware` — bearer→cookie→public resolution
+2. `app/core/jwt_codec.py` (single source) — `algorithms=["HS256"]` hard-coded
+3. `app/core/api_key.py` (single source) — `whsk_<8-prefix>_<32-rand>`, sha256, prefix-indexed lookup, `secrets.compare_digest`
+4. `app/core/auth_cookies.py` (single source) — env-driven `Secure`, `HttpOnly`, `SameSite=Lax`
+5. `app/services/{auth,key,rate_limit,csrf}_service.py`
+6. `app/infrastructure/database/repositories/sqlalchemy_*_repository.py` — User/ApiKey/RateLimitBucket/Subscription/UsageEvent
+7. Alembic migrations at `app/infrastructure/database/migrations/`
+8. `frontend/src/lib/apiClient.ts` — single fetch wrapper
+9. `frontend/src/components/auth/{AuthProvider,ProtectedRoute}.tsx` + zustand + react-router
+10. `app/cli.py` Typer CLI
 
-1. **TUS Upload Router (Backend)**: New `/uploads/` endpoint mounted in FastAPI that handles TUS protocol negotiation, chunk storage, and automatic cleanup. Uses tuspyserver's built-in dependency injection to trigger transcription after assembly.
+### Critical Pitfalls (Top 5)
 
-2. **Upload Decision Layer (Frontend)**: Modified `useUploadOrchestration.ts` checks file size. Files under 100MB use existing `/speech-to-text` endpoint, files over 100MB use TUS client. Both flows converge at the same WebSocket progress tracking.
+1. **`tasks.user_id` FK backfill on populated DB** — 3-step migration: nullable add → Typer backfill assigning admin → `batch_alter_table` NOT NULL + FK CASCADE. Delete `Base.metadata.create_all()` from `app/main.py:48` same commit. Smoke-test against `records.db` copy.
+2. **WS cross-user task leak** — Current `/ws/tasks/{task_id}` zero-auth. Pattern: `POST /api/ws/ticket` (cookie/API key auth) → 60s one-time ticket → WS connects `?ticket=...` → server consumes + verifies `ticket.user_id == task.user_id` BEFORE `accept()`. Rejects subprotocol (CF strips).
+3. **JWT alg=none + algorithm confusion** — `algorithms=["HS256"]` mandatory. Single decode site `app/core/jwt_codec.py`. Test alg=none → 401, tampered → 401, expired → 401. Lint: `import jwt` allowed only in jwt_codec.
+4. **CORS `allow_origins=["*"]` + cookies** — Browser silently rejects wildcard with credentials. `app/main.py:174` env-driven explicit allowlist + `allow_credentials=True`.
+5. **Per-user task scoping single missed `WHERE`** — Refactor `ITaskRepository`: every method takes `user_id`. Two-user fixtures in EVERY task test. Audit checklist becomes acceptance criteria. Endpoints to audit: `GET/DELETE /tasks`, `POST /speech-to-text*`, `tus_upload_api`, `websocket_api`, `callbacks`, `DELETE /api/account/data`.
 
-3. **Existing Infrastructure (Reused)**: WebSocket ConnectionManager, progress emitter, transcription pipeline, and result delivery remain unchanged. TUS upload completes, triggers existing `process_audio_common` function, everything downstream is identical.
+Honorable mentions: Argon2 m_cost too high → DoS (use `m=19456, t=2, p=1`); SameSite=Lax 2-min Chrome grace + GET state-change (lint: `@router.get` is read-only); rate-limit IPv6 /128 vs /64 (custom key_func with CF-Connecting-IP + /24 IPv4 + /64 IPv6); Stripe schema baked NOW (`plan_tier` enum CHECK, `idempotency_key UNIQUE NOT NULL`, `cancelled_at` soft-delete, `DateTime(timezone=True)` everywhere); auth code duplication (single `auth_resolver.py`).
 
-**Integration pattern:**
-```
-Small file (<100MB):
-[react-dropzone] -> [POST /speech-to-text] -> [Transcription] -> [WebSocket Progress]
+## Roadmap Implications (9 Phases, numbered 10-18)
 
-Large file (>100MB):
-[react-dropzone] -> [tus-js-client] -> [POST /uploads/ (TUS)] -> [Assembly Hook] -> [Transcription] -> [WebSocket Progress]
-```
+### Phase 10 — Alembic Baseline + Auth Schema (Silent Infra)
 
-**Key decision:** Research explored custom implementation but recommends TUS because the protocol solves session management, resume logic, and retry handling through standardized headers. Custom implementations repeatedly fail on these edge cases.
+Schema foundation. Zero behavior change. Replaces `Base.metadata.create_all()`.
 
-**CORS requirement:** TUS requires exposing specific headers through Cloudflare (Location, Upload-Offset, Upload-Length, Tus-Resumable). This is a deployment configuration step that's easy to miss.
+Delivers: alembic init, hand-written baseline mirroring current `tasks` schema, `alembic stamp head` on prod, migration adding User/ApiKey/Subscription/UsageEvent/RateLimitBucket/DeviceFingerprint, migration adding `tasks.user_id NULLABLE`, PRAGMA foreign_keys=ON listener, naming convention, DELETE `create_all()` line.
 
-### Critical Pitfalls
+### Phase 11 — Auth Core Modules + Domain + Services + DI (Silent Infra)
 
-Research identified 14 pitfalls across three severity levels. These are the top 5 that require explicit prevention:
+Pure logic, unit-testable, no HTTP exposure.
 
-1. **Chunk Assembly Memory Exhaustion**: Loading all chunks into memory before writing the final file causes server crashes with 500MB+ files. TUS prevents this by writing chunks directly to disk and using file system operations for assembly. FastAPI's default `File()` parameter must be avoided.
+Delivers: Domain entities + repos, jwt_codec.py (single decode), api_key.py (single source), auth_cookies.py (env-driven), auth/key/rate_limit/csrf services, argon2 + JWT infrastructure, DI container wiring (mirrors existing pattern), Argon2 benchmark test <300ms p99.
 
-2. **Cloudflare 100MB Per-Request Limit**: Individual chunk requests larger than 100MB are rejected with 413 error before reaching origin. Solution: Configure `chunkSize: 50 * 1024 * 1024` in tus-js-client (50MB provides safe margin). This is a configuration constant, not user-facing.
+### Phase 12 — Admin CLI + Task Backfill (Pre-cutover)
 
-3. **Orphaned Chunks Storage Leak**: Incomplete uploads leave chunks on disk forever if cleanup isn't implemented. tuspyserver provides built-in expiration (5-day default) and `remove_expired_files()` function. Schedule this with existing APScheduler infrastructure.
+Must seed admin + backfill orphan tasks BEFORE auth gate (Phase 13). Otherwise NOT NULL migration fails.
 
-4. **CORS Header Exposure**: Browsers block TUS uploads if response headers aren't exposed through CORS. Cloudflare configuration must include `expose_headers` for TUS protocol headers (Location, Upload-Offset, etc.). Works in development, fails in production if missed.
+Delivers: `app/cli.py` Typer commands `create-admin`, `backfill-tasks`; backfill UPDATE migration; `batch_alter_table` NOT NULL + FK CASCADE migration; `idx_tasks_user_id`. Verify against COPY of prod `records.db`.
 
-5. **Cloudflare Rate Limiting False Positives**: Multiple rapid chunk requests from same IP can trigger DDoS protection. A 500MB file with 50MB chunks generates 10 requests in quick succession. Solution: Add WAF rule to exclude `/uploads/` endpoint from rate limiting, or use unproxied subdomain for uploads.
+### Phase 13 — ATOMIC Cutover (Backend)
 
-**Phase-specific warnings:**
-- **Backend Setup Phase**: Must configure CORS to expose TUS headers before frontend integration
-- **Frontend Integration Phase**: Must set chunk size to 50MB; testing with larger chunks will work locally but fail through Cloudflare
-- **Deployment Phase**: Cloudflare WAF rules must exclude upload endpoint from rate limiting
+**Big one — must ship atomic with Phase 14.** Half-shipping breaks app.
 
-**Rejected approach:** Custom chunking using `File.slice()` and manual session tracking. Research shows this requires building session state management, retry logic, resume detection, and assembly validation from scratch. Every one of these has well-documented failure modes (race conditions, memory leaks, off-by-one errors). TUS protocol solves all of these through standardization.
+Delivers: DualAuthMiddleware replaces BearerAuthMiddleware; auth/account/keys routes; per-user task scoping refactor across ALL endpoints; WS ticket flow (`POST /api/ws/ticket` → `?ticket=`); TUS upload auth (API-key or cookie+CSRF); CSRF `Depends(verify_csrf)` on session state-mutating routes; CORS lockdown explicit allowlist + `allow_credentials=True`; slowapi with custom key_func (CF-Connecting-IP + /24 + /64); device fingerprint; SQLite token bucket rate-limit; free-tier gates (5 req/hr, file/duration/model caps); UsageEvent log; disposable-email blocklist; hCaptcha hook scaffolded env-off.
 
-## Implications for Roadmap
+### Phase 14 — ATOMIC Cutover (Frontend) + Test Infra
 
-Based on research, this feature follows a clear four-phase structure with minimal risk to existing functionality.
+Frontend auth UI must be live the moment Phase 13 lands. Existing SPA's raw `fetch('/task/...')` returns 401 instantly otherwise.
 
-### Phase 1: Backend TUS Integration
-**Rationale:** Establish upload capability before modifying frontend. Backend can be tested independently with `tus-js-client` in isolation. Keeps existing frontend working throughout.
+Delivers: `BrowserRouter basename="/ui"`; routes `/login`, `/register`, `/dashboard/{keys,usage,account}`; existing UploadDropzone moves verbatim to `routes/TranscribePage.tsx`; AuthProvider + ProtectedRoute + zustand store; `lib/apiClient.ts` single fetch wrapper (CSRF inject + 401 redirect); migrate `taskApi`, `transcriptionApi`, `tusUpload`, `useTaskProgress` through apiClient; Vitest + RTL + MSW infra (`vitest.config.ts`, single `setup.ts`, `msw init public/`); login/register/dashboard pages with react-hook-form + zod + shadcn `<Form>`; API key list/create-modal-show-once/revoke; free-tier counter; trial banner; 429 inline countdown; BroadcastChannel('auth') cross-tab logout sync.
 
-**Delivers:**
-- TUS router mounted at `/uploads/` endpoint
-- CORS configuration exposing TUS headers
-- Chunk storage and cleanup infrastructure
-- Post-upload hook triggering existing transcription pipeline
+### Phase 15 — Stripe Schema Polish + Account Dashboard Hardening
 
-**Addresses:**
-- Cloudflare 100MB limit (chunks configured at 50MB)
-- Memory exhaustion (tuspyserver writes chunks to disk)
-- Orphaned storage (built-in expiration)
+Post-cutover stability. Pure additive.
 
-**Avoids:**
-- Race conditions (tuspyserver handles state atomically)
-- Session state loss (persisted to files_dir)
+Delivers: Plan tier card, billing history empty state, delete-account flow type-email two-step, "Upgrade to Pro" + plan comparison + interest-capture modal, logout-all-devices button, active sessions list.
 
-**Research flags:** Standard implementation following tuspyserver documentation. No additional research needed.
+### Phase 16 — Verification + E2E + Cross-User Matrix Tests
 
-### Phase 2: Frontend TUS Integration
-**Rationale:** With backend proven, add frontend TUS client. File size decision layer keeps existing flow working for small files.
+Gate to milestone close.
 
-**Delivers:**
-- tus-js-client integrated with react-dropzone
-- File size threshold (100MB) decision logic in `useUploadOrchestration.ts`
-- Progress UI showing upload percentage (TUS onProgress callback)
-- Resume capability via localStorage fingerprinting
+Delivers: Cross-user matrix tests for all task endpoints; WS ticket flow integration test; Argon2 benchmark CI; JWT alg=none rejection test; CSRF stale-token recovery test; rate-limit IP/proxy test; multi-tab BroadcastChannel test (Playwright); migration smoke test; "Looks Done But Isn't" checklist closed.
 
-**Uses:**
-- tus-js-client v4.3.1 with configured chunk size
-- Existing react-dropzone for file selection (no UI changes)
-- Existing progress components with new upload phase
+### Phase 17 — Docs + Migration Runbook + Operator Guide
 
-**Implements:**
-- Upload decision layer (architecture component)
-- Two-phase progress (uploading -> processing)
+Delivers: `.env.example` updates (JWT_SECRET, CSRF_SECRET, COOKIE_*, RATE_LIMIT_*, ARGON2_*, CF_TRUST_HEADER); README updates; migration runbook (backup → stamp → upgrade → verify); admin CLI docs; OpenAPI updates; threat model snapshot.
 
-**Avoids:**
-- WebSocket state desynchronization (keep upload progress in HTTP layer)
-- Off-by-one errors in Content-Range (TUS handles protocol math)
+### Phase 18 — Stretch (Optional)
 
-**Research flags:** Standard implementation. TUS client API documentation is comprehensive.
-
-### Phase 3: Resilience & Polish
-**Rationale:** With core flow working, add error handling and edge case coverage identified in pitfalls research.
-
-**Delivers:**
-- Automatic retry with exponential backoff (TUS retryDelays configuration)
-- Clear error messages for permanent failures
-- Cancel button integration (abort TUS upload)
-- Upload speed and time remaining indicators
-
-**Addresses:**
-- Poor error recovery UX (table stakes feature)
-- Auto-retry logic (table stakes feature)
-- Cancel handling (table stakes feature)
-
-**Avoids:**
-- Confirmation dialogs on cancel (anti-feature from research)
-- Per-chunk error UI (anti-feature - users don't care which chunk failed)
-
-**Research flags:** Standard patterns covered in feature research. No additional research needed.
-
-### Phase 4: Cloudflare Deployment
-**Rationale:** Cloudflare-specific configuration can only be validated in production-like environment. Separate phase ensures testing with actual proxy behavior.
-
-**Delivers:**
-- Cloudflare CORS rules for TUS headers
-- WAF rule excluding `/uploads/` from rate limiting
-- Verification of 50MB chunk size through proxy
-- Monitoring for 413 errors (chunk size issues)
-
-**Addresses:**
-- Cloudflare rate limiting false positives (critical pitfall)
-- CORS header exposure (critical pitfall)
-
-**Avoids:**
-- Cloudflare timeout during assembly (tuspyserver handles asynchronously)
-
-**Research flags:** Cloudflare-specific configuration needs validation in staging environment with actual proxy.
+Delivers: hCaptcha enable, HaveIBeenPwned k-anonymity, per-key scopes UI, per-key expiration date picker.
 
 ### Phase Ordering Rationale
 
-**Why backend-first:** tuspyserver can be tested with curl or standalone TUS client before touching existing frontend. Reduces risk of breaking working upload flow.
-
-**Why decision layer matters:** Files under 100MB continue using existing fast path (`/speech-to-text`). Only large files incur TUS overhead. This preserves current user experience for majority of uploads.
-
-**Why resilience is separate phase:** Core upload-and-transcribe flow must work before adding retry/resume complexity. Easier to debug when error handling is layered on top of working foundation.
-
-**Why Cloudflare configuration is last:** WAF rules and CORS settings can only be validated with production-like traffic patterns. Backend and frontend must be working before introducing proxy-specific issues.
-
-**Dependency insight:** WebSocket progress infrastructure is reused, not modified. Upload progress comes from TUS `onProgress` callback (HTTP), transcription progress comes from existing WebSocket. These are sequential phases, not parallel streams.
+- **10-12 silent infra** — ship serially without user impact. Schema → services → admin CLI (CLI requires services + nullable column).
+- **13+14 atomic** — single deploy. Build on branch, test e2e behind feature flag, flip together.
+- **15 polish** — additive dashboard surfaces.
+- **16 verification** — milestone close gate; all 20 pitfalls show prevention evidence.
+- **17 docs** — parallel with 16 in practice.
+- **18 stretch** — explicitly optional.
 
 ### Research Flags
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1 (Backend)**: tuspyserver documentation is comprehensive; FastAPI integration is straightforward
-- **Phase 2 (Frontend)**: tus-js-client API is well-documented; integration pattern is standard
-- **Phase 3 (Resilience)**: Error handling patterns are generic; UX research already captured expectations
+**Needs deeper research (`/gsd-research-phase`):**
+- **Phase 10** — Alembic baseline against populated SQLite, batch_alter_table mechanics, naming conventions for stable downgrade, tuspyserver tables in same DB
+- **Phase 12** — Migration ordering, CASCADE behavior on SQLite, FK pragma per-connection
+- **Phase 13** — LARGEST + MOST CRITICAL. WS ticket TTL cleanup, slowapi custom key_func + CF IP range validation, fastapi-csrf-protect bearer-exempt branch, TUS upload header CSRF, dual-auth middleware ordering with CORS preflight
+- **Phase 14** — react-router-dom 7 `BrowserRouter basename` with FastAPI catch-all SPA mount, MSW v2 syntax, zustand selector for auth, BroadcastChannel coordination, tus-js-client headers injection
 
-Phases needing validation during implementation:
-- **Phase 4 (Cloudflare)**: WAF rules and CORS configuration are environment-specific; needs testing in staging with actual proxy before production
-
-**No deep research needed:** This feature is well-understood with mature libraries. Implementation follows established patterns. Cloudflare configuration is documented; just needs hands-on validation.
+**Standard patterns (skip):** Phases 11, 15, 16, 17, 18
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | TUS protocol is mature (2013); tus-js-client and tuspyserver actively maintained; proven Cloudflare compatibility |
-| Features | HIGH | Uploadcare, FileStack, and NN/g provide authoritative UX research; feature expectations are consistent across sources |
-| Architecture | HIGH | Integration pattern is clean; existing WebSocket and transcription pipeline remain unchanged; parallel flow reduces risk |
-| Pitfalls | HIGH | Pitfalls verified across multiple implementations (ownCloud, rclone, TUS-PHP); prevention strategies are proven |
+| Stack | HIGH | All versions verified PyPI/npm 2026-04; cross-validated FastAPI docs, OWASP, Vite 7 release |
+| Features | HIGH | Cross-validated 5+ products (Stripe/Vercel/Linear/Cloudflare/GitHub/OpenAI/Resend) |
+| Architecture | HIGH | Codebase grep-verified every integration point with line numbers |
+| Pitfalls | HIGH | OWASP cheats + Alembic docs + slowapi docs + recent CVEs (2025-68402, 2022-29217, 2026-22817) + codebase grep |
 
-**Overall confidence:** HIGH
+**Overall:** HIGH
 
-### Gaps to Address
+### Gaps to Address During Planning
 
-Research identified three areas needing attention during implementation:
-
-- **Cloudflare WAF rules**: Documentation describes configuration, but exact rule syntax depends on Cloudflare plan level. Validate in staging before production deployment. Test with multiple file sizes (50MB, 200MB, 500MB) through proxy.
-
-- **Cleanup scheduler timing**: tuspyserver defaults to 5-day expiration. WhisperX usage patterns may warrant shorter TTL (e.g., 24 hours for single-server deployment). Monitor orphaned chunk growth during beta to tune expiration.
-
-- **Resume UX messaging**: Research shows users expect "Resume upload of filename.mp4? (450MB remaining)" prompt, but TUS automatic resume via fingerprinting is silent. Consider whether explicit resume UI adds value or just confusion. Test with real users.
-
-**Validation approach:**
-1. Deploy to staging with Cloudflare proxy enabled
-2. Test uploads from slow/interrupted connections
-3. Monitor chunk storage and cleanup behavior
-4. Gather user feedback on resume experience
-
-## Sources
-
-### Primary (HIGH confidence)
-- [TUS Protocol Specification](https://tus.io/protocols/resumable-upload) - Resumable upload standard
-- [tus-js-client GitHub](https://github.com/tus/tus-js-client) - v4.3.1 release notes and API documentation
-- [tuspyserver PyPI](https://pypi.org/project/tuspyserver/) - v4.2.3 documentation
-- [tuspyserver GitHub](https://github.com/edihasaj/tuspy-fast-api) - FastAPI integration patterns
-- [Cloudflare Connection Limits](https://developers.cloudflare.com/fundamentals/reference/connection-limits/) - 100MB request body limit
-- [Cloudflare Rate Limiting Best Practices](https://developers.cloudflare.com/waf/rate-limiting-rules/best-practices/) - WAF configuration
-- [FastAPI Request Files](https://fastapi.tiangolo.com/tutorial/request-files/) - File upload patterns
-- [Uploadcare UX Best Practices](https://uploadcare.com/blog/file-uploader-ux-best-practices/) - Upload feature research
-- [Google Cloud Resumable Uploads](https://cloud.google.com/storage/docs/resumable-uploads) - Session state management patterns
-
-### Secondary (MEDIUM confidence)
-- [Cloudinary Chunked Upload Guidelines](https://support.cloudinary.com/hc/en-us/articles/208263735-Guidelines-for-implementing-chunked-upload-to-Cloudflare) - Content-Range math
-- [Cloudflare Community: TUS behind proxy](https://community.cloudflare.com/t/upload-with-tus-protocol-returns-413-for-large-videos-623-mb/603198) - Chunk size confirmation
-- [ownCloud Orphaned Chunks Issue](https://github.com/owncloud/core/issues/26981) - Cleanup patterns
-- [FastAPI Discussion #9828](https://github.com/fastapi/fastapi/discussions/9828) - Large file upload patterns
-- [Transloadit: Chunking and Parallel Uploads](https://transloadit.com/devtips/optimizing-online-file-uploads-with-chunking-and-parallel-uploads/) - Performance patterns
-
-### Tertiary (LOW confidence)
-- [Medium: Async File Uploads in FastAPI](https://medium.com/@connect.hashblock/async-file-uploads-in-fastapi-handling-gigabyte-scale-data-smoothly-aec421335680) - Memory management patterns (verify independently)
-- [DEV.to: Large File Uploads](https://dev.to/leapcell/how-to-handle-large-file-uploads-without-losing-your-mind-3dck) - General patterns (ecosystem survey only)
+- WS ticket cleanup TTL strategy — SQLite-backed for worker-safety; cleanup background task. Resolve in Phase 13 planning.
+- Cloudflare IP allowlist for `CF-Connecting-IP` — bundle CF ranges OR trust deploy config (env flag `TRUST_CF_HEADER=true`). Resolve in Phase 13.
+- Argon2 prod-hardware benchmark — single-VPS deploy; capture hardware spec in `.env.example` + CI benchmark. Resolve in Phase 11.
+- TUS cookie auth vs API-key-only — recommend cookie+CSRF for browser path, API key for external. Resolve in Phase 13.
+- SQLite write contention — WAL on already. Validation: load test 50 concurrent logins + 50 concurrent transcribe in Phase 16.
+- React 19 + RTL 16 `act()` warnings — pre-emptive: `await user.click()` everywhere, `findByRole` not `getByRole`. Document in `src/tests/setup.ts`.
+- `AUTH_V2_ENABLED` feature flag scope — module-import env check → restart needed to flip. Acceptable for staged rollout.
 
 ---
-*Research completed: 2026-01-29*
-*Ready for roadmap: yes*
+
+## Roadmap Implications Recap
+
+**9 phases** numbered 10-18. v1.1 phase 10 (Cloudflare) deferred to v1.3.
+
+1. **Phase 10** — Alembic Baseline + Auth Schema
+2. **Phase 11** — Auth Core Modules + Services + DI
+3. **Phase 12** — Admin CLI + Task Backfill
+4. **Phase 13** — Atomic Backend Cutover (DualAuthMiddleware + routes + scoping + WS ticket + CSRF + CORS + rate-limit)
+5. **Phase 14** — Atomic Frontend Cutover + Test Infra (must ship with Phase 13)
+6. **Phase 15** — Stripe Polish + Dashboard Hardening
+7. **Phase 16** — Verification + E2E + Cross-User Matrix
+8. **Phase 17** — Docs + Runbook + Operator Guide
+9. **Phase 18** — Stretch (Optional)
+
+**Critical: Phases 13 + 14 must deploy atomically.**

@@ -1,317 +1,263 @@
-# Stack Research: Chunked Uploads
+# Stack Research: v1.2 Multi-User Auth + API Keys + Billing-Ready
 
-**Project:** WhisperX Transcription App
-**Researched:** 2026-01-29
-**Focus:** Bypassing Cloudflare 100MB limit with chunked uploads
-**Overall Confidence:** HIGH
+**Project:** WhisperX FastAPI App
+**Researched:** 2026-04-29
+**Focus:** Stack additions ONLY — auth, JWT, CSRF, rate limit, migrations, Stripe schema, frontend test infra
+**Confidence:** HIGH (versions verified vs PyPI / npm 2026-04 indexes)
+
+---
 
 ## Executive Summary
 
-To bypass Cloudflare's 100MB per-request limit for files up to 500MB+, the recommended approach is implementing the **TUS resumable upload protocol** using **tus-js-client** on the frontend and **tuspyserver** on the backend. This provides standardized resumable uploads, automatic retry on failure, and proven Cloudflare compatibility when chunk sizes are kept under 100MB.
+Existing stack stays. Adds 8 backend libs, 7 frontend libs. No replacements. No conflicts with FastAPI 0.128, SQLAlchemy 2.0.44, Pydantic v2, React 19, Vite 7, Bun.
+
+Notable choice: **PyJWT not python-jose** (jose abandoned, FastAPI docs migrated). **slowapi** for rate limit (sliding window strategy supported, key_func for per-user/IP). **fastapi-csrf-protect** double-submit. **Typer** for CLI (matches FastAPI/Pydantic ecosystem). **react-hook-form + zod** for forms. **zustand** for auth state (Context re-render storm avoided).
 
 ---
 
-## Recommended Additions
+## Backend Additions (Python, uv)
 
-### Frontend
+### Core Auth + Security
 
 | Package | Version | Purpose | Rationale |
 |---------|---------|---------|-----------|
-| **tus-js-client** | ^4.3.1 | TUS protocol client | Industry standard for resumable uploads. Pure JS, works in browsers/Node. Requires Node 18+. Configured chunkSize bypasses Cloudflare limit. |
+| **argon2-cffi** | `25.1.0` | Argon2id password hash | OWASP-recommended. Direct lib, no passlib bloat. Maintained by hynek. C bindings via cffi. |
+| **PyJWT** | `2.12.1` | JWT sign/verify | python-jose abandoned (~3yr no release, sec issues). FastAPI docs migrated to PyJWT. Drop-in replacement. |
+| **fastapi-csrf-protect** | `0.3.3` | Double-submit CSRF | Stateless, signed-token cookie + header. Matches FastAPI lifecycle (Depends-injected). Skip first-party impl — solved problem. |
+| **slowapi** | `0.1.9` | Rate limit (sliding window) | Wraps `limits` lib. `strategy="sliding-window"` exists. Custom `key_func` for `user_id`/`ip /24`. In-memory storage works for SQLite single-instance deploy. |
 
-**Installation:**
-```bash
-npm install tus-js-client@^4.3.1
-```
+**Note slowapi maintenance:** last release ~12mo ago. Stable but watch for `limits` upstream changes. Acceptable risk vs hand-rolled.
 
-**Why tus-js-client:**
-- **Battle-tested protocol** - Used by Cloudflare, Vimeo, Supabase
-- **Automatic resume** - Survives network interruptions without re-uploading
-- **Configurable chunks** - Set to 50-90MB to stay under Cloudflare's 100MB limit
-- **Progress tracking** - Built-in `onProgress` callback integrates with existing UI
-- **Retry logic** - Configurable `retryDelays` for flaky connections (default: `[0, 1000, 3000, 5000]`)
-- **Minimal footprint** - No UI dependencies, integrates with existing react-dropzone
-
-### Backend
+### Database Migrations
 
 | Package | Version | Purpose | Rationale |
 |---------|---------|---------|-----------|
-| **tuspyserver** | ^4.2.3 | TUS protocol server | FastAPI router with dependency injection hooks. Released Nov 2025, actively maintained. Only requires fastapi>=0.110. |
+| **alembic** | `1.18.4` | Schema migrations | Native SQLAlchemy 2.x support. Project uses SQLAlchemy 2.0.44. Baseline workflow: generate first migration → `alembic stamp head` against existing `records.db`. |
 
-**Installation:**
+**Init pattern (existing schema baseline):**
 ```bash
-pip install tuspyserver==4.2.3
+alembic init -t generic migrations
+# edit alembic.ini → sqlalchemy.url = sqlite:///records.db
+# edit env.py → target_metadata = Base.metadata (from app.infrastructure.database)
+alembic revision --autogenerate -m "baseline existing tasks schema"
+alembic stamp head  # mark prod DB as current, do NOT run upgrade
+# subsequent: alembic revision --autogenerate -m "add users + api_keys + ..."
+alembic upgrade head
 ```
 
-**Why tuspyserver:**
-- **Native FastAPI integration** - Drops in as a router, uses FastAPI's dependency injection
-- **Minimal dependencies** - Only requires `fastapi>=0.110` (already have 0.128.0)
-- **Built-in cleanup** - Configurable expiration (default 5 days), `remove_expired_files()` for scheduled cleanup
-- **Upload hooks** - Dependency injection for post-upload processing (trigger transcription)
-- **Metadata support** - Stores filename/filetype for reconstruction
+### Billing (Schema Only — v1.2)
 
----
+| Package | Version | Purpose | Rationale |
+|---------|---------|---------|-----------|
+| **stripe** | `15.1.0` | Stripe Python SDK | Schema-only milestone — install but unused at runtime. Reserves namespace for v1.3 integration. Python ≥3.9. |
 
-## Integration Points
+**v1.2 scope:** schema migration only. No webhook handlers. No checkout routes. SDK install gates Pylance imports for `Subscription`/`UsageEvent` typing.
 
-### Frontend Integration with react-dropzone
+### CLI
 
-react-dropzone handles file selection; tus-js-client handles chunked upload. They compose naturally:
+| Package | Version | Purpose | Rationale |
+|---------|---------|---------|-----------|
+| **typer** | `0.24.2` | Admin bootstrap CLI | Built on Click, type-hint driven, matches Pydantic/FastAPI ecosystem (same author Tiangolo). `python -m app.cli create-admin` pattern trivial. argparse too verbose, Click works but Typer is FastAPI-style. |
 
-```typescript
-// Existing: react-dropzone provides File objects via onDrop
-// New: tus-js-client uploads those files in chunks
+### Stdlib (No New Deps)
 
-import { useDropzone } from 'react-dropzone';
-import * as tus from 'tus-js-client';
+| Concern | Use | Why |
+|---------|-----|-----|
+| Device fingerprint hash | `hashlib.sha256` (stdlib) | SHA256 of `f"{cookie_session_id}|{ua}|{ip_24}|{device_id}"` sufficient. No lib needed. |
+| Constant-time compare | `secrets.compare_digest` (stdlib) | Already used in `app/core/auth.py:76`. Reuse. |
+| API key generation | `secrets.token_urlsafe(32)` (stdlib) | `whsk_<urlsafe32>` format. No lib needed. |
 
-const onDrop = useCallback((acceptedFiles: File[]) => {
-  acceptedFiles.forEach((file) => {
-    const upload = new tus.Upload(file, {
-      endpoint: `${BACKEND_URL}/uploads/`,
-      chunkSize: 50 * 1024 * 1024, // 50MB chunks (under Cloudflare 100MB limit)
-      retryDelays: [0, 1000, 3000, 5000],
-      metadata: {
-        filename: file.name,
-        filetype: file.type,
-      },
-      onProgress: (bytesUploaded, bytesTotal) => {
-        const percentage = (bytesUploaded / bytesTotal * 100).toFixed(2);
-        // Update existing progress UI
-      },
-      onSuccess: () => {
-        // File uploaded - URL available at upload.url
-        // Trigger transcription via existing WebSocket flow
-      },
-      onError: (error) => {
-        // Handle error - TUS will auto-retry based on retryDelays
-      },
-    });
-    upload.start();
-  });
-}, []);
+### Backend Install (uv)
 
-const { getRootProps, getInputProps } = useDropzone({ onDrop });
-```
-
-### Backend Integration with FastAPI
-
-tuspyserver provides a router that mounts alongside existing endpoints:
-
-```python
-# app/main.py or router file
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from tuspyserver import create_tus_router
-
-app = FastAPI()
-
-# CRITICAL: Expose TUS headers through CORS for chunked uploads
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=[
-        "Location",
-        "Upload-Offset",
-        "Upload-Length",
-        "Tus-Resumable",
-        "Tus-Version",
-        "Tus-Extension",
-        "Tus-Max-Size",
-    ],
-)
-
-# Mount TUS upload router
-app.include_router(
-    create_tus_router(
-        files_dir="./uploads",
-        days_to_keep=5,  # Auto-expire incomplete uploads
-    ),
-    prefix="/uploads",
-)
-```
-
-### Post-Upload Hook for Transcription
-
-tuspyserver supports dependency injection for post-upload processing:
-
-```python
-from tuspyserver import create_tus_router
-from fastapi import Depends
-
-async def on_upload_complete(file_path: str, metadata: dict):
-    """Trigger transcription after successful upload."""
-    # Queue transcription job using existing infrastructure
-    # Connect to existing WebSocket progress system
-    pass
-
-app.include_router(
-    create_tus_router(
-        files_dir="./uploads",
-        on_upload_complete=on_upload_complete,
-    ),
-    prefix="/uploads",
-)
-```
-
-### WebSocket Progress Integration
-
-The existing WebSocket infrastructure remains unchanged. Flow becomes:
-
-1. **Upload phase**: tus-js-client `onProgress` updates UI with upload %
-2. **Processing phase**: Existing WebSocket updates UI with transcription progress
-3. **Complete**: Existing result delivery mechanism
-
----
-
-## Cloudflare Compatibility
-
-**Critical constraint:** Cloudflare proxies reject requests >100MB.
-
-**Solution:** Configure `chunkSize` in tus-js-client:
-
-| Chunk Size | Cloudflare Compatible | Performance Notes |
-|------------|----------------------|-------------------|
-| 50MB | Yes | Safe margin, more requests |
-| 90MB | Yes | Fewer requests, closer to limit |
-| 100MB | No | Rejected by Cloudflare |
-| Infinity (default) | No | Single request fails for large files |
-
-**Recommended:** `chunkSize: 50 * 1024 * 1024` (50MB) for safety margin.
-
-**Total file size limit:** Cloudflare's cache limit is ~512MB for reassembled files. Files >512MB may require Cloudflare bypass (direct to origin) or Cloudflare Stream (separate service).
-
----
-
-## Session Management / Resume Capability
-
-TUS protocol handles session management automatically:
-
-| Concern | TUS Solution | Notes |
-|---------|--------------|-------|
-| **Upload ID** | Server-generated URL in `Location` header | Client stores for resume |
-| **Progress tracking** | `Upload-Offset` header | Server tracks bytes received |
-| **Resume after failure** | Client calls `HEAD` to get offset, resumes from there | Automatic in tus-js-client |
-| **Expired uploads** | Server returns 404/410, client starts fresh | tuspyserver: 5-day default |
-
-**Client-side persistence** (optional, for browser refresh survival):
-
-```typescript
-const upload = new tus.Upload(file, {
-  // Store upload URL in localStorage for resume after page refresh
-  storeFingerprintForResuming: true,
-  // Custom fingerprint for matching files
-  fingerprint: (file) => `${file.name}-${file.size}-${file.lastModified}`,
-});
+```bash
+uv add argon2-cffi==25.1.0 \
+       PyJWT==2.12.1 \
+       fastapi-csrf-protect==0.3.3 \
+       slowapi==0.1.9 \
+       alembic==1.18.4 \
+       stripe==15.1.0 \
+       typer==0.24.2
 ```
 
 ---
 
-## Rejected Alternatives
+## Frontend Additions (Bun, npm registry)
 
-### 1. Uppy (@uppy/core + @uppy/tus)
+### Test Infrastructure
 
-| Aspect | Assessment |
-|--------|------------|
-| **What it is** | Full-featured upload UI library with TUS support |
-| **Version** | 5.2.2 (Sept 2025 release) |
-| **Why rejected** | **Overkill** - Includes Dashboard UI, file preview, cloud providers. You already have react-dropzone UI. Would replace working UI code unnecessarily. |
-| **When to use** | Greenfield projects needing complete upload UI |
+| Package | Version | Purpose | Rationale |
+|---------|---------|---------|-----------|
+| **vitest** | `^3.2.0` | Test runner | Vite 7 requires Vitest ≥3.2. Native ESM, Vite-config sharing. Latest is 4.1 but 3.2 LTS-stable, less churn. |
+| **@vitest/ui** | `^3.2.0` | Test UI | Optional. Browser dashboard for failures. |
+| **@testing-library/react** | `^16.1.0` | Component test utils | First version with React 19 support. v15 fails peer-dep check. |
+| **@testing-library/user-event** | `^14.6.1` | Realistic event sim | Compatible with RTL 16. Async API mandatory (`await user.click()`). |
+| **@testing-library/jest-dom** | `^6.6.3` | Custom matchers | `toBeInTheDocument`, `toHaveAttribute`, etc. Configure once in setup file. |
+| **jsdom** | `^29.0.2` | DOM env in Node | Vitest `environment: 'jsdom'`. Alternative `happy-dom` faster but less spec-compliant — pick jsdom for fewer surprises with Radix portals. |
+| **msw** | `^2.13.4` | API mocking | Framework-agnostic. Service-worker (browser) + node interceptor (tests). Works React 19. v2 syntax (`http.get`) — do NOT use v1 examples. |
 
-### 2. @rpldy/chunked-uploady
+### Form Handling
 
-| Aspect | Assessment |
-|--------|------------|
-| **What it is** | React-native chunked upload with Content-Range headers |
-| **Version** | ~1.13.0 |
-| **Why rejected** | **Non-standard protocol** - Uses custom Content-Range chunking, not TUS. Less ecosystem support. Server must implement custom chunk reassembly. No automatic resume on network failure. |
-| **When to use** | Simple chunking without resume requirement |
+| Package | Version | Purpose | Rationale |
+|---------|---------|---------|-----------|
+| **react-hook-form** | `^7.60.0` | Form state | Uncontrolled inputs, minimal re-renders. Matches React 19. shadcn/ui has first-class `<Form>` integration. |
+| **zod** | `^3.25.76` | Schema validation | TS-first, runtime + compile-time types. Reuse server-side too if pydantic-zod bridge later. |
+| **@hookform/resolvers** | `^5.1.1` | RHF↔zod glue | `zodResolver(schema)` → `useForm({ resolver: ... })`. |
 
-### 3. Custom File.slice() Implementation
+### Auth State Mgmt
 
-| Aspect | Assessment |
-|--------|------------|
-| **What it is** | Manual chunking with fetch/axios |
-| **Why rejected** | **Reinventing the wheel** - Must build: chunk tracking, resume logic, retry logic, progress aggregation, server reassembly. TUS protocol solves all of this. |
-| **When to use** | Highly custom requirements not covered by TUS extensions |
+| Package | Version | Purpose | Rationale |
+|---------|---------|---------|-----------|
+| **zustand** | `^5.0.12` | Auth store | React Context triggers full subtree re-render on auth changes. Zustand selector-based subscription = surgical re-renders. Project has zero global state lib — clean slate. |
 
-### 4. fastapi-tusd
+### Frontend Install (Bun)
 
-| Aspect | Assessment |
-|--------|------------|
-| **What it is** | Alternative TUS server for FastAPI |
-| **Version** | 0.100.2 (May 2024) |
-| **Why rejected** | **Less maintained** - 23 commits total, last release May 2024. tuspyserver is more actively maintained (Nov 2025 release) with better FastAPI integration patterns. |
-| **When to use** | If you need S3 storage backend (partial support) |
+```bash
+bun add react-hook-form@^7.60.0 zod@^3.25.76 @hookform/resolvers@^5.1.1 zustand@^5.0.12
 
-### 5. S3 Multipart Upload (Direct)
+bun add -d vitest@^3.2.0 @vitest/ui@^3.2.0 \
+            @testing-library/react@^16.1.0 \
+            @testing-library/user-event@^14.6.1 \
+            @testing-library/jest-dom@^6.6.3 \
+            jsdom@^29.0.2 \
+            msw@^2.13.4
+```
 
-| Aspect | Assessment |
-|--------|------------|
-| **What it is** | Upload directly to S3 with presigned URLs |
-| **Why rejected** | **Different architecture** - Bypasses your FastAPI server entirely. Good for CDN delivery, but you need files on server for WhisperX processing. Would require downloading from S3 before transcription. |
-| **When to use** | Large-scale systems with separate processing workers |
+**Vite config:** add `test: { environment: 'jsdom', setupFiles: './src/test/setup.ts', globals: true }` to `vite.config.ts`.
+
+**MSW setup:** `npx msw init public/ --save` for browser worker. Test setup imports `setupServer` from `msw/node`.
+
+---
+
+## Alternatives Considered
+
+| Picked | Rejected | Why Not Rejected |
+|--------|----------|------------------|
+| argon2-cffi | passlib[argon2] | passlib unmaintained since 2020, drags bcrypt + extras. Direct argon2-cffi simpler. |
+| argon2-cffi | bcrypt | Argon2id wins OWASP comparisons (memory-hard, GPU-resistant). |
+| PyJWT | python-jose | Abandoned. Vulnerable deps. FastAPI docs migrated. |
+| PyJWT | authlib | Heavyweight (OAuth2 server, OIDC). Overkill for cookie + bearer. |
+| fastapi-csrf-protect | starlette-csrf | starlette-csrf middleware-only, less FastAPI-idiomatic. fastapi-csrf-protect uses Depends pattern. |
+| fastapi-csrf-protect | hand-rolled | Risky — CSRF bugs subtle (timing, cookie flags). Use vetted impl. |
+| slowapi | fastapi-limiter | fastapi-limiter requires Redis. SQLite single-container deploy = no Redis. slowapi in-memory fallback works. |
+| slowapi | hand-rolled | Reinventing limits library. Sliding-window math non-trivial. |
+| Typer | Click | Click works but no type-hint inference. Pydantic ecosystem favors Typer. |
+| Typer | argparse | Verbose, no type coercion, no rich help. |
+| zustand | React Context | Auth state changes trigger every consumer re-render. Zustand selectors fix this. |
+| zustand | Redux Toolkit | Overkill. No reducers/actions for 1 store. |
+| zod | yup | Yup type inference weaker. Zod TS-first. |
+| zod | valibot | Newer, smaller, but RHF resolver less mature. Zod = safe bet. |
+| jsdom | happy-dom | Faster but Radix UI portal/focus tests flake. jsdom safer. |
+| msw | nock | Nock fetch-only, msw covers fetch + XHR + WebSocket-ish. |
+
+---
+
+## What NOT to Add
+
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| **python-jose** | Abandoned, security issues, FastAPI dropped recommendation | PyJWT |
+| **passlib** | Unmaintained since 2020, drags bcrypt | argon2-cffi direct |
+| **bcrypt** for new hashes | GPU-attackable, OWASP prefers Argon2id | argon2-cffi |
+| **fastapi-users** | Full auth framework — opinionated, conflicts with custom user model + per-user task scoping + API key dual auth | First-party services using PyJWT + argon2-cffi |
+| **fastapi-limiter** | Requires Redis — project is single-container SQLite | slowapi (in-memory) |
+| **redis** / **aioredis** | No external service — adds deploy complexity | slowapi in-memory; revisit at v1.3 if multi-worker |
+| **sqladmin** / **fastapi-admin** | Out of scope — admin panel not in v1.2 | Typer CLI for bootstrap |
+| **react-redux / @reduxjs/toolkit** | Overkill for one auth store | zustand |
+| **jotai / recoil** | Atom-based state — wrong abstraction for cookie session | zustand store |
+| **formik** | Higher re-render cost, Zod integration awkward | react-hook-form |
+| **yup** | Weaker TS inference | zod |
+| **happy-dom** | Radix portal tests flake | jsdom |
+| **nock** | Fetch-only, limited scope | msw |
+| **enzyme** | Dead, no React 19 support | @testing-library/react |
+| **karma / mocha / chai** | Pre-Vite era, slow | vitest |
+| **email-validator** Python lib | Pydantic v2 has `EmailStr` built-in (needs `email-validator` extra — already pulled by pydantic) | Pydantic `EmailStr` |
+| **cryptography** for password hash | Wrong tool — primitives only | argon2-cffi |
+
+---
+
+## Integration Considerations vs Existing Stack
+
+### Existing → New Compatibility
+
+| Existing | New | Note |
+|----------|-----|------|
+| FastAPI 0.128 | slowapi 0.1.9 | Compatible. `Limiter(app)` integrates via decorator + middleware. |
+| FastAPI 0.128 | fastapi-csrf-protect 0.3.3 | Uses `Depends(CsrfProtect)` — matches existing dep injection pattern (`app/core/container.py`). |
+| SQLAlchemy 2.0.44 | alembic 1.18.4 | Native 2.x support. Use `DeclarativeBase` (already in `app/infrastructure/database/models.py:8`). |
+| Existing `BearerAuthMiddleware` | New dual auth (cookie + bearer) | REPLACE, not extend. New middleware accepts cookie session JWT OR `whsk_*` API key. Keep `API_BEARER_TOKEN` env-var path as legacy fallback OR remove. Decision: remove for v1.2. |
+| pydantic-settings | Add `JWT_SECRET`, `CSRF_SECRET`, `COOKIE_DOMAIN`, `RATE_LIMIT_*` | New `AuthSettings` class in `app/core/config.py`. Pattern matches existing `DatabaseSettings`/`WhisperSettings`. |
+| dependency-injector 4.41 | Auth service, API key service | Register in `app/core/container.py` as singletons. |
+| React 19.2 | All frontend libs | Verified compatible: RTL 16.1+, msw 2.13, zustand 5.0, RHF 7.60. |
+| Vite 7.2 | vitest 3.2 | Vitest 3.2 mandatory for Vite 7 — older vitest fails. |
+| Bun | All frontend libs | Bun handles npm registry — no Bun-specific gotchas. |
+| Tailwind v4 + shadcn/ui | RHF | shadcn `<Form>` component already RHF-aware. |
+| react-router-dom 7.13 (unused) | Activate now | Routes: `/ui/login`, `/ui/register`, `/ui/dashboard/keys`, `/ui/dashboard/usage`. SPA handler in `app/spa_handler.py` already supports catch-all. |
+| WebSocket auth | Cookie session JWT in WS handshake | tuspyserver TUS endpoints — needs same dual-auth wrapper. |
+
+### Migration Path for Existing `BearerAuthMiddleware`
+
+`app/core/auth.py:56` currently checks single env-var `API_BEARER_TOKEN`. v1.2 replaces with:
+1. Try cookie `session` → verify JWT → set `request.state.user_id`
+2. Try `Authorization: Bearer whsk_*` → hash → lookup `api_keys.hash_lookup` → set `request.state.user_id`, `request.state.api_key_id`
+3. Else 401
+
+Existing `_is_public` allowlist stays. Add `/api/auth/*` (login, register, csrf-token) as public.
 
 ---
 
 ## Version Compatibility Matrix
 
-| Component | Current Version | Required For Chunked Uploads | Compatible |
-|-----------|-----------------|------------------------------|------------|
-| React | 19.2.0 | tus-js-client (any React) | Yes |
-| Node.js | (build tool) | tus-js-client 4.x requires Node 18+ | Verify |
-| FastAPI | 0.128.0 | tuspyserver requires >=0.110 | Yes |
-| Python | 3.11 | tuspyserver requires >=3.8 | Yes |
-| react-dropzone | 14.3.8 | N/A (composable) | Yes |
+| Package A | Package B | Note |
+|-----------|-----------|------|
+| `vitest@3.2` | `vite@7.2` | Min Vitest for Vite 7 |
+| `@testing-library/react@16.1` | `react@19` | Min RTL for React 19 |
+| `msw@2.13` | `node@>=18` | v2 requires modern Node |
+| `alembic@1.18` | `sqlalchemy@2.0.44` | Native 2.x compat |
+| `slowapi@0.1.9` | `fastapi@0.128` | Compatible, `limits` ≥3.9 transitive |
+| `PyJWT@2.12` | `python@3.11` | OK, supports 3.8+ |
+| `argon2-cffi@25.1` | `python@3.11` | OK |
+| `typer@0.24` | `python@3.11` | OK, requires ≥3.10 |
+| `fastapi-csrf-protect@0.3.3` | `pydantic@v2` | Compatible (lib migrated to v2) |
 
 ---
 
-## Migration Path
+## Caveman Mode Quick Reference
 
-### Phase 1: Add Dependencies (Low Risk)
-```bash
-# Frontend
-npm install tus-js-client@^4.3.1
+**Backend new (uv add):** argon2-cffi==25.1.0, PyJWT==2.12.1, fastapi-csrf-protect==0.3.3, slowapi==0.1.9, alembic==1.18.4, stripe==15.1.0, typer==0.24.2
 
-# Backend
-pip install tuspyserver==4.2.3
-```
+**Frontend deps (bun add):** react-hook-form@^7.60.0, zod@^3.25.76, @hookform/resolvers@^5.1.1, zustand@^5.0.12
 
-### Phase 2: Backend Setup
-1. Mount TUS router at `/uploads/`
-2. Configure CORS to expose TUS headers
-3. Set `files_dir` to upload destination
-4. Add post-upload hook for transcription trigger
+**Frontend dev (bun add -d):** vitest@^3.2.0, @vitest/ui@^3.2.0, @testing-library/react@^16.1.0, @testing-library/user-event@^14.6.1, @testing-library/jest-dom@^6.6.3, jsdom@^29.0.2, msw@^2.13.4
 
-### Phase 3: Frontend Integration
-1. Keep react-dropzone for file selection
-2. Replace direct upload with tus-js-client
-3. Update progress UI to use TUS `onProgress`
-4. Add resume capability (optional)
+**No add:** redis, passlib, python-jose, fastapi-users, fastapi-limiter, formik, yup, happy-dom, jotai, react-redux
 
-### Phase 4: Existing Flow Preservation
-- Keep WebSocket for transcription progress
-- Keep existing result delivery
-- Only upload mechanism changes
+**Stdlib only:** hashlib (fingerprint), secrets (token, compare), datetime (JWT exp)
 
 ---
 
 ## Sources
 
-### Primary (HIGH Confidence)
-- [tus-js-client GitHub Releases](https://github.com/tus/tus-js-client/releases) - v4.3.1 confirmed Jan 2025
-- [tus-js-client API Documentation](https://github.com/tus/tus-js-client/blob/main/docs/api.md) - chunkSize, retryDelays, onProgress
-- [tuspyserver PyPI](https://pypi.org/project/tuspyserver/) - v4.2.3, Nov 2025
-- [tuspyserver GitHub](https://github.com/edihasaj/tuspy-fast-api) - FastAPI integration patterns
-- [TUS Protocol Specification](https://tus.io/protocols/resumable-upload) - Expiration, resume behavior
+- [argon2-cffi PyPI](https://pypi.org/project/argon2-cffi/) — version 25.1.0 confirmed
+- [PyJWT PyPI](https://pypi.org/project/PyJWT/) — version 2.12.1 confirmed
+- [FastAPI Discussion #11345](https://github.com/fastapi/fastapi/discussions/11345) — python-jose abandonment, PyJWT migration
+- [FastAPI Discussion #9587](https://github.com/fastapi/fastapi/discussions/9587) — security concerns w/ python-jose
+- [slowapi PyPI](https://pypi.org/project/slowapi/) — version 0.1.9 confirmed
+- [SlowApi Docs](https://slowapi.readthedocs.io/) — sliding-window strategy, custom key_func
+- [limits library](https://github.com/alisaifee/limits) — backing storage strategies
+- [alembic 1.18.4 docs](https://alembic.sqlalchemy.org/en/latest/autogenerate.html) — autogenerate + stamp pattern
+- [stripe-python releases](https://github.com/stripe/stripe-python/releases) — version 15.1.0 confirmed (2026-04-24)
+- [typer PyPI](https://pypi.org/project/typer/) — version 0.24.2 confirmed (2026-04-22)
+- [fastapi-csrf-protect](https://github.com/aekasitt/fastapi-csrf-protect) — double-submit cookie impl
+- [Vite 7 release](https://vite.dev/blog/announcing-vite7) — Vitest ≥3.2 requirement
+- [@testing-library/react npm](https://www.npmjs.com/package/@testing-library/react) — v16.1 React 19 support
+- [msw npm](https://www.npmjs.com/package/msw) — version 2.13.4 confirmed
+- [zustand discussion #2686](https://github.com/pmndrs/zustand/discussions/2686) — React 19 compat
+- [Zustand vs Context 2026](https://medium.com/@abdurrehman1/state-management-in-2026-redux-vs-zustand-vs-context-api-ad5760bfab0b) — auth state recommendation
+- [react-hook-form 2026 guide](https://dev.to/marufrahmanlive/react-hook-form-with-zod-complete-guide-for-2026-1em1) — versions 7.60.0 / 3.25.76 / 5.1.1
+- [SQLAlchemy PyPI](https://pypi.org/project/SQLAlchemy/) — 2.0.49 latest, project pinned 2.0.44 in uv.lock
 
-### Secondary (MEDIUM Confidence)
-- [Cloudflare Stream TUS Docs](https://developers.cloudflare.com/stream/uploading-videos/resumable-uploads/) - Chunk size requirements
-- [Cloudflare Community: TUS behind proxy](https://community.cloudflare.com/t/upload-with-tus-protocol-returns-413-for-large-videos-623-mb/603198) - 100MB limit confirmation
-- [Uppy React Docs](https://uppy.io/docs/react/) - v5.x release info
+---
 
-### Tertiary (LOW Confidence - Community Sources)
-- [FastAPI Discussion: Big File Uploads](https://github.com/fastapi/fastapi/discussions/9828) - Chunking patterns
-- [Transloadit Blog: Drag and Drop React](https://transloadit.com/devtips/implementing-drag-and-drop-file-upload-in-react/) - TUS integration patterns
+*Stack research for: WhisperX v1.2 multi-user auth*
+*Researched: 2026-04-29*
+*Confidence: HIGH — all versions verified against PyPI / npm 2026-04 indexes*
