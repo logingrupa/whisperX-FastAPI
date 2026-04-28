@@ -191,17 +191,122 @@ Explicitly excluded from v1.2.
 
 ## Traceability
 
-Phases assigned during roadmap creation in next step.
+Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement maps to exactly one phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| All v1.2 requirements | TBD by gsd-roadmapper | Pending |
+| SCHEMA-01 | Phase 10 | Pending |
+| SCHEMA-02 | Phase 10 | Pending |
+| SCHEMA-03 | Phase 10 | Pending |
+| SCHEMA-04 | Phase 10 | Pending |
+| SCHEMA-05 | Phase 10 | Pending |
+| SCHEMA-06 | Phase 10 | Pending |
+| SCHEMA-07 | Phase 10 | Pending |
+| SCHEMA-08 | Phase 10 | Pending |
+| AUTH-01 | Phase 13 | Pending |
+| AUTH-02 | Phase 11 | Pending |
+| AUTH-03 | Phase 13 | Pending |
+| AUTH-04 | Phase 13 | Pending |
+| AUTH-05 | Phase 13 | Pending |
+| AUTH-06 | Phase 15 | Pending |
+| AUTH-07 | Phase 13 | Pending |
+| AUTH-08 | Phase 11 | Pending |
+| AUTH-09 | Phase 11 | Pending |
+| KEY-01 | Phase 13 | Pending |
+| KEY-02 | Phase 11 | Pending |
+| KEY-03 | Phase 11 | Pending |
+| KEY-04 | Phase 13 | Pending |
+| KEY-05 | Phase 13 | Pending |
+| KEY-06 | Phase 13 | Pending |
+| KEY-07 | Phase 13 | Pending |
+| KEY-08 | Phase 11 | Pending |
+| MID-01 | Phase 13 | Pending |
+| MID-02 | Phase 13 | Pending |
+| MID-03 | Phase 13 | Pending |
+| MID-04 | Phase 13 | Pending |
+| MID-05 | Phase 13 | Pending |
+| MID-06 | Phase 13 | Pending |
+| MID-07 | Phase 13 | Pending |
+| SCOPE-01 | Phase 12 | Pending |
+| SCOPE-02 | Phase 13 | Pending |
+| SCOPE-03 | Phase 13 | Pending |
+| SCOPE-04 | Phase 13 | Pending |
+| SCOPE-05 | Phase 13 | Pending |
+| SCOPE-06 | Phase 15 | Pending |
+| RATE-01 | Phase 13 | Pending |
+| RATE-02 | Phase 13 | Pending |
+| RATE-03 | Phase 13 | Pending |
+| RATE-04 | Phase 13 | Pending |
+| RATE-05 | Phase 13 | Pending |
+| RATE-06 | Phase 13 | Pending |
+| RATE-07 | Phase 13 | Pending |
+| RATE-08 | Phase 13 | Pending |
+| RATE-09 | Phase 13 | Pending |
+| RATE-10 | Phase 13 | Pending |
+| RATE-11 | Phase 13 | Pending |
+| RATE-12 | Phase 13 | Pending |
+| ANTI-01 | Phase 13 | Pending |
+| ANTI-02 | Phase 13 | Pending |
+| ANTI-03 | Phase 11 | Pending |
+| ANTI-04 | Phase 13 | Pending |
+| ANTI-05 | Phase 13 | Pending |
+| ANTI-06 | Phase 13 | Pending |
+| BILL-01 | Phase 13 | Pending |
+| BILL-02 | Phase 13 | Pending |
+| BILL-03 | Phase 13 | Pending |
+| BILL-04 | Phase 13 | Pending |
+| BILL-05 | Phase 15 | Pending |
+| BILL-06 | Phase 15 | Pending |
+| BILL-07 | Phase 13 | Pending |
+| UI-01 | Phase 14 | Pending |
+| UI-02 | Phase 14 | Pending |
+| UI-03 | Phase 14 | Pending |
+| UI-04 | Phase 14 | Pending |
+| UI-05 | Phase 14 | Pending |
+| UI-06 | Phase 14 | Pending |
+| UI-07 | Phase 15 | Pending |
+| UI-08 | Phase 14 | Pending |
+| UI-09 | Phase 14 | Pending |
+| UI-10 | Phase 14 | Pending |
+| UI-11 | Phase 14 | Pending |
+| UI-12 | Phase 14 | Pending |
+| UI-13 | Phase 14 | Pending |
+| TEST-01 | Phase 14 | Pending |
+| TEST-02 | Phase 14 | Pending |
+| TEST-03 | Phase 14 | Pending |
+| TEST-04 | Phase 14 | Pending |
+| TEST-05 | Phase 14 | Pending |
+| TEST-06 | Phase 14 | Pending |
+| OPS-01 | Phase 12 | Pending |
+| OPS-02 | Phase 12 | Pending |
+| OPS-03 | Phase 17 | Pending |
+| OPS-04 | Phase 17 | Pending |
+| OPS-05 | Phase 17 | Pending |
+| VERIFY-01 | Phase 16 | Pending |
+| VERIFY-02 | Phase 16 | Pending |
+| VERIFY-03 | Phase 16 | Pending |
+| VERIFY-04 | Phase 16 | Pending |
+| VERIFY-05 | Phase 11 | Pending |
+| VERIFY-06 | Phase 16 | Pending |
+| VERIFY-07 | Phase 16 | Pending |
+| VERIFY-08 | Phase 16 | Pending |
 
 **Coverage:**
-- v1.2 requirements: 84 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 84
+- v1.2 requirements: 95 total (corrected from earlier "84" header — actual category counts: SCHEMA 8 + AUTH 9 + KEY 8 + MID 7 + SCOPE 6 + RATE 12 + ANTI 6 + BILL 7 + UI 13 + TEST 6 + OPS 5 + VERIFY 8 = 95)
+- Mapped to phases: 95 (100%)
+- Unmapped: 0
+
+**Phase distribution:**
+- Phase 10 (Alembic Baseline + Auth Schema): 8
+- Phase 11 (Auth Core Modules + Services + DI): 8
+- Phase 12 (Admin CLI + Task Backfill): 3
+- Phase 13 (Atomic Backend Cutover): 43
+- Phase 14 (Atomic Frontend Cutover + Test Infra): 18
+- Phase 15 (Account Dashboard Hardening + Billing Stubs): 5
+- Phase 16 (Verification + Cross-User Matrix + E2E): 7
+- Phase 17 (Docs + Migration Runbook): 3
+- Phase 18 (Stretch — optional): 0
 
 ---
 *v1.2 requirements defined: 2026-04-29*
-*Last updated: 2026-04-29 — initial definition after research synthesis*
+*Last updated: 2026-04-29 — phase mapping completed by gsd-roadmapper (95 reqs → phases 10-18)*

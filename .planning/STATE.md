@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-04-29)
 
 **Core value:** Users can sign up, get API keys, and use WhisperX via browser or external API with free-tier limits and Stripe-ready billing
-**Current focus:** v1.2 — defining requirements
+**Current focus:** v1.2 — Phase 10 Alembic Baseline + Auth Schema
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Phase 10 — Alembic Baseline + Auth Schema, defining plans
 Plan: —
-Status: Defining requirements
-Last activity: 2026-04-29 — Milestone v1.2 started (Multi-User Auth + API Keys + Billing-Ready)
+Status: Defining plans
+Last activity: 2026-04-29 — Roadmap created (9 phases 10-18; 95 reqs mapped 100%); phases 13+14 atomic pair
 
 ## Performance Metrics
 
@@ -49,13 +49,13 @@ Recent decisions affecting current work (v1.1, carried forward):
 v1.2 entry decisions (locked from discuss with user 2026-04-29):
 
 - Cookie session (httpOnly + secure + samesite=lax + 7d sliding) for browser; raw bearer `whsk_*` for external — middleware accepts both
-- Argon2 password hashing
+- Argon2 password hashing (OWASP `m=19456 KiB, t=2, p=1`)
 - Trial counter starts at first-key-created (not registration)
 - Free tier: 5 req/hr + file <5min + 30min/day + tiny/small models only + 1 concurrent slot + back-of-queue
 - Anti-DDOS: 3 register/hr per IP/24, 10 login/hr per IP/24
 - Device fingerprint = cookie + ua hash + ip /24 + device_id (localStorage uuid)
 - mailto password reset → `hey@logingrupa.lv` (no SMTP)
-- Many API keys per user (named, scopes-ready, hashed)
+- Many API keys per user (named, scopes-ready, hashed sha256)
 - Self-serve `DELETE /api/account/data` (tasks + files, keeps user row)
 - Stripe stub now: `Subscription`, `UsageEvent`, `plan_tier` enum, €5/mo "Pro" placeholder
 - Tasks gain `user_id` FK; existing rows backfilled to admin user
@@ -65,19 +65,30 @@ v1.2 entry decisions (locked from discuss with user 2026-04-29):
 - `/frontend-design` skill for all auth UI pages (super pro modern UI)
 - Caveman mode passed to all subagents (token savings)
 
+v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
+
+- 9 phases numbered 10-18 (resume from v1.1 phase 9; v1.1 phase 10 Cloudflare deferred to v1.3)
+- Phases 13 + 14 are an **atomic pair** — single deploy; build behind `AUTH_V2_ENABLED` flag, flip together
+- Phase 10-12 ship as silent infra (no behavior change to end users)
+- Phase 15 absorbs polish-tier UI/auth: AUTH-06 logout-all-devices, SCOPE-06 delete-account, UI-07 account dashboard, BILL-05/06 checkout/webhook 501 stubs (post-cutover safe)
+- Phase 16 is gate-to-milestone-close (cross-user matrix + JWT attack tests + WS ticket reuse + migration smoke)
+- Phase 18 stretch is explicitly optional, no v1.2 reqs (FUTURE-* set; pulled forward only on observed need)
+- Coverage: 95 v1.2 reqs mapped 100% (REQUIREMENTS.md header "84" was stale; actual category sum = 95)
+
 ### Pending Todos
 
-- None
+- Phase 10 plan-phase (next step: `/gsd-plan-phase 10`)
 
 ### Blockers/Concerns
 
-- Single shared `API_BEARER_TOKEN` middleware blocks frontend until v1.2 phase 1 ships
+- Single shared `API_BEARER_TOKEN` middleware blocks frontend until v1.2 Phase 13+14 atomic cutover lands
 - tuspyserver fcntl patch is dev-only (Windows); production Linux is unaffected
 - tuspyserver file.py patch (gc_files) needs reapplication after pip install
-- Cloudflare WAF rules need validation in staging (deferred to v1.3)
+- Cloudflare WAF rules need validation in staging (deferred to v1.3 — was v1.1 phase 10)
+- Phase 13/14 atomicity: half-deploy risk — must use feature flag and single release window
 
 ## Session Continuity
 
 Last session: 2026-04-29
-Stopped at: v1.2 milestone start — defining requirements
-Resume file: None
+Stopped at: Roadmap created — Phase 10 ready for plan-phase
+Resume file: .planning/ROADMAP.md (Phase 10 detail section)
