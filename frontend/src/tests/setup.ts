@@ -12,8 +12,10 @@ const channelInstances: Map<string, Set<MockBroadcastChannel>> = new Map();
 
 class MockBroadcastChannel {
   private listeners = new Set<BcListener>();
+  public name: string;
 
-  constructor(public name: string) {
+  constructor(name: string) {
+    this.name = name;
     const peers = channelInstances.get(name) ?? new Set<MockBroadcastChannel>();
     peers.add(this);
     channelInstances.set(name, peers);

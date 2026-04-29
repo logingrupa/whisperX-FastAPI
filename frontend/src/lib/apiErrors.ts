@@ -8,17 +8,22 @@
  *   429 -> RateLimitError    (THROWN to caller; surface as inline countdown)
  *   other 4xx/5xx -> ApiClientError
  *   network failure -> ApiClientError(0, ...)
+ *
+ * Field declarations are explicit (no constructor parameter properties) to
+ * satisfy tsconfig.app.json `erasableSyntaxOnly: true` (TS1294).
  */
 
 export class ApiClientError extends Error {
-  constructor(
-    public readonly status: number,
-    message: string,
-    public readonly code?: string,
-    public readonly body?: unknown,
-  ) {
+  public readonly status: number;
+  public readonly code?: string;
+  public readonly body?: unknown;
+
+  constructor(status: number, message: string, code?: string, body?: unknown) {
     super(message);
     this.name = 'ApiClientError';
+    this.status = status;
+    this.code = code;
+    this.body = body;
   }
 }
 
@@ -30,11 +35,11 @@ export class AuthRequiredError extends ApiClientError {
 }
 
 export class RateLimitError extends ApiClientError {
-  constructor(
-    public readonly retryAfterSeconds: number,
-    body?: unknown,
-  ) {
+  public readonly retryAfterSeconds: number;
+
+  constructor(retryAfterSeconds: number, body?: unknown) {
     super(429, `Rate limited — retry in ${retryAfterSeconds}s`, 'RATE_LIMITED', body);
     this.name = 'RateLimitError';
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
