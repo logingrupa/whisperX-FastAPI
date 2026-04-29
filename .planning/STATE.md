@@ -4,14 +4,14 @@ milestone: v1.2
 milestone_name: milestone
 status: executing
 stopped_at: Plan 14-01 complete — Vitest+jsdom+RTL+MSW infra online; shadcn primitives + zustand/RHF/zod deps installed; sentinel 2/2; 2 commits (b0de895, dff607a)
-last_updated: "2026-04-29T13:22:09.868Z"
+last_updated: "2026-04-29T13:27:38.385Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 30
-  completed_plans: 24
-  percent: 80
+  completed_plans: 25
+  percent: 83
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 14 (Atomic Frontend Cutover + Test Infra) — EXECUTING
-Plan: 2 of 7
+Plan: 3 of 7
 Status: Ready to execute
 Last activity: 2026-04-29
 
@@ -76,6 +76,7 @@ Last activity: 2026-04-29
 | Phase 13 P09 | 10 min | 3 tasks | 3 files |
 | Phase 13 P10 | 26 min | 1 tasks | 5 files |
 | Phase 14 P01 | 3m 30s | 2 tasks | 16 files |
+| Phase 14 P02 | 2m 28s | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -213,6 +214,9 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [14-01]: MSW handlers split per resource (auth.handlers/keys.handlers/ws.handlers) re-exported from handlers.ts barrel — DRY for Plans 14-02..07 imports
 - [Phase ?]: [14-01]: shadcn primitives (form/input/label/dialog/alert) written verbatim from new-york canonical source (no shadcn CLI invocation) — deterministic, no TTY dep; existing badge/button/card/collapsible/progress/scroll-area/select/sonner/tooltip preserved
 - [Phase ?]: [14-01]: bunx msw init public/ generated mockServiceWorker.js + added msw.workerDirectory pin to package.json — both kept (canonical practice)
+- [Phase ?]: [14-02]: apiClient is the SINGLE fetch() site — Plans 03-07 import { apiClient } only; Plan 07 refactors 3 existing direct-fetch sites to drop to 0
+- [Phase ?]: [14-02]: Typed error hierarchy (ApiClientError/AuthRequiredError/RateLimitError) — callers narrow via instanceof; tiger-style
+- [Phase ?]: [14-02]: 401 uses module-level _redirectingTo401 latch (T-14-05); suppress401Redirect for authStore.refresh() boot probe
 
 ### Pending Todos
 
@@ -228,6 +232,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T13:22:09.862Z
+Last session: 2026-04-29T13:27:32.487Z
 Stopped at: Plan 14-01 complete — Vitest+jsdom+RTL+MSW infra online; shadcn primitives + zustand/RHF/zod deps installed; sentinel 2/2; 2 commits (b0de895, dff607a)
 Resume file: None

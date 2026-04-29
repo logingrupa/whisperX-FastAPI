@@ -114,7 +114,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
   5. `bun run test` runs Vitest+jsdom with single `frontend/src/tests/setup.ts`, MSW handlers in `frontend/src/tests/msw/handlers.ts`, and the test suite passes for: apiClient 401 redirect, login form validation+happy path, register form validation, API key creation flow (show-once + copy), authStore login/logout, BroadcastChannel cross-tab sync, plus regression smoke for upload/transcribe/progress/export
 **Plans**: 7 plans (5 waves)
 - [x] 14-01-PLAN.md — Test infra + deps + shadcn primitives (Wave 1)
-- [ ] 14-02-PLAN.md — apiClient wrapper + cookies helper + typed errors (Wave 2)
+- [x] 14-02-PLAN.md — apiClient wrapper + cookies helper + typed errors (Wave 2)
 - [ ] 14-03-PLAN.md — Zustand authStore + zod auth schemas + BroadcastChannel sync (Wave 3)
 - [ ] 14-04-PLAN.md — Router shell + RequireAuth + TranscribePage (verbatim) + AccountStubPage (Wave 4)
 - [ ] 14-05-PLAN.md — Login + Register pages + AuthCard + FormFieldRow + PasswordStrengthMeter (Wave 5)
@@ -177,7 +177,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | 11. Auth Core Modules + Services + DI | v1.2 | 5/5 | Complete    | 2026-04-29 |
 | 12. Admin CLI + Task Backfill | v1.2 | 4/4 | Complete    | 2026-04-29 |
 | 13. Atomic Backend Cutover | v1.2 | 10/10 | Complete    | 2026-04-29 |
-| 14. Atomic Frontend Cutover + Test Infra | v1.2 | 1/7 | In Progress|  |
+| 14. Atomic Frontend Cutover + Test Infra | v1.2 | 2/7 | In Progress|  |
 | 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 0/TBD | Not started | - |
 | 16. Verification + Cross-User Matrix + E2E | v1.2 | 0/TBD | Not started | - |
 | 17. Docs + Migration Runbook + Operator Guide | v1.2 | 0/TBD | Not started | - |
