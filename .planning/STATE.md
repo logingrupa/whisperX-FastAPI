@@ -4,14 +4,14 @@ milestone: v1.2
 milestone_name: milestone
 status: executing
 stopped_at: Plan 14-01 complete — Vitest+jsdom+RTL+MSW infra online; shadcn primitives + zustand/RHF/zod deps installed; sentinel 2/2; 2 commits (b0de895, dff607a)
-last_updated: "2026-04-29T13:27:38.385Z"
+last_updated: "2026-04-29T13:35:18.923Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 30
-  completed_plans: 25
-  percent: 83
+  completed_plans: 26
+  percent: 87
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 14 (Atomic Frontend Cutover + Test Infra) — EXECUTING
-Plan: 3 of 7
+Plan: 4 of 7
 Status: Ready to execute
 Last activity: 2026-04-29
 
@@ -77,6 +77,7 @@ Last activity: 2026-04-29
 | Phase 13 P10 | 26 min | 1 tasks | 5 files |
 | Phase 14 P01 | 3m 30s | 2 tasks | 16 files |
 | Phase 14 P02 | 2m 28s | 2 tasks | 5 files |
+| Phase 14 P03 | 3m 46s | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -217,6 +218,11 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [14-02]: apiClient is the SINGLE fetch() site — Plans 03-07 import { apiClient } only; Plan 07 refactors 3 existing direct-fetch sites to drop to 0
 - [Phase ?]: [14-02]: Typed error hierarchy (ApiClientError/AuthRequiredError/RateLimitError) — callers narrow via instanceof; tiger-style
 - [Phase ?]: [14-02]: 401 uses module-level _redirectingTo401 latch (T-14-05); suppress401Redirect for authStore.refresh() boot probe
+- [Phase ?]: [14-03]: AuthUser.email held client-side from form input (not from /auth/login response) — backend v1.2 returns only user_id+plan_tier; CONTEXT §70-72 locked. Plan 15 /api/account/me will server-side override.
+- [Phase ?]: [14-03]: register() broadcasts {type:'login'} (not 'register') — locks cross-tab protocol to 2 message types: login | logout (DRY)
+- [Phase ?]: [14-03]: refresh()/hydration deferred to Phase 15 — no /api/account/me yet. Cookie session persists 7d but in-memory user null on reload; RequireAuth (14-04) redirects via /login?next=
+- [Phase ?]: [14-03]: Lazy _channel sentinel in authStore — BroadcastChannel constructed only on first state action; tolerates stray-import side effects + SSR/Node paths
+- [Phase ?]: [14-03]: toAuthUser(response, email) helper — DRY mapping shared by login()/register(); single extension point for Phase 15 AuthUser fields
 
 ### Pending Todos
 
@@ -232,6 +238,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T13:27:32.487Z
+Last session: 2026-04-29T13:34:34.232Z
 Stopped at: Plan 14-01 complete — Vitest+jsdom+RTL+MSW infra online; shadcn primitives + zustand/RHF/zod deps installed; sentinel 2/2; 2 commits (b0de895, dff607a)
 Resume file: None

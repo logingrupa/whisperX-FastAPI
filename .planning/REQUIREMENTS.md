@@ -113,7 +113,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [ ] **UI-01**: System uses `react-router-dom` with `<BrowserRouter basename="/ui">` and routes: `/`, `/login`, `/register`, `/dashboard/keys`, `/dashboard/usage`, `/dashboard/account`
 - [ ] **UI-02**: `/login` page has email + password fields with react-hook-form + zod validation, shadcn `<Form>` styling, submit-disabled-while-loading
 - [ ] **UI-03**: `/register` page has email + password + password-confirm + terms-checkbox, password strength meter (zxcvbn-style heuristic — no external library required)
-- [ ] **UI-04**: After successful login or registration, user is redirected to `/` (transcription page) or original `?next=` URL
+- [x] **UI-04**: After successful login or registration, user is redirected to `/` (transcription page) or original `?next=` URL
 - [ ] **UI-05**: `/dashboard/keys` shows API key list (name, prefix, created_at, last_used_at, status), create-key modal that shows raw key once with copy button, revoke confirmation
 - [ ] **UI-06**: `/dashboard/usage` shows current-hour quota counter, daily minutes counter, trial countdown badge ("Trial: X days left" or "Trial not started" before first key)
 - [ ] **UI-07**: `/dashboard/account` shows email, plan_tier card, "Upgrade to Pro" CTA opening interest-capture modal (real Stripe in v1.3), delete-account flow with type-email confirmation
@@ -121,7 +121,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [x] **UI-09**: 429 responses surface inline error with `Retry-After` countdown — no toast spam
 - [ ] **UI-10**: Existing transcription page (`<UploadDropzone>`, `<FileQueueList>`, `<ConnectionStatus>`) is moved verbatim to `routes/TranscribePage.tsx` and rendered at `/`
 - [x] **UI-11**: All API/WebSocket calls go through a single `frontend/src/lib/apiClient.ts` wrapper that auto-attaches credentials and `X-CSRF-Token`
-- [ ] **UI-12**: `BroadcastChannel('auth')` synchronizes login/logout state across browser tabs
+- [x] **UI-12**: `BroadcastChannel('auth')` synchronizes login/logout state across browser tabs
 - [x] **UI-13**: UI uses shadcn/ui + Tailwind v4 + Radix only — no custom components — and meets the "super pro modern" bar set via `/frontend-design` skill
 
 ### Frontend Test Infrastructure (`TEST-*`)
@@ -261,7 +261,7 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | UI-01 | Phase 14 | Pending |
 | UI-02 | Phase 14 | Pending |
 | UI-03 | Phase 14 | Pending |
-| UI-04 | Phase 14 | Pending |
+| UI-04 | Phase 14 | Complete |
 | UI-05 | Phase 14 | Pending |
 | UI-06 | Phase 14 | Pending |
 | UI-07 | Phase 15 | Pending |
@@ -269,7 +269,7 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | UI-09 | Phase 14 | Complete |
 | UI-10 | Phase 14 | Pending |
 | UI-11 | Phase 14 | Complete |
-| UI-12 | Phase 14 | Pending |
+| UI-12 | Phase 14 | Complete |
 | UI-13 | Phase 14 | Complete |
 | TEST-01 | Phase 14 | Complete |
 | TEST-02 | Phase 14 | Complete |
