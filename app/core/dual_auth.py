@@ -59,6 +59,10 @@ PUBLIC_ALLOWLIST: tuple[str, ...] = (
     "/auth/login",
     "/ui/login",
     "/ui/register",
+    # Stripe calls /billing/webhook server-to-server; authenticity is via
+    # Stripe-Signature HMAC (validated in v1.3 — Phase 13-05 stub only
+    # checks header schema). Auth is intentionally omitted.
+    "/billing/webhook",
 )
 PUBLIC_PREFIXES: tuple[str, ...] = ("/static/", "/uploads/files/")
 SESSION_COOKIE = "session"
