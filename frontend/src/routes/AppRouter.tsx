@@ -4,7 +4,6 @@ import type { ReactNode } from 'react';
 import { TranscribePage } from './TranscribePage';
 import { RequireAuth } from './RequireAuth';
 import { RouteErrorBoundary } from './RouteErrorBoundary';
-import { AccountStubPage } from './AccountStubPage';
 import { AppShell } from '@/components/layout/AppShell';
 
 // Lazy-loaded pages (Plans 05/06 ship the real implementations).
@@ -20,6 +19,9 @@ const KeysDashboardPage = lazy(() =>
 );
 const UsageDashboardPage = lazy(() =>
   import('./UsageDashboardPage').then((m) => ({ default: m.UsageDashboardPage })),
+);
+const AccountPage = lazy(() =>
+  import('./AccountPage').then((m) => ({ default: m.AccountPage })),
 );
 
 function PageWrap({ children }: { children: ReactNode }) {
@@ -49,7 +51,7 @@ export function AppRouter() {
         <Route element={<AppShell />}>
           <Route path="/dashboard/keys" element={<PageWrap><KeysDashboardPage /></PageWrap>} />
           <Route path="/dashboard/usage" element={<PageWrap><UsageDashboardPage /></PageWrap>} />
-          <Route path="/dashboard/account" element={<PageWrap><AccountStubPage /></PageWrap>} />
+          <Route path="/dashboard/account" element={<PageWrap><AccountPage /></PageWrap>} />
         </Route>
       </Route>
 

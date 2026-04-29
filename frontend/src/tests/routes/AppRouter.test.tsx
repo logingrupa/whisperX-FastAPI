@@ -5,7 +5,7 @@
  *   - Anonymous user landing on `/` is redirected to `/login?next=%2F`
  *   - `?next=` query param preserves the original path verbatim
  *   - Public routes (/login, /register) render without auth
- *   - AccountStubPage renders behind RequireAuth when authenticated
+ *   - AccountPage renders behind RequireAuth when authenticated (Plan 15-06 — replaces AccountStubPage)
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -83,17 +83,20 @@ describe('AppRouter — authenticated routing', () => {
     });
   });
 
-  it('renders AccountStubPage at /dashboard/account behind AppShell', async () => {
+  it('renders AccountPage at /dashboard/account behind AppShell', async () => {
     render(
       <MemoryRouter initialEntries={['/dashboard/account']}>
         <AppRouter />
       </MemoryRouter>,
     );
-    expect(await screen.findByText(/Coming in Phase 15/i)).toBeInTheDocument();
+    // AccountPage heading (UI-07 — replaces former AccountStubPage Coming-Soon copy)
+    expect(
+      await screen.findByRole('heading', { name: /^account$/i, level: 1 }),
+    ).toBeInTheDocument();
     // AppShell nav links
     expect(screen.getByText('API Keys')).toBeInTheDocument();
     expect(screen.getByText('Usage')).toBeInTheDocument();
-    // user email Badge
+    // user email Badge in AppShell header
     expect(screen.getByText('user@example.com')).toBeInTheDocument();
   });
 });
