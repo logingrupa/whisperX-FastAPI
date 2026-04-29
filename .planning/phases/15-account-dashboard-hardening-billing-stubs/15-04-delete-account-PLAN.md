@@ -2,7 +2,7 @@
 phase: 15
 plan: 04
 type: execute
-wave: 1
+wave: 2
 depends_on: ["15-01", "15-03"]
 files_modified:
   - app/services/account_service.py

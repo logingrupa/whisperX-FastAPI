@@ -2,7 +2,7 @@
 phase: 15
 plan: 06
 type: execute
-wave: 3
+wave: 4
 depends_on: ["15-01", "15-02", "15-03", "15-04", "15-05"]
 files_modified:
   - frontend/src/routes/AccountPage.tsx
@@ -75,6 +75,8 @@ Build the AccountPage UI surface: three-card page (Profile / Plan / Danger Zone)
 
 Purpose: User-facing surface for the account-management features. UI-SPEC.md contract is the locked design; this plan executes it.
 Output: 4 new components + 1 router update + 1 stub deletion + 4 test files + a human-verify mobile-responsive checkpoint.
+
+Note on scope: 10 files-modified is at the planner threshold; UI work is cohesive (single user-facing surface) and tasks are file-disjoint (Task 1 owns components + router + stub; Task 2 owns the 4 test files; Task 3 is human-verify only). No shared-mutable-file conflicts within the plan.
 </objective>
 
 <execution_context>

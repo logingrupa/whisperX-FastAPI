@@ -1320,27 +1320,31 @@ One claim correction worth surfacing for plan-discuss-phase: **CONTEXT.md §64 s
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `_clear_auth_cookies` move to a shared module before being imported by `account_routes.py`?**
    - What we know: It's currently a private function in `auth_routes.py:101`. DRY says one source.
    - What's unclear: whether the planner prefers a new `app/api/_cookie_helpers.py` file vs. promoting the helper to public in `auth_routes` and importing.
    - Recommendation: **Extract to `app/api/_cookie_helpers.py`** for SRP — cookie clearing is a shared HTTP concern, not auth-domain. Trivial 10-line file.
+   - RESOLVED: Implemented in Plan 15-01 Task 2 (creates `app/api/_cookie_helpers.py` with public `clear_auth_cookies`; `auth_routes.py /logout` migrated to import the shared helper).
 
 2. **Should AccountService accept a UserRepository in its constructor (DI), or instantiate inline from `self.session`?**
    - What we know: Existing `AccountService.__init__` takes only `session`. New methods need user-row reads.
    - What's unclear: whether plan-checker will flag injection as a constructor change risk to existing `delete_user_data` callers.
    - Recommendation: **Constructor-inject** with default `None` and lazy-construct from session if absent — preserves SCOPE-05 backwards compat, gives test isolation.
+   - RESOLVED: Implemented in Plan 15-03 Task 1 (`AccountService.__init__(session, user_repository: IUserRepository | None = None)` with lazy `SQLAlchemyUserRepository(session)` fallback). Plan 15-04 reuses the same `_user_repository` member for `delete_account`.
 
 3. **Should the plan ship a 4th Alembic migration to flip `tasks.user_id` to ON DELETE CASCADE and add a `user_id` FK column to `rate_limit_buckets`?**
    - What we know: Service-orchestrated approach works today.
    - What's unclear: whether migration cleanliness justifies the extra Phase 15 surface area.
    - Recommendation: **DEFER to v1.3.** Service approach is reversible, testable, and contained.
+   - RESOLVED: Deferred. Plan 15-04 ships the service-orchestrated cascade (Strategy C — `delete_user_data` → rate_limit_buckets prefix-match → `user_repository.delete` ORM CASCADE) with no schema migration in this phase.
 
 4. **Backend match strategy: case-insensitive vs exact?**
    - What we know: UI-SPEC.md §190 explicitly says case-insensitive.
    - What's unclear: nothing — locked.
    - Recommendation: **case-insensitive** on both UI and backend. Lowercase before compare on both sides.
+   - RESOLVED: Backend case-insensitive match in Plan 15-04 (`AccountService.delete_account` lowercases both sides before equality); UI gate in Plan 15-06 (`DeleteAccountDialog.isMatched` lowercases both sides). Verified by `test_delete_account_email_case_insensitive`.
 
 ---
 

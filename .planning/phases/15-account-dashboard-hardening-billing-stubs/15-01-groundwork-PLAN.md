@@ -15,7 +15,7 @@ files_modified:
   - frontend/src/tests/msw/account.handlers.ts
   - frontend/src/tests/msw/handlers.ts
 autonomous: true
-requirements: [UI-07, AUTH-06, SCOPE-06, BILL-05]
+requirements: [UI-07, AUTH-06, SCOPE-06, BILL-05, BILL-06]
 must_haves:
   truths:
     - "apiClient.get accepts {suppress401Redirect, headers} options object"
@@ -453,8 +453,12 @@ export const handlers = [
     - `grep -c "accountHandlers" frontend/src/tests/msw/handlers.ts` returns 2 (import + spread)
     - `grep -cE "^\s+if .*\bif\b" frontend/src/lib/api/accountApi.ts` returns 0
     - `cd frontend && bunx tsc --noEmit` exits 0
+    - BILL-06 stub presence verified (no new code — RESEARCH §69 + §1151 confirm Phase 13-05 already shipped):
+      * `grep -q "/webhook" app/api/billing_routes.py` exits 0
+      * `grep -q "Stripe-Signature" app/api/billing_routes.py` exits 0
+      * `grep -q "501" app/api/billing_routes.py` exits 0
   </acceptance_criteria>
-  <done>Schemas instantiate; accountApi.ts compiles; MSW handlers spread into barrel; all required exports verifiable via grep.</done>
+  <done>Schemas instantiate; accountApi.ts compiles; MSW handlers spread into barrel; all required exports verifiable via grep; BILL-06 webhook stub still present (no new code).</done>
 </task>
 
 </tasks>

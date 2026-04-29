@@ -2,7 +2,7 @@
 phase: 15
 plan: 05
 type: execute
-wave: 2
+wave: 3
 depends_on: ["15-01", "15-03"]
 files_modified:
   - frontend/src/lib/stores/authStore.ts
