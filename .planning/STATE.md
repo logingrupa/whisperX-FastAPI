@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: executing
-stopped_at: Plan 12-02 complete — create-admin command (TDD RED→GREEN; 5/5 tests; OPS-01 satisfied; getpass-only password; f6c600e + 62774a3)
-last_updated: "2026-04-29T07:24:10.954Z"
+status: verifying
+stopped_at: Plan 12-04 complete — 0003 migration + e2e test (SCOPE-01 satisfied; Phase 12 ready for /gsd-verify-phase 12-admin-cli-task-backfill; 509b2ab + 970a54f)
+last_updated: "2026-04-29T08:59:10.975Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 13
-  completed_plans: 12
-  percent: 92
+  completed_plans: 13
+  percent: 100
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 
 Phase: 12 (Admin CLI + Task Backfill) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-29
 
 ## Performance Metrics
@@ -61,6 +61,7 @@ Last activity: 2026-04-29
 | Phase 12 P01 | 6 min | 1 tasks | 9 files |
 | Phase 12 P02 | 5 min | 1 tasks (TDD) | 3 files |
 | Phase 12 P03 | 3 | 1 tasks | 2 files |
+| Phase 12 P04 | 90 min | 2 tasks tasks | 3 files files |
 
 ## Accumulated Context
 
@@ -144,6 +145,9 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [12-03]: backfill-tasks engine.begin() three-step transaction — count_before/UPDATE/count_after; raising typer.Exit(1) inside the with-block triggers ROLLBACK on post-verify failure (tiger-style fail-loud + automatic data restore)
 - [Phase ?]: [12-03]: 'assume_yes or typer.confirm(...)' short-circuit collapses Guard 3 into single boolean expression; typer.confirm default=False (dangerous default goes safe direction)
 - [Phase ?]: [12-03]: Module-scope SQL constants _COUNT_ORPHANS_SQL + _UPDATE_SQL — count fragment reused pre-flight+post-condition (DRT); UPDATE uses :admin_id bound parameter
+- [Phase ?]: [12-04]: 0003 migration pre-flight orphan guard — bind.execute SELECT COUNT(*) FROM tasks WHERE user_id IS NULL; raises RuntimeError if > 0; refuses to alter column rather than fail mid-batch (CONTEXT 138 tiger-style)
+- [Phase ?]: [12-04]: e2e integration test uses subprocess (not in-process CliRunner) because SQLAlchemy engine binds DB_URL at module-load; subprocess re-imports against tmp DB. Pattern matches Phase 10 test_alembic_migration.py
+- [Phase ?]: [12-04]: Windows getpass.getpass cannot be piped via subprocess; msvcrt.getwch reads keyboard directly. Test-only -c preamble monkey-patches getpass.getpass BEFORE app.cli imports. Production source untouched (CONTEXT 141)
 
 ### Pending Todos
 
@@ -159,6 +163,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T07:23:48.690Z
-Stopped at: Plan 12-02 complete — create-admin command (TDD RED→GREEN; 5/5 tests; OPS-01 satisfied; getpass-only password; f6c600e + 62774a3)
+Last session: 2026-04-29T08:59:10.968Z
+Stopped at: Plan 12-04 complete — 0003 migration + e2e test (SCOPE-01 satisfied; Phase 12 ready for /gsd-verify-phase 12-admin-cli-task-backfill; 509b2ab + 970a54f)
 Resume file: None

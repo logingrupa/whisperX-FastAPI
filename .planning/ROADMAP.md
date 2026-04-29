@@ -20,7 +20,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - [x] **Phase 10: Alembic Baseline + Auth Schema** — Replace `create_all()` with hand-written baseline + auth/billing/rate-limit tables; zero behavior change (completed 2026-04-29)
 - [x] **Phase 11: Auth Core Modules + Services + DI** — Pure logic modules (jwt_codec, api_key, password hasher, services, DI providers); HTTP-untouched
  (completed 2026-04-29)
-- [ ] **Phase 12: Admin CLI + Task Backfill** — Typer CLI seeds admin user + backfills `tasks.user_id`; FK NOT NULL constraint applied last
+- [x] **Phase 12: Admin CLI + Task Backfill** — Typer CLI seeds admin user + backfills `tasks.user_id`; FK NOT NULL constraint applied last (completed 2026-04-29)
 - [ ] **Phase 13: Atomic Backend Cutover (ATOMIC PAIR with Phase 14)** — DualAuthMiddleware + auth/keys/account routes + per-user scoping + WS ticket + CSRF + CORS lockdown + rate-limit + free-tier gates + Stripe schema stubs
 - [ ] **Phase 14: Atomic Frontend Cutover + Test Infra (ATOMIC PAIR with Phase 13)** — Router shell + auth pages + dashboard (keys/usage) + apiClient wrapper + zustand store + BroadcastChannel + Vitest/RTL/MSW
 - [ ] **Phase 15: Account Dashboard Hardening + Billing Stubs** — Account page (delete + logout-all-devices + Pro upgrade CTA) + checkout/webhook 501 stubs
@@ -76,7 +76,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - [x] 12-01-PLAN.md — Typer dep + app/cli/ scaffold + shared _resolve_admin / _get_container helpers + AuthService.register plan_tier kwarg (Wave 1)
 - [x] 12-02-PLAN.md — create-admin command (getpass-only, plan_tier=pro, idempotent) + 5 unit tests (Wave 2)
 - [x] 12-03-PLAN.md — backfill-tasks command (--dry-run, --yes, post-update verify count==0) + 7 unit tests (Wave 2)
-- [ ] 12-04-PLAN.md — 0003_tasks_user_id_not_null migration with pre-flight orphan guard + e2e integration test (Wave 3)
+- [x] 12-04-PLAN.md — 0003_tasks_user_id_not_null migration with pre-flight orphan guard + e2e integration test (Wave 3)
 
 ### Phase 13: Atomic Backend Cutover — **ATOMIC PAIR with Phase 14**
 **Goal**: One backend deploy flips on dual-auth, per-user scoping, CSRF, CORS lockdown, rate limiting, free-tier gates, and Stripe-ready stubs — enforced everywhere on every endpoint.
@@ -158,7 +158,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 |-------|-----------|----------------|--------|-----------|
 | 10. Alembic Baseline + Auth Schema | v1.2 | 4/4 | Complete    | 2026-04-29 |
 | 11. Auth Core Modules + Services + DI | v1.2 | 5/5 | Complete    | 2026-04-29 |
-| 12. Admin CLI + Task Backfill | v1.2 | 3/4 | In Progress|  |
+| 12. Admin CLI + Task Backfill | v1.2 | 4/4 | Complete   | 2026-04-29 |
 | 13. Atomic Backend Cutover | v1.2 | 0/TBD | Not started (atomic pair w/ 14) | - |
 | 14. Atomic Frontend Cutover + Test Infra | v1.2 | 0/TBD | Not started (atomic pair w/ 13) | - |
 | 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 0/TBD | Not started | - |

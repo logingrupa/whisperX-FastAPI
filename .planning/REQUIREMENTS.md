@@ -67,7 +67,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 
 ### Per-User Task Scoping (`SCOPE-*`)
 
-- [ ] **SCOPE-01**: `tasks.user_id` is NOT NULL after backfill migration; existing rows assigned to the bootstrap admin user
+- [x] **SCOPE-01**: `tasks.user_id` is NOT NULL after backfill migration; existing rows assigned to the bootstrap admin user
 - [ ] **SCOPE-02**: `ITaskRepository` exposes `set_user_scope(user_id)` that pushes the filter into the SQL `WHERE` clause for all reads and writes
 - [ ] **SCOPE-03**: `GET /tasks` returns only tasks owned by the authenticated user (cross-user matrix tests prove this for every endpoint)
 - [ ] **SCOPE-04**: `GET /task/{id}`, `DELETE /task/{id}`, `POST /speech-to-text*`, TUS upload routes, callback routes are all user-scoped
@@ -227,7 +227,7 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | MID-05 | Phase 13 | Pending |
 | MID-06 | Phase 13 | Pending |
 | MID-07 | Phase 13 | Pending |
-| SCOPE-01 | Phase 12 | Pending |
+| SCOPE-01 | Phase 12 | Complete |
 | SCOPE-02 | Phase 13 | Pending |
 | SCOPE-03 | Phase 13 | Pending |
 | SCOPE-04 | Phase 13 | Pending |
