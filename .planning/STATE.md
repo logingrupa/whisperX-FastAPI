@@ -4,14 +4,14 @@ milestone: v1.2
 milestone_name: milestone
 status: executing
 stopped_at: Plan 14-05 complete — LoginPage + RegisterPage with react-hook-form + zod + AuthCard + PasswordStrengthMeter; 19 new tests (48/48 total green); 4 atomic commits (c56992f, a93055c, 26af6df, a2ee586)
-last_updated: "2026-04-29T13:53:24.106Z"
+last_updated: "2026-04-29T14:05:03.140Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 30
-  completed_plans: 28
-  percent: 93
+  completed_plans: 29
+  percent: 97
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 14 (Atomic Frontend Cutover + Test Infra) — EXECUTING
-Plan: 6 of 7
+Plan: 7 of 7
 Status: Ready to execute
 Last activity: 2026-04-29
 
@@ -80,6 +80,7 @@ Last activity: 2026-04-29
 | Phase 14 P03 | 3m 46s | 2 tasks | 3 files |
 | Phase 14 P04 | 4m 9s | 2 tasks | 17 files |
 | Phase 14 P05 | 5m 30s | 2 tasks | 10 files |
+| Phase 14 P06 | 5m 28s | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -236,6 +237,9 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [14-05]: Anti-enumeration error funnel — RateLimitError handled BEFORE ApiClientError in catch chain (subtype-first); single generic 'Login failed.' / 'Registration failed.' string regardless of backend code/detail (T-14-12 mitigation)
 - [Phase ?]: [14-05]: Native input type=checkbox for termsAccepted — no shadcn Checkbox component shipped; native input + manual styling keeps Plan 14-05 zero-dep, swappable later
 - [Phase ?]: [14-05]: Rule 1 fix — AppRouter.test.tsx assertions migrated from placeholder text ('LoginPage placeholder' / 'RegisterPage placeholder') to heading-role queries ('Sign in' / 'Create account'); placeholder text was a transient Plan 14-04 artifact, heading-role survives copy reshuffles
+- [Phase ?]: Plan 14-06: KeysDashboardPage two-state CreateKeyDialog (form -> show-once) keeps plaintext in component state only (T-14-15); reset() clears on close
+- [Phase ?]: Plan 14-06: Trial countdown derives client-side from earliest active key + 7d (RATE-08 proxy until Phase 15 /api/account/me)
+- [Phase ?]: Plan 14-06: vi.spyOn(navigator.clipboard, 'writeText') AFTER userEvent.setup() - robust clipboard test pattern under user-event v14
 
 ### Pending Todos
 
@@ -251,6 +255,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T13:50:36Z
+Last session: 2026-04-29T14:04:27.664Z
 Stopped at: Plan 14-05 complete — LoginPage + RegisterPage with react-hook-form + zod + AuthCard + PasswordStrengthMeter; 19 new tests (48/48 total green); 4 atomic commits (c56992f, a93055c, 26af6df, a2ee586)
 Resume file: None
