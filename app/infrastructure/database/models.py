@@ -4,7 +4,17 @@ from datetime import datetime, timezone
 from uuid import uuid4
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, Float, Integer, String
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -12,6 +22,45 @@ class Base(DeclarativeBase):
     """Base class for all database models."""
 
     pass
+
+
+# ---------------------------------------------------------------------------
+# Column factories — DRY: shared shapes reused across every ORM class with
+# standard created_at/updated_at semantics (Task, User, ApiKey, Subscription,
+# UsageEvent, DeviceFingerprint).
+# Per CONTEXT §65-71: SRP one-purpose, no nested ifs, fail-loud at module load.
+# ---------------------------------------------------------------------------
+
+
+def _created_at_column() -> Mapped[datetime]:
+    """Factory for created_at column with UTC default and tz-aware DateTime.
+
+    Returns:
+        mapped_column with DateTime(timezone=True), NOT NULL,
+        default=lambda: datetime.now(timezone.utc).
+    """
+    return mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        comment="Date and time of creation (UTC, tz-aware)",
+    )
+
+
+def _updated_at_column() -> Mapped[datetime]:
+    """Factory for updated_at column with UTC default + onupdate.
+
+    Returns:
+        mapped_column with DateTime(timezone=True), NOT NULL,
+        default and onupdate set to datetime.now(timezone.utc).
+    """
+    return mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        comment="Date and time of last update (UTC, tz-aware)",
+    )
 
 
 class Task(Base):
@@ -78,17 +127,8 @@ class Task(Base):
     error: Mapped[str | None] = mapped_column(
         String, nullable=True, comment="Error message, if any, associated with the task"
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        comment="Date and time of creation",
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
-        comment="Date and time of last update",
-    )
+    created_at: Mapped[datetime] = _created_at_column()
+    updated_at: Mapped[datetime] = _updated_at_column()
     progress_percentage: Mapped[int | None] = mapped_column(
         Integer, nullable=True, default=0,
         comment="Current progress percentage (0-100)"
@@ -96,4 +136,10 @@ class Task(Base):
     progress_stage: Mapped[str | None] = mapped_column(
         String, nullable=True,
         comment="Current processing stage (queued, transcribing, aligning, diarizing, complete)"
+    )
+    user_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL", name="fk_tasks_user_id"),
+        nullable=True,
+        comment="Owning user (nullable until Phase 12 backfill)",
     )
