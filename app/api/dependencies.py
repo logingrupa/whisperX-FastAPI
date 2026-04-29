@@ -3,6 +3,7 @@
 from collections.abc import Generator
 
 from fastapi import HTTPException, Request, status
+from sqlalchemy.orm import Session
 
 from app.api.constants import CONTAINER_NOT_INITIALIZED_ERROR
 from app.core.container import Container
@@ -243,3 +244,18 @@ def get_rate_limit_service() -> RateLimitService:
     if _container is None:
         raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
     return _container.rate_limit_service()
+
+
+def get_db_session() -> Generator[Session, None, None]:
+    """Yield a managed DB session for non-repository scoped reads/writes.
+
+    Used by services that need a raw SQLAlchemy session (e.g. AccountService
+    bulk DELETE) rather than a repository wrapper. Session is closed on exit.
+    """
+    if _container is None:
+        raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
+    session = _container.db_session_factory()
+    try:
+        yield session
+    finally:
+        session.close()
