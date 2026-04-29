@@ -30,7 +30,14 @@ function renderPage() {
 describe('KeysDashboardPage', () => {
   beforeEach(() => {
     useAuthStore.setState({
-      user: { id: 1, email: 'alice@example.com', planTier: 'trial' },
+      user: {
+        id: 1,
+        email: 'alice@example.com',
+        planTier: 'trial',
+        trialStartedAt: null,
+        tokenVersion: 0,
+      },
+      isHydrating: false,
     });
   });
 

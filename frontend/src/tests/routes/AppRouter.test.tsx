@@ -11,10 +11,10 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AppRouter } from '@/routes/AppRouter';
-import { useAuthStore } from '@/lib/stores/authStore';
+import { useAuthStore, type AuthUser } from '@/lib/stores/authStore';
 
-function setUser(user: { id: number; email: string; planTier: string } | null): void {
-  useAuthStore.setState({ user });
+function setUser(user: AuthUser | null): void {
+  useAuthStore.setState({ user, isHydrating: false });
 }
 
 describe('AppRouter — anonymous redirects (UI-04)', () => {
@@ -74,7 +74,13 @@ describe('AppRouter — anonymous redirects (UI-04)', () => {
 
 describe('AppRouter — authenticated routing', () => {
   beforeEach(() => {
-    setUser({ id: 1, email: 'user@example.com', planTier: 'trial' });
+    setUser({
+      id: 1,
+      email: 'user@example.com',
+      planTier: 'trial',
+      trialStartedAt: null,
+      tokenVersion: 0,
+    });
   });
 
   it('renders AccountStubPage at /dashboard/account behind AppShell', async () => {
