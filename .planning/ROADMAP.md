@@ -74,7 +74,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
   4. CLI never echoes the typed password to stdout, stderr, or any log destination
 **Plans**: 4 plans (3 waves)
 - [x] 12-01-PLAN.md — Typer dep + app/cli/ scaffold + shared _resolve_admin / _get_container helpers + AuthService.register plan_tier kwarg (Wave 1)
-- [ ] 12-02-PLAN.md — create-admin command (getpass-only, plan_tier=pro, idempotent) + 5 unit tests (Wave 2)
+- [x] 12-02-PLAN.md — create-admin command (getpass-only, plan_tier=pro, idempotent) + 5 unit tests (Wave 2)
 - [ ] 12-03-PLAN.md — backfill-tasks command (--dry-run, --yes, post-update verify count==0) + 7 unit tests (Wave 2)
 - [ ] 12-04-PLAN.md — 0003_tasks_user_id_not_null migration with pre-flight orphan guard + e2e integration test (Wave 3)
 
@@ -158,7 +158,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 |-------|-----------|----------------|--------|-----------|
 | 10. Alembic Baseline + Auth Schema | v1.2 | 4/4 | Complete    | 2026-04-29 |
 | 11. Auth Core Modules + Services + DI | v1.2 | 5/5 | Complete    | 2026-04-29 |
-| 12. Admin CLI + Task Backfill | v1.2 | 1/4 | In Progress|  |
+| 12. Admin CLI + Task Backfill | v1.2 | 2/4 | In Progress|  |
 | 13. Atomic Backend Cutover | v1.2 | 0/TBD | Not started (atomic pair w/ 14) | - |
 | 14. Atomic Frontend Cutover + Test Infra | v1.2 | 0/TBD | Not started (atomic pair w/ 13) | - |
 | 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 0/TBD | Not started | - |

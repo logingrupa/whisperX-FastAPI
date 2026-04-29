@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: executing
-stopped_at: Plan 12-01 complete — Typer CLI scaffold + DRY helpers + AuthService.register plan_tier kwarg (typer 0.20.0; 6/6 AuthService tests; df1e402)
-last_updated: "2026-04-29T07:07:16.954Z"
+stopped_at: Plan 12-02 complete — create-admin command (TDD RED→GREEN; 5/5 tests; OPS-01 satisfied; getpass-only password; f6c600e + 62774a3)
+last_updated: "2026-04-29T07:15:45.433Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 13
-  completed_plans: 10
-  percent: 77
+  completed_plans: 11
+  percent: 85
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 12 (Admin CLI + Task Backfill) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-04-29
 
@@ -59,6 +59,7 @@ Last activity: 2026-04-29
 | Phase 11 P04 | 11m | 2 tasks | 15 files |
 | Phase 11 P05 | 5m | 1 tasks | 3 files |
 | Phase 12 P01 | 6 min | 1 tasks | 9 files |
+| Phase 12 P02 | 5 min | 1 tasks (TDD) | 3 files |
 
 ## Accumulated Context
 
@@ -135,6 +136,10 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [12-01]: Stub command modules register placeholder @app.command()s rather than docstring-only — Typer 0.20+ refuses --help on registry with zero commands; plans 12-02/03 fully rewrite stubs anyway
 - [Phase ?]: [12-01]: AuthService.register adds keyword-only plan_tier='trial' param — backward compat for 5 existing callers; admin bootstrap will pass plan_tier='pro' (verified by new unit test)
 - [Phase ?]: [12-01]: app/cli/_helpers.py owns DRY surface — _get_container() factory + _resolve_admin(email, *, container=None) tiger-style fail-loud lookup; container kwarg is test seam for 12-02/03/04
+- [Phase ?]: [12-02]: create-admin command catches `ValidationError` base (not `WeakPasswordError` directly) — open/closed; future ValidationError subclasses flow through same exit-1 path; `UserAlreadyExistsError` catch precedes generic `ValidationError` because UAE IS-A ValidationError (specific-first)
+- [Phase ?]: [12-02]: Click 8.3.0 dropped `CliRunner(mix_stderr=False)` kwarg — Click 8.2+ separates stderr/stdout by default; `result.stderr` and `result.stdout` are independent attributes
+- [Phase ?]: [12-02]: TDD RED help-test asserts `--email in stdout` (not `create-admin in stdout`) — plan-01 stub already registered the command name, so the original substring would have passed trivially; tightened to ensure RED genuinely fails on the stub
+- [Phase ?]: [12-02]: getpass-only password discipline locked — verifier greps `password.*=.*typer\.` ==0 (no Typer Option), `getpass.getpass` ≥2 (entry+confirm), `logger.*password` ==0 (never logged); password mismatch fails BEFORE Container is built (no service-layer side effects)
 
 ### Pending Todos
 
@@ -150,6 +155,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T07:07:16.948Z
-Stopped at: Plan 12-01 complete — Typer CLI scaffold + DRY helpers + AuthService.register plan_tier kwarg (typer 0.20.0; 6/6 AuthService tests; df1e402)
+Last session: 2026-04-29T07:13:35Z
+Stopped at: Plan 12-02 complete — create-admin command (TDD RED→GREEN; 5/5 tests; OPS-01 satisfied; getpass-only password; f6c600e + 62774a3)
 Resume file: None
