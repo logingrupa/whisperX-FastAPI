@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: executing
-stopped_at: Plan 13-08 complete — FreeTierGate (5/hr,5min,30min/day,tiny+small,1 concurrent) + UsageEventWriter + RateLimitService.release (W1) + 4 exception handlers + 17 integration tests + 24 unit tests; 3 commits (34e60ca, 4a709bb, 0a42ed5); RATE-01..07/09..12 + BILL-01 closed
-last_updated: "2026-04-29T11:43:28.897Z"
+stopped_at: Plan 13-09 complete — atomic backend cutover wired (DualAuth+CSRF/5 routers/6 handlers/locked CORS/W4 fallback); 2 commits (630170f, 1f2a721); MID-01/MID-05/ANTI-06 closed
+last_updated: "2026-04-29T12:04:02.124Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 23
-  completed_plans: 21
-  percent: 91
+  completed_plans: 22
+  percent: 96
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 13 (Atomic Backend Cutover) — EXECUTING
-Plan: 9 of 10
+Plan: 10 of 10
 Status: Ready to execute
 Last activity: 2026-04-29
 
@@ -72,6 +72,7 @@ Last activity: 2026-04-29
 | Phase 13 P07 | 10 min | 3 tasks | 11 files |
 | Phase 13 P08 | 20 min | 3 tasks | 15 files |
 | Phase 13 P08 | 20 min | 3 tasks | 15 files |
+| Phase 13 P09 | 10 min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -198,6 +199,9 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [13-08]: Rule 1 latent-bug fix in rate_limit_bucket_mapper — SQLite strips tzinfo from DateTime(timezone=True) on round-trip; consume() math then crashes on tz-aware now minus tz-naive last_refill; mapper now reattaches UTC tzinfo on read
 - [Phase ?]: [13-08]: DiarizationParams in v1.2 has only min_speakers/max_speakers (no boolean .diarize) — gate's diarize arg derived as 'either bound is set' so /speech-to-text remains accessible to free tier while explicit speaker-bound requests trigger 403 pro-only guard
 - [Phase ?]: [13-08]: usage_events.idempotency_key=task.uuid + UNIQUE — IntegrityError caught + rollback for replay safety (T-13-40 v1.3 Stripe metering); usage_events.task_id NULL since the FK is redundant for v1.2 metering — backfill is a one-line lookup if v1.3 needs it
+- [Phase 13]: [13-09]: app/core/auth.py recreated (was missing from disk; initial git status snapshot stale) — minimal legacy BearerAuthMiddleware + W4 DEPRECATED header; fail-CLOSED on unset API_BEARER_TOKEN
+- [Phase 13]: [13-09]: Atomic flip wiring — single is_auth_v2_enabled() check at app boot decides middleware stack (DualAuth+CSRF vs BearerAuth) AND router registration (5 Phase 13 routers gated); CORS locked to FRONTEND_URL with allow_credentials=True in BOTH branches
+- [Phase 13]: [13-09]: Production-safety boot guard refuses to start when ENVIRONMENT=production AND AUTH_V2_ENABLED=false (T-13-43); slowapi limiter mounted unconditionally on app.state for @limiter.limit decorators on auth routes; 6 typed exception handlers registered in BOTH branches
 
 ### Pending Todos
 
@@ -213,6 +217,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T11:43:21.838Z
-Stopped at: Plan 13-08 complete — FreeTierGate (5/hr,5min,30min/day,tiny+small,1 concurrent) + UsageEventWriter + RateLimitService.release (W1) + 4 exception handlers + 17 integration tests + 24 unit tests; 3 commits (34e60ca, 4a709bb, 0a42ed5); RATE-01..07/09..12 + BILL-01 closed
+Last session: 2026-04-29T12:04:02.119Z
+Stopped at: Plan 13-09 complete — atomic backend cutover wired (DualAuth+CSRF/5 routers/6 handlers/locked CORS/W4 fallback); 2 commits (630170f, 1f2a721); MID-01/MID-05/ANTI-06 closed
 Resume file: None

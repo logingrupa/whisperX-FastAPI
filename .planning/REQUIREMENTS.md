@@ -61,7 +61,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [x] **MID-02**: Middleware sets `request.state.user`, `request.state.plan_tier`, `request.state.auth_method`, `request.state.api_key_id`
 - [x] **MID-03**: Middleware allowlists public paths: `/health`, `/health/live`, `/health/ready`, `/`, `/openapi.json`, `/docs`, `/redoc`, `/static`, `/favicon.ico`, `/auth/register`, `/auth/login`, `/ui/login`, `/ui/register`
 - [x] **MID-04**: Bearer-authenticated routes skip CSRF verification automatically; cookie-authenticated state-mutating routes require `X-CSRF-Token` header (double-submit cookie pattern)
-- [ ] **MID-05**: System updates `tus_upload_api` to accept dual auth (API key for external clients, cookie+CSRF for browser)
+- [x] **MID-05**: System updates `tus_upload_api` to accept dual auth (API key for external clients, cookie+CSRF for browser)
 - [x] **MID-06**: WebSocket endpoint requires a single-use 60-second ticket (issued via `POST /api/ws/ticket`, consumed via `?ticket=...` query param) — no subprotocol auth (Cloudflare strips)
 - [x] **MID-07**: WebSocket handler rejects connection (HTTP 1008) if `ticket.user_id != task.user_id`
 
@@ -224,7 +224,7 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | MID-02 | Phase 13 | Complete |
 | MID-03 | Phase 13 | Complete |
 | MID-04 | Phase 13 | Complete |
-| MID-05 | Phase 13 | Pending |
+| MID-05 | Phase 13 | Complete |
 | MID-06 | Phase 13 | Complete |
 | MID-07 | Phase 13 | Complete |
 | SCOPE-01 | Phase 12 | Complete |
