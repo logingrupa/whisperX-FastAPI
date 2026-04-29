@@ -108,11 +108,17 @@ async def speech_to_text(
     # Phase 13-08 free-tier gate (RATE-01..10): rate, trial, file, model,
     # diarize, daily, concurrency — fail-fast. Slot is held until
     # process_audio_common completion try/finally releases it (W1).
+    # `diarize` is True when caller explicitly requested speaker bounds;
+    # DiarizationParams has no boolean flag in v1.2 (min/max-speaker only).
+    diarize_requested = (
+        diarize_params.min_speakers is not None
+        or diarize_params.max_speakers is not None
+    )
     free_tier_gate.check(
         user=user,
         file_seconds=audio_duration,
         model=model_params.model.value,
-        diarize=diarize_params.diarize,
+        diarize=diarize_requested,
     )
 
     # Create domain task
@@ -206,11 +212,15 @@ async def speech_to_text_url(
 
     # Phase 13-08 free-tier gate (RATE-01..10) — same fail-fast contract
     # as /speech-to-text. Slot released by process_audio_common finally.
+    diarize_requested = (
+        diarize_params.min_speakers is not None
+        or diarize_params.max_speakers is not None
+    )
     free_tier_gate.check(
         user=user,
         file_seconds=audio_duration,
         model=model_params.model.value,
-        diarize=diarize_params.diarize,
+        diarize=diarize_requested,
     )
 
     # Create domain task
