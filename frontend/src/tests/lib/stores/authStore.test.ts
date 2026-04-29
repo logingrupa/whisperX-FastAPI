@@ -2,22 +2,28 @@
  * authStore tests — verify single source of auth state, HTTP delegation
  * to apiClient, and BroadcastChannel('auth') cross-tab sync (UI-04, UI-12).
  *
- * Default MSW handlers (auth.handlers.ts):
- *   POST /auth/login    -> 200 { user_id: 1, plan_tier: 'trial' } (401 when password === 'wrong')
- *   POST /auth/register -> 201 { user_id: 1, plan_tier: 'trial' }
- *   POST /auth/logout   -> 204 No Content
+ * Phase 15-05 additions: refresh() boot-probe hydration + isHydrating flag.
+ *
+ * Default MSW handlers (auth.handlers.ts + account.handlers.ts):
+ *   POST /auth/login        -> 200 { user_id: 1, plan_tier: 'trial' } (401 when password === 'wrong')
+ *   POST /auth/register     -> 201 { user_id: 1, plan_tier: 'trial' }
+ *   POST /auth/logout       -> 204 No Content
+ *   GET  /api/account/me    -> 200 { user_id, email, plan_tier, trial_started_at, token_version }
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { server } from '../../setup';
 import { useAuthStore } from '@/lib/stores/authStore';
 
 describe('authStore', () => {
   beforeEach(() => {
-    useAuthStore.setState({ user: null });
+    useAuthStore.setState({ user: null, isHydrating: true });
   });
 
-  it('initial state has user=null', () => {
+  it('initial state has user=null and isHydrating=true', () => {
     expect(useAuthStore.getState().user).toBe(null);
+    expect(useAuthStore.getState().isHydrating).toBe(true);
   });
 
   it('login sets user from /auth/login response', async () => {
@@ -27,6 +33,13 @@ describe('authStore', () => {
     expect(u!.id).toBe(1);
     expect(u!.email).toBe('alice@example.com');
     expect(u!.planTier).toBe('trial');
+  });
+
+  it('login populates trialStartedAt + tokenVersion with safe defaults', async () => {
+    await useAuthStore.getState().login('alice@example.com', 'password123');
+    const u = useAuthStore.getState().user;
+    expect(u!.trialStartedAt).toBe(null);
+    expect(u!.tokenVersion).toBe(0);
   });
 
   it('login failure (401) leaves user null and propagates error', async () => {
@@ -82,5 +95,49 @@ describe('authStore', () => {
     await useAuthStore.getState().login('alice@example.com', 'password123');
     const second = useAuthStore.getState().user;
     expect(first?.email).toBe(second?.email);
+  });
+
+  it('refresh() populates user from /api/account/me', async () => {
+    await useAuthStore.getState().refresh();
+    const u = useAuthStore.getState().user;
+    expect(u).not.toBe(null);
+    expect(u!.id).toBe(1);
+    expect(u!.email).toBe('alice@example.com');
+    expect(u!.planTier).toBe('trial');
+    expect(u!.trialStartedAt).toBe('2026-04-22T12:00:00Z');
+    expect(u!.tokenVersion).toBe(0);
+    expect(useAuthStore.getState().isHydrating).toBe(false);
+  });
+
+  it('refresh() 401 leaves user null without throwing', async () => {
+    server.use(
+      http.get('/api/account/me', () =>
+        HttpResponse.json({ detail: 'Authentication required' }, { status: 401 }),
+      ),
+    );
+    await expect(useAuthStore.getState().refresh()).resolves.toBeUndefined();
+    expect(useAuthStore.getState().user).toBe(null);
+    expect(useAuthStore.getState().isHydrating).toBe(false);
+  });
+
+  it('refresh() flips isHydrating to false on success', async () => {
+    expect(useAuthStore.getState().isHydrating).toBe(true);
+    await useAuthStore.getState().refresh();
+    expect(useAuthStore.getState().isHydrating).toBe(false);
+  });
+
+  it('refresh() flips isHydrating to false on network error', async () => {
+    server.use(http.get('/api/account/me', () => HttpResponse.error()));
+    await useAuthStore.getState().refresh();
+    expect(useAuthStore.getState().isHydrating).toBe(false);
+    expect(useAuthStore.getState().user).toBe(null);
+  });
+
+  it('logout does not re-hydrate (isHydrating untouched)', async () => {
+    await useAuthStore.getState().refresh();
+    expect(useAuthStore.getState().isHydrating).toBe(false);
+    await useAuthStore.getState().logout();
+    expect(useAuthStore.getState().isHydrating).toBe(false);
+    expect(useAuthStore.getState().user).toBe(null);
   });
 });
