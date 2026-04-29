@@ -180,7 +180,15 @@ async def login(
 
 
 @auth_router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(request: Request, response: Response) -> Response:
-    """Clear session + CSRF cookies. Idempotent — no-op if no session."""
+async def logout(request: Request) -> Response:
+    """Clear session + CSRF cookies. Idempotent — no-op if no session.
+
+    Returns a brand-new Response (not the injected one) so the Set-Cookie
+    deletions are emitted on the wire. Using the injected ``Response``
+    parameter combined with ``return Response(...)`` discards the deletion
+    headers (FastAPI ignores the injected response when an explicit one is
+    returned).
+    """
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
     _clear_auth_cookies(response)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return response
