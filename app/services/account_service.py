@@ -59,9 +59,15 @@ class AccountService:
         Returns counts: ``{"tasks_deleted": N, "files_deleted": M}``.
         File deletion is best-effort (no failure if file missing).
         Users row is intentionally preserved.
+
+        Commits the tasks DELETE itself — only the SCOPE-05 surface
+        (DELETE /api/account/data) calls this entry point. SCOPE-06
+        (``delete_account``) uses ``_delete_tasks_for_user_no_commit`` and
+        commits all cascade steps atomically (WR-01).
         """
         file_names = self._collect_user_file_names(user_id)
-        tasks_deleted = self._delete_tasks_for_user(user_id)
+        tasks_deleted = self._delete_tasks_for_user_no_commit(user_id)
+        self.session.commit()
         files_deleted = self._delete_files(file_names)
         logger.info(
             "Account data deleted user_id=%s tasks=%s files=%s",
@@ -155,10 +161,17 @@ class AccountService:
                 user_message="Confirmation email does not match",
             )
 
-        # Step 1: tasks (SET NULL FK) + uploaded files. Reuses SCOPE-05
-        # path which commits internally — that is fine; steps are
-        # independent and idempotent.
-        counts = self.delete_user_data(user_id)
+        # WR-01: collect file names BEFORE any DELETE (tasks row gone after
+        # step 1) and run all three cascade DELETEs in a single transaction.
+        # The original implementation committed tasks first via
+        # delete_user_data, leaving a partial-delete window: a failure on
+        # step 2 or 3 would strand the user row alive with tasks already
+        # gone (broken half-deleted state). Single commit at the end keeps
+        # the cascade atomic; file unlink stays best-effort AFTER commit.
+        file_names = self._collect_user_file_names(user_id)
+
+        # Step 1: tasks (SET NULL FK) — no intermediate commit.
+        tasks_deleted = self._delete_tasks_for_user_no_commit(user_id)
 
         # Step 2: rate_limit_buckets (no FK; prefix-match avoids ip:*
         # keys). Pattern locked: 'user:<uid>:%' — matches user:42:hour,
@@ -176,18 +189,31 @@ class AccountService:
         # PRAGMA foreign_keys=ON enforced globally (Phase 10-04 boot).
         deleted = self._user_repository.delete(user_id)
         if not deleted:
-            # Race-defensive: another delete won. Treat as user-not-found.
+            # Race-defensive: another delete won. Roll back our staged
+            # DELETEs from steps 1+2 so we don't half-commit a cascade
+            # the other transaction already drove.
+            self.session.rollback()
             raise InvalidCredentialsError()
+
+        # Single atomic commit for all three cascade steps (WR-01).
         self.session.commit()
+
+        # File deletion is best-effort, after DB commit. A failure here
+        # leaves orphan files but does NOT corrupt account state.
+        files_deleted = self._delete_files(file_names)
 
         logger.info(
             "Account deleted user_id=%s tasks=%s files=%s buckets=%s",
             user_id,
-            counts["tasks_deleted"],
-            counts["files_deleted"],
+            tasks_deleted,
+            files_deleted,
             bucket_count,
         )
-        return {**counts, "rate_limit_buckets_deleted": bucket_count}
+        return {
+            "tasks_deleted": tasks_deleted,
+            "files_deleted": files_deleted,
+            "rate_limit_buckets_deleted": bucket_count,
+        }
 
     def _collect_user_file_names(self, user_id: int) -> list[str]:
         rows = self.session.execute(
@@ -199,12 +225,17 @@ class AccountService:
         ).all()
         return [row[0] for row in rows if row[0]]
 
-    def _delete_tasks_for_user(self, user_id: int) -> int:
+    def _delete_tasks_for_user_no_commit(self, user_id: int) -> int:
+        """Stage DELETE FROM tasks for ``user_id``; caller owns commit.
+
+        WR-01: separated from any commit so SCOPE-06 (``delete_account``)
+        can issue all three cascade DELETEs in one transaction. SCOPE-05
+        (``delete_user_data``) commits explicitly after calling this.
+        """
         result = self.session.execute(
             text("DELETE FROM tasks WHERE user_id = :uid"),
             {"uid": user_id},
         )
-        self.session.commit()
         return int(result.rowcount or 0)
 
     def _delete_files(self, file_names: list[str]) -> int:
