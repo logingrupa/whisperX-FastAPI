@@ -53,7 +53,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [ ] **KEY-05**: User can list their API keys with name, prefix, created_at, last_used_at, status (active/revoked)
 - [ ] **KEY-06**: User can have multiple active API keys simultaneously (no hard cap in v1.2)
 - [ ] **KEY-07**: User can revoke an API key; revoked keys are soft-deleted (kept indefinitely for audit until account deletion)
-- [ ] **KEY-08**: API key prefix lookup is indexed (no full-table scan on every bearer request)
+- [x] **KEY-08**: API key prefix lookup is indexed (no full-table scan on every bearer request)
 
 ### Dual-Auth Middleware (`MID-*`)
 
@@ -219,7 +219,7 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | KEY-05 | Phase 13 | Pending |
 | KEY-06 | Phase 13 | Pending |
 | KEY-07 | Phase 13 | Pending |
-| KEY-08 | Phase 11 | Pending |
+| KEY-08 | Phase 11 | Complete |
 | MID-01 | Phase 13 | Pending |
 | MID-02 | Phase 13 | Pending |
 | MID-03 | Phase 13 | Pending |

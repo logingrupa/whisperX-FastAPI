@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: executing
-stopped_at: Plan 10-04 complete — Phase 10 schema-foundation milestone closed; PRAGMA listener + tests all green
-last_updated: "2026-04-29T06:01:00.664Z"
+stopped_at: Plan 11-03 complete — 4 entities + 4 Protocols + 4 mappers + 4 SQLAlchemy repos; KEY-08 indexed get_by_prefix and BEGIN IMMEDIATE upsert verified
+last_updated: "2026-04-29T06:10:08.141Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 1
   total_plans: 9
-  completed_plans: 6
-  percent: 67
+  completed_plans: 7
+  percent: 78
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 11 (Auth Core Modules + Services + DI) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-04-29
 
@@ -54,6 +54,7 @@ Last activity: 2026-04-29
 | Phase 10 P04 | 9 | 3 tasks | 2 files |
 | Phase 11 P01 | 6 | 2 tasks | 6 files |
 | Phase 11 P02 | 9m | 2 tasks | 12 files |
+| Phase 11 P03 | 5m | 2 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -116,6 +117,11 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [11-02]: JWT sub claim serialized as str(user_id) per RFC 7519 §4.1.2 (PyJWT 2.x enforces); callers recover int via int(payload['sub'])
 - [Phase ?]: [11-02]: rate_limit.consume on rejection bumps last_refill but preserves tokens — when rate=0 refill is no-op so tokens unchanged
 - [Phase ?]: [11-02]: jwt.decode/jwt.encode locked to single site app/core/jwt_codec.py — verifier-enforced grep gate
+- [Phase ?]: [11-03]: Domain layer framework-free verified — grep -rn 'from sqlalchemy' app/domain/ returns 0; entities, Protocols, mappers all pure Python
+- [Phase ?]: [11-03]: SQLAlchemyApiKeyRepository.get_by_prefix uses idx_api_keys_prefix from Phase 10 + filters revoked_at IS NULL — KEY-08 + T-11-12 mitigated at persistence layer
+- [Phase ?]: [11-03]: SQLAlchemyRateLimitRepository.upsert_atomic wraps read+write in text('BEGIN IMMEDIATE') for SQLite worker-safety — single RESERVED lock for the whole upsert (T-11-10)
+- [Phase ?]: [11-03]: get_by_prefix returns list[ApiKey] (not Optional) — 8-char url-safe base64 prefix has tiny but non-zero collision probability; KeyService.verify iterates and uses secrets.compare_digest on hash to disambiguate
+- [Phase ?]: [11-03]: DeviceFingerprint repository is insert+read-only — no update or delete methods (audit-trail design per ANTI-03); future plans wanting deletion must explicitly extend Protocol
 
 ### Pending Todos
 
@@ -131,6 +137,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T06:00:33.979Z
-Stopped at: Plan 10-04 complete — Phase 10 schema-foundation milestone closed; PRAGMA listener + tests all green
+Last session: 2026-04-29T06:10:08.135Z
+Stopped at: Plan 11-03 complete — 4 entities + 4 Protocols + 4 mappers + 4 SQLAlchemy repos; KEY-08 indexed get_by_prefix and BEGIN IMMEDIATE upsert verified
 Resume file: None
