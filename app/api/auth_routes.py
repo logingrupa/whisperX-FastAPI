@@ -31,6 +31,11 @@ import logging
 
 from fastapi import APIRouter, Depends, Request, Response, status
 
+from app.api._cookie_helpers import (
+    CSRF_COOKIE,
+    SESSION_COOKIE,
+    clear_auth_cookies,
+)
 from app.api.dependencies import get_auth_service, get_csrf_service
 from app.api.schemas.auth_schemas import AuthResponse, LoginRequest, RegisterRequest
 from app.core.config import get_settings
@@ -48,9 +53,6 @@ logger = logging.getLogger(__name__)
 PASSWORD_RESET_HINT = (
     "Password reset is manual — please email hey@logingrupa.lv (AUTH-07)."
 )
-
-SESSION_COOKIE = "session"
-CSRF_COOKIE = "csrf_token"
 
 # Anti-enumeration: identical message + code for disposable + duplicate
 # rejection. Constants force DRY use; verifier greps both ≥2.
@@ -96,12 +98,6 @@ def _set_auth_cookies(
         path="/",
         domain=domain,
     )
-
-
-def _clear_auth_cookies(response: Response) -> None:
-    """Clear both session and csrf cookies (used by logout)."""
-    response.delete_cookie(SESSION_COOKIE, path="/")
-    response.delete_cookie(CSRF_COOKIE, path="/")
 
 
 def _registration_failed() -> ValidationError:
@@ -190,5 +186,5 @@ async def logout(request: Request) -> Response:
     returned).
     """
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
-    _clear_auth_cookies(response)
+    clear_auth_cookies(response)
     return response
