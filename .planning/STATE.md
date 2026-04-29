@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: executing
-stopped_at: Plan 13-04 complete — POST/GET/DELETE /api/keys + show-once + trial-trigger + cross-user 404; 12 integration tests pass; 3 commits (30cb055, f4d7763, 459cd25)
-last_updated: "2026-04-29T10:27:50.476Z"
+stopped_at: Plan 13-05 complete — DELETE /api/account/data + Stripe stubs (POST /billing/checkout 501 + /billing/webhook 501 with Stripe-Signature schema check); 12 integration tests pass; PUBLIC_ALLOWLIST extended with /billing/webhook (Rule 3 deviation); 3 commits (db9a24d, 2afedb2, 9661697)
+last_updated: "2026-04-29T10:42:00.281Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 23
-  completed_plans: 17
-  percent: 74
+  completed_plans: 18
+  percent: 78
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 13 (Atomic Backend Cutover) — EXECUTING
-Plan: 5 of 10
+Plan: 6 of 10
 Status: Ready to execute
 Last activity: 2026-04-29
 
@@ -67,6 +67,7 @@ Last activity: 2026-04-29
 | Phase 13 P02 | 6m | 2 tasks | 5 files |
 | Phase 13 P03 | ~17m | 3 tasks | 7 files |
 | Phase 13 P04 | 4 min | - tasks | - files |
+| Phase 13 P05 | 10 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -174,6 +175,11 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [13-04]: Cross-user DELETE 404 mechanism uses list_for_user-then-filter — KeyService.list_for_user already scopes to user_id; foreign keys never appear in candidate list (T-13-15); identical 404 body for missing-id and foreign-id
 - [Phase ?]: [13-04]: Show-once UX enforced at TWO layers — route returns key=plaintext only in CreateKeyResponse; ListKeyItem schema lacks key field entirely (Pydantic discards on serialize, defence-in-depth)
 - [Phase ?]: [13-04]: Integration tests use TWO TestClient instances for cross-user (separate cookie jars same app+DB); bearer auth path bootstraps via cookie POST then re-issues plaintext as Authorization: Bearer
+- [Phase ?]: [13-05]: AccountService.delete_user_data takes raw Session (not ITaskRepository) — bulk DELETE via text() with bound :uid is leak-proof (no ORM cascade surprise); does NOT depend on Phase 13-07
+- [Phase ?]: [13-05]: get_db_session generator added to dependencies.py — yields managed Container.db_session_factory() session for non-repository services; closes on exit; Phase 15 SCOPE-06 full-row delete composes against this helper
+- [Phase ?]: [13-05]: PUBLIC_ALLOWLIST extended with /billing/webhook (Rule 3 deviation) — Stripe calls server-to-server; authenticity is via Stripe-Signature HMAC (v1.3); schema-check at 400 is the v1.2 security boundary
+- [Phase ?]: [13-05]: Stripe-Signature regex t=<unix>,vN=<hex>,?+ validates schema only (rejects malformed/spam at 400); v1.3 replaces with stripe.Webhook.construct_event for full HMAC verification
+- [Phase ?]: [13-05]: BILL-07 import stripe at module-load — verifier-checked zero runtime stripe.*() calls in app/; v1.2 dependency tree resolves identically to v1.3 build
 
 ### Pending Todos
 
@@ -189,6 +195,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T10:27:50.470Z
-Stopped at: Plan 13-04 complete — POST/GET/DELETE /api/keys + show-once + trial-trigger + cross-user 404; 12 integration tests pass; 3 commits (30cb055, f4d7763, 459cd25)
+Last session: 2026-04-29T10:42:00.275Z
+Stopped at: Plan 13-05 complete — DELETE /api/account/data + Stripe stubs (POST /billing/checkout 501 + /billing/webhook 501 with Stripe-Signature schema check); 12 integration tests pass; PUBLIC_ALLOWLIST extended with /billing/webhook (Rule 3 deviation); 3 commits (db9a24d, 2afedb2, 9661697)
 Resume file: None

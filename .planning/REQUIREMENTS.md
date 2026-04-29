@@ -71,7 +71,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [ ] **SCOPE-02**: `ITaskRepository` exposes `set_user_scope(user_id)` that pushes the filter into the SQL `WHERE` clause for all reads and writes
 - [ ] **SCOPE-03**: `GET /tasks` returns only tasks owned by the authenticated user (cross-user matrix tests prove this for every endpoint)
 - [ ] **SCOPE-04**: `GET /task/{id}`, `DELETE /task/{id}`, `POST /speech-to-text*`, TUS upload routes, callback routes are all user-scoped
-- [ ] **SCOPE-05**: User can call `DELETE /api/account/data` to delete all their tasks and uploaded files; user row is preserved
+- [x] **SCOPE-05**: User can call `DELETE /api/account/data` to delete all their tasks and uploaded files; user row is preserved
 - [ ] **SCOPE-06**: User can call `DELETE /api/account` to delete their account entirely (cascades to tasks, api_keys, subscriptions, usage_events); type-email confirmation required at UI
 
 ### Rate Limiting and Free Tier (`RATE-*`)
@@ -100,10 +100,10 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 
 ### Stripe-Ready Billing Schema (`BILL-*`)
 
-- [ ] **BILL-01**: User row has `plan_tier` enum (`free | trial | pro | team`) defaulting to `trial` after first key creation
-- [ ] **BILL-02**: User row has nullable `stripe_customer_id` (will be populated when Stripe goes live in v1.3)
-- [ ] **BILL-03**: `subscriptions` table is present with `stripe_subscription_id`, `plan`, `status`, `current_period_start`, `current_period_end`, `cancelled_at` (all nullable, populated by Stripe webhook in v1.3)
-- [ ] **BILL-04**: `usage_events` table is populated by every completed transcription (foundation for Stripe metered billing in v1.3)
+- [x] **BILL-01**: User row has `plan_tier` enum (`free | trial | pro | team`) defaulting to `trial` after first key creation
+- [x] **BILL-02**: User row has nullable `stripe_customer_id` (will be populated when Stripe goes live in v1.3)
+- [x] **BILL-03**: `subscriptions` table is present with `stripe_subscription_id`, `plan`, `status`, `current_period_start`, `current_period_end`, `cancelled_at` (all nullable, populated by Stripe webhook in v1.3)
+- [x] **BILL-04**: `usage_events` table is populated by every completed transcription (foundation for Stripe metered billing in v1.3)
 - [ ] **BILL-05**: `POST /billing/checkout` is a stub returning `501 Not Implemented` with a placeholder response (no live Stripe integration)
 - [ ] **BILL-06**: `POST /billing/webhook` is a stub that validates `Stripe-Signature` header schema (rejects malformed) and returns `501 Not Implemented`
 - [x] **BILL-07**: System imports `stripe` package (15.1.0) but performs zero runtime API calls in v1.2
@@ -231,7 +231,7 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | SCOPE-02 | Phase 13 | Pending |
 | SCOPE-03 | Phase 13 | Pending |
 | SCOPE-04 | Phase 13 | Pending |
-| SCOPE-05 | Phase 13 | Pending |
+| SCOPE-05 | Phase 13 | Complete |
 | SCOPE-06 | Phase 15 | Pending |
 | RATE-01 | Phase 13 | Pending |
 | RATE-02 | Phase 13 | Pending |
@@ -251,10 +251,10 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | ANTI-04 | Phase 13 | Complete |
 | ANTI-05 | Phase 13 | Complete |
 | ANTI-06 | Phase 13 | Complete |
-| BILL-01 | Phase 13 | Pending |
-| BILL-02 | Phase 13 | Pending |
-| BILL-03 | Phase 13 | Pending |
-| BILL-04 | Phase 13 | Pending |
+| BILL-01 | Phase 13 | Complete |
+| BILL-02 | Phase 13 | Complete |
+| BILL-03 | Phase 13 | Complete |
+| BILL-04 | Phase 13 | Complete |
 | BILL-05 | Phase 15 | Pending |
 | BILL-06 | Phase 15 | Pending |
 | BILL-07 | Phase 13 | Complete |
