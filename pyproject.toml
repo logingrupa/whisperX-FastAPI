@@ -52,6 +52,8 @@ dependencies = [
     "argon2-cffi>=23.1.0",  # Argon2id password hashing (Phase 11 / AUTH-02)
     "pyjwt>=2.8.0",         # JWT HS256 encode/decode (Phase 11 / AUTH-08)
     "typer[all]>=0.12.0",   # Admin CLI framework (Phase 12 / OPS-01, OPS-02)
+    "slowapi>=0.1.9",       # Token-bucket + per-IP rate limiting (Phase 13 / RATE-01)
+    "stripe==15.1.0",       # Imported at boot; zero runtime calls in v1.2 (Phase 13 / BILL-07)
 ]
 
 [project.optional-dependencies]
