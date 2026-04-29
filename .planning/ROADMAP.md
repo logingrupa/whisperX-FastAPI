@@ -22,7 +22,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
  (completed 2026-04-29)
 - [x] **Phase 12: Admin CLI + Task Backfill** — Typer CLI seeds admin user + backfills `tasks.user_id`; FK NOT NULL constraint applied last (completed 2026-04-29)
 - [x] **Phase 13: Atomic Backend Cutover (ATOMIC PAIR with Phase 14)** — DualAuthMiddleware + auth/keys/account routes + per-user scoping + WS ticket + CSRF + CORS lockdown + rate-limit + free-tier gates + Stripe schema stubs (completed 2026-04-29)
-- [ ] **Phase 14: Atomic Frontend Cutover + Test Infra (ATOMIC PAIR with Phase 13)** — Router shell + auth pages + dashboard (keys/usage) + apiClient wrapper + zustand store + BroadcastChannel + Vitest/RTL/MSW
+- [x] **Phase 14: Atomic Frontend Cutover + Test Infra (ATOMIC PAIR with Phase 13)** — Router shell + auth pages + dashboard (keys/usage) + apiClient wrapper + zustand store + BroadcastChannel + Vitest/RTL/MSW (completed 2026-04-29)
 - [ ] **Phase 15: Account Dashboard Hardening + Billing Stubs** — Account page (delete + logout-all-devices + Pro upgrade CTA) + checkout/webhook 501 stubs
 - [ ] **Phase 16: Verification + Cross-User Matrix + E2E** — Cross-user tests + JWT attack tests + WS ticket reuse + CSRF mismatch + migration smoke against records.db
 - [ ] **Phase 17: Docs + Migration Runbook + Operator Guide** — `.env.example`, README auth flow, migration runbook, OpenAPI updates
@@ -119,7 +119,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - [x] 14-04-PLAN.md — Router shell + RequireAuth + TranscribePage (verbatim) + AccountStubPage (Wave 4)
 - [x] 14-05-PLAN.md — Login + Register pages + AuthCard + FormFieldRow + PasswordStrengthMeter (Wave 5)
 - [x] 14-06-PLAN.md — KeysDashboardPage + UsageDashboardPage + create/revoke modals + LogoutButton (Wave 5)
-- [ ] 14-07-PLAN.md — Refactor api/upload helpers to apiClient + WS ticket helper + TEST-06 smoke (Wave 3)
+- [x] 14-07-PLAN.md — Refactor api/upload helpers to apiClient + WS ticket helper + TEST-06 smoke (Wave 3)
 **UI hint**: yes
 
 ### Phase 15: Account Dashboard Hardening + Billing Stubs
@@ -177,7 +177,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | 11. Auth Core Modules + Services + DI | v1.2 | 5/5 | Complete    | 2026-04-29 |
 | 12. Admin CLI + Task Backfill | v1.2 | 4/4 | Complete    | 2026-04-29 |
 | 13. Atomic Backend Cutover | v1.2 | 10/10 | Complete    | 2026-04-29 |
-| 14. Atomic Frontend Cutover + Test Infra | v1.2 | 6/7 | In Progress|  |
+| 14. Atomic Frontend Cutover + Test Infra | v1.2 | 7/7 | Complete   | 2026-04-29 |
 | 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 0/TBD | Not started | - |
 | 16. Verification + Cross-User Matrix + E2E | v1.2 | 0/TBD | Not started | - |
 | 17. Docs + Migration Runbook + Operator Guide | v1.2 | 0/TBD | Not started | - |

@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: executing
+status: verifying
 stopped_at: Plan 14-05 complete — LoginPage + RegisterPage with react-hook-form + zod + AuthCard + PasswordStrengthMeter; 19 new tests (48/48 total green); 4 atomic commits (c56992f, a93055c, 26af6df, a2ee586)
-last_updated: "2026-04-29T14:05:03.140Z"
+last_updated: "2026-04-29T14:50:50.101Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 30
-  completed_plans: 29
-  percent: 97
+  completed_plans: 30
+  percent: 100
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 
 Phase: 14 (Atomic Frontend Cutover + Test Infra) — EXECUTING
 Plan: 7 of 7
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-29
 
 ## Performance Metrics
@@ -81,6 +81,7 @@ Last activity: 2026-04-29
 | Phase 14 P04 | 4m 9s | 2 tasks | 17 files |
 | Phase 14 P05 | 5m 30s | 2 tasks | 10 files |
 | Phase 14 P06 | 5m 28s | 2 tasks | 9 files |
+| Phase 14 P07 | 4m 28s | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -240,6 +241,12 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: Plan 14-06: KeysDashboardPage two-state CreateKeyDialog (form -> show-once) keeps plaintext in component state only (T-14-15); reset() clears on close
 - [Phase ?]: Plan 14-06: Trial countdown derives client-side from earliest active key + 7d (RATE-08 proxy until Phase 15 /api/account/me)
 - [Phase ?]: Plan 14-06: vi.spyOn(navigator.clipboard, 'writeText') AFTER userEvent.setup() - robust clipboard test pattern under user-event v14
+- [Phase ?]: [14-07]: GLOBAL ZERO-FETCH GATE locked — apiClient.ts is the SOLE fetch() site in frontend/src; 3 prior direct-fetch sites (taskApi, transcriptionApi, useTaskProgress) eliminated; CI-grep-enforceable invariant
+- [Phase ?]: [14-07]: ApiResult<T> external shape preserved across cutover — consumers (FileQueueItem.tsx, useUploadOrchestration.ts) unchanged; internal fetch->apiClient swap invisible to UI code
+- [Phase ?]: [14-07]: WS ticket-aware socketUrl is useState seeded by useEffect on taskId; null gates connection until ticket lands; onClose+reconnect re-issue tickets unconditionally for single-use compliance (T-14-19 client mitigation)
+- [Phase ?]: [14-07]: TEST-06 floor is 3 smoke assertions (CTA, file-add, start-affordance); deeper progress->complete chain has non-deterministic timing — Phase 16 owns Playwright E2E for the full chain
+- [Phase ?]: [14-07]: MockWebSocket inline class via vi.stubGlobal in smoke.test.tsx — kept inside test file, not extracted to setup.ts (premature-abstraction guard until 3+ tests need it)
+- [Phase ?]: [14-07]: Catch chain order locked: AuthRequiredError rethrown -> RateLimitError -> ApiClientError -> generic Error; subtype-first keeps rate-limit branch reachable (RateLimitError extends ApiClientError)
 
 ### Pending Todos
 
@@ -255,6 +262,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T14:04:27.664Z
+Last session: 2026-04-29T14:50:16.078Z
 Stopped at: Plan 14-05 complete — LoginPage + RegisterPage with react-hook-form + zod + AuthCard + PasswordStrengthMeter; 19 new tests (48/48 total green); 4 atomic commits (c56992f, a93055c, 26af6df, a2ee586)
 Resume file: None

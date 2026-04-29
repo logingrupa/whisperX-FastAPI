@@ -131,7 +131,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [x] **TEST-03**: Project has MSW 2.13 with handlers in `frontend/src/tests/msw/handlers.ts` and worker init in `frontend/public/`
 - [x] **TEST-04**: Tests cover `apiClient.ts` 401 redirect, login form validation + happy path, register form validation, API key creation flow (show-once + copy), authStore login/logout actions, BroadcastChannel cross-tab sync
 - [x] **TEST-05**: All async UI tests use `await user.click()` / `findByRole` to avoid React 19 + RTL 16 `act()` warnings
-- [ ] **TEST-06**: Existing functionality (upload, transcribe, progress, export) is regression-covered by smoke tests
+- [x] **TEST-06**: Existing functionality (upload, transcribe, progress, export) is regression-covered by smoke tests
 
 ### Operations and Tooling (`OPS-*`)
 
@@ -276,7 +276,7 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | TEST-03 | Phase 14 | Complete |
 | TEST-04 | Phase 14 | Complete |
 | TEST-05 | Phase 14 | Complete |
-| TEST-06 | Phase 14 | Pending |
+| TEST-06 | Phase 14 | Complete |
 | OPS-01 | Phase 12 | Complete |
 | OPS-02 | Phase 12 | Complete |
 | OPS-03 | Phase 17 | Pending |
