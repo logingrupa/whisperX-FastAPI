@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -66,7 +66,11 @@ describe('KeysDashboardPage', () => {
   });
 
   it('copy-to-clipboard works in show-once view', async () => {
+    // userEvent.setup() v14 replaces navigator.clipboard with its own
+    // implementation — install a spy on the *resulting* clipboard so we
+    // can assert the call regardless of provider (KEY-04 contract).
     const user = userEvent.setup();
+    const writeSpy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue();
     renderPage();
     await screen.findByText('default');
     const createButtons = screen.getAllByRole('button', { name: /create key/i });
@@ -76,9 +80,7 @@ describe('KeysDashboardPage', () => {
     await screen.findByTestId('created-key-plaintext');
     const copyBtn = screen.getByRole('button', { name: /copy/i });
     await user.click(copyBtn);
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      expect.stringContaining('whsk_xyz2_'),
-    );
+    expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('whsk_xyz2_'));
   });
 
   it('revoke flow: clicks revoke -> confirms -> calls DELETE /api/keys/:id', async () => {
