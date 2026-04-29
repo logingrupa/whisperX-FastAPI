@@ -601,3 +601,115 @@ class MissingConfigurationError(ConfigurationError):
             user_message="A required configuration is missing. Please contact support.",
             parameter=parameter,
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 11 — Auth-related exceptions
+# Per .planning/phases/11-auth-core-modules-services-di/11-CONTEXT.md §156-163.
+# ---------------------------------------------------------------------------
+
+
+class InvalidCredentialsError(DomainError):
+    """Generic 'email or password wrong' — must NOT reveal which leg failed."""
+
+    def __init__(self, correlation_id: Optional[str] = None) -> None:
+        super().__init__(
+            message="Invalid credentials",
+            code="INVALID_CREDENTIALS",
+            user_message="Invalid email or password.",
+            correlation_id=correlation_id,
+        )
+
+
+class UserAlreadyExistsError(ValidationError):
+    """Registration attempted with an email that already exists."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            message="User with email already exists",
+            code="USER_ALREADY_EXISTS",
+            user_message="An account with this email already exists.",
+            field="email",
+        )
+
+
+class InvalidApiKeyFormatError(ValidationError):
+    """API key plaintext failed shape validation (prefix/length)."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(
+            message=f"Invalid API key format: {reason}",
+            code="INVALID_API_KEY_FORMAT",
+            user_message="The provided API key is malformed.",
+            reason=reason,
+        )
+
+
+class InvalidApiKeyHashError(DomainError):
+    """API key hash compare failed (constant-time)."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            message="API key hash mismatch",
+            code="INVALID_API_KEY",
+            user_message="The provided API key is invalid.",
+        )
+
+
+class JwtAlgorithmError(DomainError):
+    """JWT decode rejected because algorithm is not HS256."""
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(
+            message=f"JWT algorithm rejected: {detail}",
+            code="JWT_ALGORITHM_ERROR",
+            user_message="Authentication token is invalid.",
+            detail=detail,
+        )
+
+
+class JwtExpiredError(DomainError):
+    """JWT exp claim is in the past."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            message="JWT expired",
+            code="JWT_EXPIRED",
+            user_message="Your session has expired. Please log in again.",
+        )
+
+
+class JwtTamperedError(DomainError):
+    """JWT signature invalid OR claims fail token-version check."""
+
+    def __init__(self, detail: str = "") -> None:
+        super().__init__(
+            message=f"JWT signature/claims invalid: {detail}",
+            code="JWT_TAMPERED",
+            user_message="Authentication token is invalid.",
+            detail=detail,
+        )
+
+
+class WeakPasswordError(ValidationError):
+    """Password rejected by complexity rules (Phase 13 wires the policy)."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(
+            message=f"Password rejected: {reason}",
+            code="WEAK_PASSWORD",
+            user_message=f"Password is too weak: {reason}",
+            reason=reason,
+        )
+
+
+class RateLimitExceededError(DomainError):
+    """Token bucket consume returned False — caller should 429."""
+
+    def __init__(self, bucket_key: str, retry_after_seconds: int) -> None:
+        super().__init__(
+            message=f"Rate limit exceeded for bucket={bucket_key}",
+            code="RATE_LIMIT_EXCEEDED",
+            user_message="Too many requests. Please try again later.",
+            retry_after_seconds=retry_after_seconds,
+        )

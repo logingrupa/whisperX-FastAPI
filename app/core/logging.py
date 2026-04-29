@@ -41,3 +41,10 @@ logger.setLevel(log_level)
 logger.info(f"Environment: {env}")
 logger.info(f"Log level: {log_level}")
 logger.debug(f"Debug messages enabled: {debug}")
+
+# Wire redaction filter onto the whisperX logger (Phase 11 / AUTH-09).
+# Defense-in-depth: services should not log raw passwords/secrets/keys at all,
+# but if they slip through structured `extra={...}` fields, the filter scrubs.
+from app.core._log_redaction import RedactingFilter  # noqa: E402
+
+logger.addFilter(RedactingFilter())
