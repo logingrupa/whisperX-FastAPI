@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: verifying
-stopped_at: Plan 12-04 complete — 0003 migration + e2e test (SCOPE-01 satisfied; Phase 12 ready for /gsd-verify-phase 12-admin-cli-task-backfill; 509b2ab + 970a54f)
-last_updated: "2026-04-29T09:04:21.443Z"
+status: executing
+stopped_at: Plan 13-01 complete — slowapi+stripe deps, AuthSettings extended (8 envs + 2 prod guards), feature_flags helper, 5413-entry disposable-email blocklist (f71a7dd, 588f5c4, c7482d1)
+last_updated: "2026-04-29T09:54:33.157Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 3
-  total_plans: 13
-  completed_plans: 13
-  percent: 100
+  total_plans: 23
+  completed_plans: 14
+  percent: 61
 ---
 
 # Project State
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-29)
 
 **Core value:** Users can sign up, get API keys, and use WhisperX via browser or external API with free-tier limits and Stripe-ready billing
-**Current focus:** Phase 12 — Admin CLI + Task Backfill
+**Current focus:** Phase 13 — Atomic Backend Cutover
 
 ## Current Position
 
-Phase: 13
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 13 (Atomic Backend Cutover) — EXECUTING
+Plan: 2 of 10
+Status: Ready to execute
 Last activity: 2026-04-29
 
 ## Performance Metrics
@@ -63,6 +63,7 @@ Last activity: 2026-04-29
 | Phase 12 P02 | 5 min | 1 tasks (TDD) | 3 files |
 | Phase 12 P03 | 3 | 1 tasks | 2 files |
 | Phase 12 P04 | 90 min | 2 tasks tasks | 3 files files |
+| Phase 13 P01 | 3m 39s | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -149,6 +150,10 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [12-04]: 0003 migration pre-flight orphan guard — bind.execute SELECT COUNT(*) FROM tasks WHERE user_id IS NULL; raises RuntimeError if > 0; refuses to alter column rather than fail mid-batch (CONTEXT 138 tiger-style)
 - [Phase ?]: [12-04]: e2e integration test uses subprocess (not in-process CliRunner) because SQLAlchemy engine binds DB_URL at module-load; subprocess re-imports against tmp DB. Pattern matches Phase 10 test_alembic_migration.py
 - [Phase ?]: [12-04]: Windows getpass.getpass cannot be piped via subprocess; msvcrt.getwch reads keyboard directly. Test-only -c preamble monkey-patches getpass.getpass BEFORE app.cli imports. Production source untouched (CONTEXT 141)
+- [Phase ?]: [13-01]: slowapi 0.1.9 + stripe 15.1.0 added; stripe imported at module-load only per BILL-07 (zero runtime calls in v1.2)
+- [Phase ?]: [13-01]: AuthSettings extended with 8 Phase-13 envs (V2_ENABLED, FRONTEND_URL, COOKIE_SECURE/DOMAIN, TRUST_CF_HEADER, HCAPTCHA_*); validator refuses boot when V2 + localhost FRONTEND_URL or COOKIE_SECURE=false
+- [Phase ?]: [13-01]: app/core/feature_flags.py single source for is_auth_v2_enabled / is_hcaptcha_enabled; flat returns, no nested-if (DRY — downstream never imports AuthSettings directly)
+- [Phase ?]: [13-01]: data/disposable-emails.txt bundled with 5413 entries from disposable-email-domains GitHub master (deterministic boot); loader scheduled for Plan 13-03
 
 ### Pending Todos
 
@@ -164,6 +169,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T08:59:10.968Z
-Stopped at: Plan 12-04 complete — 0003 migration + e2e test (SCOPE-01 satisfied; Phase 12 ready for /gsd-verify-phase 12-admin-cli-task-backfill; 509b2ab + 970a54f)
+Last session: 2026-04-29T09:54:33.151Z
+Stopped at: Plan 13-01 complete — slowapi+stripe deps, AuthSettings extended (8 envs + 2 prod guards), feature_flags helper, 5413-entry disposable-email blocklist (f71a7dd, 588f5c4, c7482d1)
 Resume file: None

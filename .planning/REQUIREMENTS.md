@@ -59,7 +59,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 
 - [ ] **MID-01**: System replaces existing `BearerAuthMiddleware` with `DualAuthMiddleware` accepting both cookie session JWT and `whsk_*` API key
 - [ ] **MID-02**: Middleware sets `request.state.user`, `request.state.plan_tier`, `request.state.auth_method`, `request.state.api_key_id`
-- [ ] **MID-03**: Middleware allowlists public paths: `/health`, `/health/live`, `/health/ready`, `/`, `/openapi.json`, `/docs`, `/redoc`, `/static`, `/favicon.ico`, `/auth/register`, `/auth/login`, `/ui/login`, `/ui/register`
+- [x] **MID-03**: Middleware allowlists public paths: `/health`, `/health/live`, `/health/ready`, `/`, `/openapi.json`, `/docs`, `/redoc`, `/static`, `/favicon.ico`, `/auth/register`, `/auth/login`, `/ui/login`, `/ui/register`
 - [ ] **MID-04**: Bearer-authenticated routes skip CSRF verification automatically; cookie-authenticated state-mutating routes require `X-CSRF-Token` header (double-submit cookie pattern)
 - [ ] **MID-05**: System updates `tus_upload_api` to accept dual auth (API key for external clients, cookie+CSRF for browser)
 - [ ] **MID-06**: WebSocket endpoint requires a single-use 60-second ticket (issued via `POST /api/ws/ticket`, consumed via `?ticket=...` query param) — no subprotocol auth (Cloudflare strips)
@@ -94,9 +94,9 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [ ] **ANTI-01**: `POST /auth/register` is throttled to 3 requests per hour per IP /24
 - [ ] **ANTI-02**: `POST /auth/login` is throttled to 10 requests per hour per IP /24
 - [x] **ANTI-03**: System logs a `device_fingerprints` row at every login: cookie value hash, user-agent SHA-256, IP /24, `device_id` (UUID stored in browser localStorage)
-- [ ] **ANTI-04**: System rejects registration with disposable email domains (bundled blocklist, refreshed at boot)
-- [ ] **ANTI-05**: hCaptcha hook is scaffolded but feature-flagged off (`HCAPTCHA_ENABLED=false` default)
-- [ ] **ANTI-06**: CORS uses an explicit origin allowlist (`allow_origins=[FRONTEND_URL]`) with `allow_credentials=True` — never `["*"]` while cookies are issued
+- [x] **ANTI-04**: System rejects registration with disposable email domains (bundled blocklist, refreshed at boot)
+- [x] **ANTI-05**: hCaptcha hook is scaffolded but feature-flagged off (`HCAPTCHA_ENABLED=false` default)
+- [x] **ANTI-06**: CORS uses an explicit origin allowlist (`allow_origins=[FRONTEND_URL]`) with `allow_credentials=True` — never `["*"]` while cookies are issued
 
 ### Stripe-Ready Billing Schema (`BILL-*`)
 
@@ -106,7 +106,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [ ] **BILL-04**: `usage_events` table is populated by every completed transcription (foundation for Stripe metered billing in v1.3)
 - [ ] **BILL-05**: `POST /billing/checkout` is a stub returning `501 Not Implemented` with a placeholder response (no live Stripe integration)
 - [ ] **BILL-06**: `POST /billing/webhook` is a stub that validates `Stripe-Signature` header schema (rejects malformed) and returns `501 Not Implemented`
-- [ ] **BILL-07**: System imports `stripe` package (15.1.0) but performs zero runtime API calls in v1.2
+- [x] **BILL-07**: System imports `stripe` package (15.1.0) but performs zero runtime API calls in v1.2
 
 ### Auth UI Pages (`UI-*`) — `/frontend-design` skill
 
@@ -222,7 +222,7 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | KEY-08 | Phase 11 | Complete |
 | MID-01 | Phase 13 | Pending |
 | MID-02 | Phase 13 | Pending |
-| MID-03 | Phase 13 | Pending |
+| MID-03 | Phase 13 | Complete |
 | MID-04 | Phase 13 | Pending |
 | MID-05 | Phase 13 | Pending |
 | MID-06 | Phase 13 | Pending |
@@ -248,16 +248,16 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | ANTI-01 | Phase 13 | Pending |
 | ANTI-02 | Phase 13 | Pending |
 | ANTI-03 | Phase 11 | Complete |
-| ANTI-04 | Phase 13 | Pending |
-| ANTI-05 | Phase 13 | Pending |
-| ANTI-06 | Phase 13 | Pending |
+| ANTI-04 | Phase 13 | Complete |
+| ANTI-05 | Phase 13 | Complete |
+| ANTI-06 | Phase 13 | Complete |
 | BILL-01 | Phase 13 | Pending |
 | BILL-02 | Phase 13 | Pending |
 | BILL-03 | Phase 13 | Pending |
 | BILL-04 | Phase 13 | Pending |
 | BILL-05 | Phase 15 | Pending |
 | BILL-06 | Phase 15 | Pending |
-| BILL-07 | Phase 13 | Pending |
+| BILL-07 | Phase 13 | Complete |
 | UI-01 | Phase 14 | Pending |
 | UI-02 | Phase 14 | Pending |
 | UI-03 | Phase 14 | Pending |
