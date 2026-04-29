@@ -17,7 +17,7 @@ from fastapi import (
     UploadFile,
 )
 
-from app.api.dependencies import get_file_service, get_task_repository
+from app.api.dependencies import get_file_service, get_scoped_task_repository
 from app.audio import get_audio_duration, process_audio_file
 from app.core.exceptions import FileValidationError
 from app.core.logging import logger
@@ -58,7 +58,7 @@ async def speech_to_text(
     vad_options_params: VADOptions = Depends(),
     file: UploadFile = File(...),
     callback_url: str | None = Depends(validate_callback_url_dependency),
-    repository: ITaskRepository = Depends(get_task_repository),
+    repository: ITaskRepository = Depends(get_scoped_task_repository),
     file_service: FileService = Depends(get_file_service),
 ) -> Response:
     """
@@ -147,7 +147,7 @@ async def speech_to_text_url(
     vad_options_params: VADOptions = Depends(),
     url: str = Form(...),
     callback_url: str | None = Depends(validate_callback_url_dependency),
-    repository: ITaskRepository = Depends(get_task_repository),
+    repository: ITaskRepository = Depends(get_scoped_task_repository),
     file_service: FileService = Depends(get_file_service),
 ) -> Response:
     """

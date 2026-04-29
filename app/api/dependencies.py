@@ -246,6 +246,81 @@ def get_rate_limit_service() -> RateLimitService:
     return _container.rate_limit_service()
 
 
+# ---------------------------------------------------------------
+# Phase 13-07 — Per-user scoped task repository / task service
+#
+# Every HTTP route touching `tasks` MUST consume one of these helpers
+# instead of get_task_repository / get_task_management_service.
+# DualAuthMiddleware sets request.state.user; we resolve user.id and
+# call repo.set_user_scope(user.id) before yielding so every read+write
+# is automatically WHERE user_id = caller.
+#
+# Cross-user requests naturally return None / [] / False at the SQL
+# layer — routes raise 404 opaquely (no enumeration).
+#
+# DRT: scope-setting is owned in one place (these functions); routes
+# never repeat the pattern. SCOPE-02..04.
+# ---------------------------------------------------------------
+
+
+def _resolve_authenticated_user_id(request: Request) -> int:
+    """Tiger-style guard: extract user.id or 401.
+
+    DualAuthMiddleware should have already 401'd unauthenticated callers
+    on protected paths — this is defence-in-depth (T-13-33).
+    """
+    user: User | None = getattr(request.state, "user", None)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+    return int(user.id)  # type: ignore[arg-type]
+
+
+def get_scoped_task_repository(
+    request: Request,
+) -> Generator[ITaskRepository, None, None]:
+    """Yield a task repository scoped to ``request.state.user.id``.
+
+    Calls ``repository.set_user_scope(user.id)`` before yielding; every
+    read/write the route performs is automatically filtered to caller's
+    rows. The finally clause clears the scope (defence-in-depth in case
+    the Factory provider gets pooled in a future refactor).
+    """
+    if _container is None:
+        raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
+    user_id = _resolve_authenticated_user_id(request)
+    repository: ITaskRepository = _container.task_repository()
+    repository.set_user_scope(user_id)
+    try:
+        yield repository
+    finally:
+        repository.set_user_scope(None)
+
+
+def get_scoped_task_management_service(
+    request: Request,
+) -> Generator[TaskManagementService, None, None]:
+    """Yield a TaskManagementService whose underlying repo is user-scoped.
+
+    Same scope contract as get_scoped_task_repository — the wrapped
+    service delegates to a repo with set_user_scope(user.id) already
+    applied. Used by task_api.py routes that operate via the service
+    layer (get/list/delete/progress).
+    """
+    if _container is None:
+        raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
+    user_id = _resolve_authenticated_user_id(request)
+    repository: ITaskRepository = _container.task_repository()
+    repository.set_user_scope(user_id)
+    service = TaskManagementService(repository=repository)
+    try:
+        yield service
+    finally:
+        repository.set_user_scope(None)
+
+
 def get_db_session() -> Generator[Session, None, None]:
     """Yield a managed DB session for non-repository scoped reads/writes.
 

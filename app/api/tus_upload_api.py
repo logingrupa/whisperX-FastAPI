@@ -10,7 +10,7 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends
 from tuspyserver import create_tus_router
 
-from app.api.dependencies import get_task_repository
+from app.api.dependencies import get_scoped_task_repository
 from app.core.logging import logger
 from app.core.upload_config import UPLOAD_DIR
 from app.domain.repositories.task_repository import ITaskRepository
@@ -22,7 +22,7 @@ TUS_UPLOAD_DIR: Path = UPLOAD_DIR / "tus"
 
 async def create_upload_complete_hook(
     background_tasks: BackgroundTasks,
-    repository: ITaskRepository = Depends(get_task_repository),
+    repository: ITaskRepository = Depends(get_scoped_task_repository),
 ):
     """FastAPI dependency that provides the TUS upload completion handler.
 

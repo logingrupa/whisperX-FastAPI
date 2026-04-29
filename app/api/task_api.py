@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends
 
-from app.api.dependencies import get_task_management_service
+from app.api.dependencies import get_scoped_task_management_service
 from app.api.mappers.task_mapper import TaskMapper
 from app.api.schemas.task_schemas import TaskListResponse
 from app.core.exceptions import TaskNotFoundError
@@ -15,7 +15,7 @@ task_router = APIRouter()
 
 @task_router.get("/task/all", tags=["Tasks Management"])
 async def get_all_tasks_status(
-    service: TaskManagementService = Depends(get_task_management_service),
+    service: TaskManagementService = Depends(get_scoped_task_management_service),
 ) -> TaskListResponse:
     """
     Retrieve the status of all tasks.
@@ -38,7 +38,7 @@ async def get_all_tasks_status(
 @task_router.get("/task/{identifier}", tags=["Tasks Management"])
 async def get_transcription_status(
     identifier: str,
-    service: TaskManagementService = Depends(get_task_management_service),
+    service: TaskManagementService = Depends(get_scoped_task_management_service),
 ) -> Result:
     """
     Retrieve the status of a specific task by its identifier.
@@ -83,7 +83,7 @@ async def get_transcription_status(
 @task_router.delete("/task/{identifier}/delete", tags=["Tasks Management"])
 async def delete_task(
     identifier: str,
-    service: TaskManagementService = Depends(get_task_management_service),
+    service: TaskManagementService = Depends(get_scoped_task_management_service),
 ) -> Response:
     """
     Delete a specific task by its identifier.
@@ -116,7 +116,7 @@ async def delete_task(
 )
 async def get_task_progress(
     identifier: str,
-    service: TaskManagementService = Depends(get_task_management_service),
+    service: TaskManagementService = Depends(get_scoped_task_management_service),
 ) -> TaskProgress:
     """
     Get current progress for a task.

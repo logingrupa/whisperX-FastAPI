@@ -28,8 +28,8 @@ from app.api.dependencies import (
     get_alignment_service,
     get_diarization_service,
     get_file_service,
+    get_scoped_task_repository,
     get_speaker_assignment_service,
-    get_task_repository,
     get_transcription_service,
 )
 from app.audio import get_audio_duration, process_audio_file
@@ -80,7 +80,7 @@ async def transcribe(
     asr_options_params: ASROptions = Depends(),
     vad_options_params: VADOptions = Depends(),
     file: UploadFile = File(..., description="Audio/video file to transcribe"),
-    repository: ITaskRepository = Depends(get_task_repository),
+    repository: ITaskRepository = Depends(get_scoped_task_repository),
     file_service: FileService = Depends(get_file_service),
     transcription_service: ITranscriptionService = Depends(get_transcription_service),
 ) -> Response:
@@ -161,7 +161,7 @@ def align(
         description="Device to use for PyTorch inference",
     ),
     align_params: AlignmentParams = Depends(),
-    repository: ITaskRepository = Depends(get_task_repository),
+    repository: ITaskRepository = Depends(get_scoped_task_repository),
     file_service: FileService = Depends(get_file_service),
     alignment_service: IAlignmentService = Depends(get_alignment_service),
 ) -> Response:
@@ -254,7 +254,7 @@ def align(
 async def diarize(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    repository: ITaskRepository = Depends(get_task_repository),
+    repository: ITaskRepository = Depends(get_scoped_task_repository),
     device: Device = Query(
         default=Config.DEVICE,
         description="Device to use for PyTorch inference",
@@ -327,7 +327,7 @@ async def combine(
     background_tasks: BackgroundTasks,
     aligned_transcript: UploadFile = File(...),
     diarization_result: UploadFile = File(...),
-    repository: ITaskRepository = Depends(get_task_repository),
+    repository: ITaskRepository = Depends(get_scoped_task_repository),
     file_service: FileService = Depends(get_file_service),
     speaker_service: ISpeakerAssignmentService = Depends(
         get_speaker_assignment_service

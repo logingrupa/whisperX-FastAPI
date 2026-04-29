@@ -8,8 +8,9 @@ viable — the ticket is the locked path.
 Locked rules
 ------------
 * DRT  — auth resolved via shared ``Depends(get_authenticated_user)``;
-         repository via shared ``Depends(get_task_repository)``; ticket
-         service via singleton container provider.
+         repository via shared ``Depends(get_scoped_task_repository)``
+         (Plan 13-07 — scope auto-applied); ticket service via
+         singleton container provider.
 * SRP  — route does HTTP only; ``WsTicketService`` owns ticket lifecycle;
          ``ITaskRepository`` owns persistence.
 * /tiger-style — flat early-returns; cross-user task → opaque 404
@@ -27,7 +28,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.constants import CONTAINER_NOT_INITIALIZED_ERROR
 from app.api.dependencies import (
     get_authenticated_user,
-    get_task_repository,
+    get_scoped_task_repository,
 )
 from app.api.schemas.ws_ticket_schemas import TicketRequest, TicketResponse
 from app.domain.entities.user import User
@@ -64,7 +65,7 @@ def get_ws_ticket_service() -> WsTicketService:
 async def issue_ticket(
     body: TicketRequest,
     user: User = Depends(get_authenticated_user),
-    repository: ITaskRepository = Depends(get_task_repository),
+    repository: ITaskRepository = Depends(get_scoped_task_repository),
     ticket_service: WsTicketService = Depends(get_ws_ticket_service),
 ) -> TicketResponse:
     """Issue a single-use 60-second WS ticket for the caller's own task.
@@ -72,11 +73,11 @@ async def issue_ticket(
     Cross-user task ids return ``404`` with the same opaque body as
     "task not found" — no enumeration of foreign tasks (T-13-24, MID-07).
 
-    Note (Plan 13-07 follow-up): ``get_task_repository`` is the un-scoped
-    helper. The manual ``task.user_id != user.id`` check below delivers
-    MID-07 mitigation today; Plan 13-09 will swap to
-    ``get_scoped_task_repository`` and the manual check becomes
-    defence-in-depth.
+    Plan 13-07: repository is now ``get_scoped_task_repository`` — the
+    scoped query already returns None for cross-user task ids, so the
+    first ``task is None`` guard catches the cross-user path. The manual
+    ``task.user_id != user.id`` check below remains as defence-in-depth
+    (catches drift if a task's user_id is mutated post-issue, MID-07).
     """
     task = repository.get_by_id(body.task_id)
     if task is None:
