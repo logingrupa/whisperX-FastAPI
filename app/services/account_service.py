@@ -239,11 +239,38 @@ class AccountService:
         return int(result.rowcount or 0)
 
     def _delete_files(self, file_names: list[str]) -> int:
+        """Best-effort unlink for each file, scoped to the upload roots.
+
+        WR-04: defence-in-depth path-traversal guard. ``Path('a') / name``
+        does NOT canonicalize — a ``file_name`` of ``../../etc/passwd``
+        from a corrupted DB row would resolve outside ``UPLOAD_DIR``. We
+        resolve the candidate path and verify it is contained inside the
+        intended base; out-of-tree candidates are logged and skipped.
+        """
         count = 0
         for name in file_names:
-            count += self._unlink_safe(UPLOAD_DIR / name)
-            count += self._unlink_safe(TUS_UPLOAD_DIR / name)
+            count += self._unlink_within(UPLOAD_DIR, name)
+            count += self._unlink_within(TUS_UPLOAD_DIR, name)
         return count
+
+    @staticmethod
+    def _unlink_within(base_dir: Path, name: str) -> int:
+        """Resolve ``base_dir / name``; unlink only if contained in base_dir.
+
+        Returns 1 on successful unlink, 0 otherwise (containment fail,
+        missing file, OSError). Containment uses ``Path.resolve()`` +
+        ``is_relative_to`` (Python 3.9+) on the resolved base — symlinks
+        in either path canonicalize before comparison.
+        """
+        base_resolved = base_dir.resolve()
+        candidate = (base_dir / name).resolve()
+        if not candidate.is_relative_to(base_resolved):
+            logger.warning(
+                "Skipping out-of-tree file deletion name=%s base=%s",
+                name, base_dir,
+            )
+            return 0
+        return AccountService._unlink_safe(candidate)
 
     @staticmethod
     def _unlink_safe(path: Path) -> int:
