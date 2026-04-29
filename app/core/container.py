@@ -40,6 +40,9 @@ from app.services.auth import (
     TokenService,
 )
 
+# Phase 13 — WS ticket service (single-use 60s WebSocket auth, MID-06)
+from app.services.ws_ticket_service import WsTicketService
+
 
 class Container(containers.DeclarativeContainer):
     """
@@ -134,6 +137,15 @@ class Container(containers.DeclarativeContainer):
         RateLimitService,
         repository=rate_limit_repository,
     )
+
+    # ---------------------------------------------------------------
+    # Phase 13 — WS ticket service (in-memory; Singleton)
+    #
+    # Singleton lifecycle is REQUIRED — the in-memory dict must persist
+    # across requests. A Factory would create a new dict per request,
+    # defeating the ticket store.
+    # ---------------------------------------------------------------
+    ws_ticket_service = providers.Singleton(WsTicketService)
 
     # ML Services - Singletons for model caching and reuse
     # These services load heavy ML models and should be reused
