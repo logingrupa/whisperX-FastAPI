@@ -32,6 +32,10 @@ class Task:
         updated_at: Date and time of last update
         progress_percentage: Current progress percentage (0-100)
         progress_stage: Current processing stage (queued, transcribing, aligning, diarizing, complete)
+        user_id: Owning user id (Phase 13: surfaced from ORM for per-user
+                 ownership checks. NOT NULL after 0003 migration but kept
+                 ``int | None`` here for safe construction in pre-Phase-13
+                 code paths and tests that don't exercise the auth flow.)
     """
 
     uuid: str
@@ -52,6 +56,7 @@ class Task:
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     progress_percentage: int | None = None
     progress_stage: str | None = None
+    user_id: int | None = None
 
     def mark_as_completed(
         self, result: dict[str, Any], duration: float, end_time: datetime
@@ -146,4 +151,5 @@ class Task:
             "updated_at": self.updated_at,
             "progress_percentage": self.progress_percentage,
             "progress_stage": self.progress_stage,
+            "user_id": self.user_id,
         }

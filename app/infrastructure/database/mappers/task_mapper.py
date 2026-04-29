@@ -33,6 +33,7 @@ def to_domain(orm_task: ORMTask) -> DomainTask:
         updated_at=orm_task.updated_at,
         progress_percentage=orm_task.progress_percentage,
         progress_stage=orm_task.progress_stage,
+        user_id=orm_task.user_id,
     )
 
 
@@ -65,5 +66,6 @@ def to_orm(domain_task: DomainTask) -> ORMTask:
         updated_at=domain_task.updated_at,
         progress_percentage=domain_task.progress_percentage,
         progress_stage=domain_task.progress_stage,
+        user_id=domain_task.user_id,
     )
     return orm_task
