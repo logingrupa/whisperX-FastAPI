@@ -2,13 +2,22 @@
 
 from collections.abc import Generator
 
+from fastapi import HTTPException, Request, status
+
 from app.api.constants import CONTAINER_NOT_INITIALIZED_ERROR
 from app.core.container import Container
+from app.domain.entities.user import User
 from app.domain.repositories.task_repository import ITaskRepository
 from app.domain.services.alignment_service import IAlignmentService
 from app.domain.services.diarization_service import IDiarizationService
 from app.domain.services.speaker_assignment_service import ISpeakerAssignmentService
 from app.domain.services.transcription_service import ITranscriptionService
+from app.services.auth import (
+    AuthService,
+    CsrfService,
+    KeyService,
+    RateLimitService,
+)
 from app.services.file_service import FileService
 from app.services.task_management_service import TaskManagementService
 
@@ -173,3 +182,64 @@ def get_speaker_assignment_service() -> Generator[
     if _container is None:
         raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
     yield _container.speaker_assignment_service()
+
+
+# ---------------------------------------------------------------
+# Phase 13 — Auth dependencies
+#
+# request.state.{user, plan_tier, auth_method, api_key_id} is populated by
+# DualAuthMiddleware (app/core/dual_auth.py). All Phase 13 routes consume
+# these helpers via Depends() — they MUST NOT parse Authorization headers
+# or session cookies directly (DRY: single resolution point).
+# ---------------------------------------------------------------
+
+
+def get_authenticated_user(request: Request) -> User:
+    """Resolve the authenticated user from request.state.
+
+    DualAuthMiddleware sets ``request.state.user`` on every authenticated
+    request; on protected paths without auth the middleware already 401s,
+    so reaching this helper with ``user is None`` only happens if the
+    middleware was misconfigured. Defence-in-depth raises 401 anyway.
+    """
+    user: User | None = getattr(request.state, "user", None)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+    return user
+
+
+def get_current_user_id(request: Request) -> int:
+    """Convenience wrapper returning ``request.state.user.id`` as int."""
+    user = get_authenticated_user(request)
+    return int(user.id)  # type: ignore[arg-type]
+
+
+def get_csrf_service() -> CsrfService:
+    """Provide the singleton CsrfService for routes issuing CSRF tokens."""
+    if _container is None:
+        raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
+    return _container.csrf_service()
+
+
+def get_key_service() -> KeyService:
+    """Provide a per-request KeyService (factory; binds a fresh DB session)."""
+    if _container is None:
+        raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
+    return _container.key_service()
+
+
+def get_auth_service() -> AuthService:
+    """Provide a per-request AuthService (factory; binds a fresh DB session)."""
+    if _container is None:
+        raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
+    return _container.auth_service()
+
+
+def get_rate_limit_service() -> RateLimitService:
+    """Provide a per-request RateLimitService (factory; binds a fresh DB session)."""
+    if _container is None:
+        raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
+    return _container.rate_limit_service()
