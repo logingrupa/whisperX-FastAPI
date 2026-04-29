@@ -23,8 +23,8 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 
 ### Schema and Migrations (`SCHEMA-*`)
 
-- [ ] **SCHEMA-01**: System uses Alembic migrations as the single source of truth for schema changes
-- [ ] **SCHEMA-02**: System has a baseline migration that mirrors the existing `tasks` table structure
+- [x] **SCHEMA-01**: System uses Alembic migrations as the single source of truth for schema changes
+- [x] **SCHEMA-02**: System has a baseline migration that mirrors the existing `tasks` table structure
 - [ ] **SCHEMA-03**: System adds `users`, `api_keys`, `subscriptions`, `usage_events`, `rate_limit_buckets`, `device_fingerprints` tables
 - [ ] **SCHEMA-04**: System adds `tasks.user_id` foreign key (nullable, then NOT NULL after backfill)
 - [ ] **SCHEMA-05**: System enforces SQLite `PRAGMA foreign_keys = ON` on every connection via SQLAlchemy event listener
@@ -195,8 +195,8 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SCHEMA-01 | Phase 10 | Pending |
-| SCHEMA-02 | Phase 10 | Pending |
+| SCHEMA-01 | Phase 10 | Complete |
+| SCHEMA-02 | Phase 10 | Complete |
 | SCHEMA-03 | Phase 10 | Pending |
 | SCHEMA-04 | Phase 10 | Pending |
 | SCHEMA-05 | Phase 10 | Pending |

@@ -40,7 +40,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
   4. Every connection enforces `PRAGMA foreign_keys = ON` (verified by querying `PRAGMA foreign_keys` after connect); every datetime column declares `DateTime(timezone=True)`
   5. `Subscription.plan_tier` rejects values outside the enum CHECK; `usage_events.idempotency_key` rejects duplicates with UNIQUE violation
 **Plans**: 4 plans (3 waves)
-- [ ] 10-01-PLAN.md — Alembic install + scaffolding + 0001_baseline empty stamp revision (Wave 1)
+- [x] 10-01-PLAN.md — Alembic install + scaffolding + 0001_baseline empty stamp revision (Wave 1)
 - [ ] 10-02-PLAN.md — ORM models extension: 6 new classes + tasks.user_id + DRY column factories (Wave 2)
 - [ ] 10-03-PLAN.md — 0002_auth_schema migration: 6 tables + tasks.user_id FK + tz=True ALTER (Wave 2)
 - [ ] 10-04-PLAN.md — PRAGMA listener + main.py cleanup + integration tests (Wave 3)
@@ -146,7 +146,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 10. Alembic Baseline + Auth Schema | v1.2 | 0/4 | Plans defined | - |
+| 10. Alembic Baseline + Auth Schema | v1.2 | 1/4 | In Progress|  |
 | 11. Auth Core Modules + Services + DI | v1.2 | 0/TBD | Not started | - |
 | 12. Admin CLI + Task Backfill | v1.2 | 0/TBD | Not started | - |
 | 13. Atomic Backend Cutover | v1.2 | 0/TBD | Not started (atomic pair w/ 14) | - |
