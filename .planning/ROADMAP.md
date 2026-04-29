@@ -177,7 +177,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | 11. Auth Core Modules + Services + DI | v1.2 | 5/5 | Complete    | 2026-04-29 |
 | 12. Admin CLI + Task Backfill | v1.2 | 4/4 | Complete    | 2026-04-29 |
 | 13. Atomic Backend Cutover | v1.2 | 10/10 | Complete    | 2026-04-29 |
-| 14. Atomic Frontend Cutover + Test Infra | v1.2 | 7/7 | Complete   | 2026-04-29 |
+| 14. Atomic Frontend Cutover + Test Infra | v1.2 | 7/7 | Complete    | 2026-04-29 |
 | 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 0/TBD | Not started | - |
 | 16. Verification + Cross-User Matrix + E2E | v1.2 | 0/TBD | Not started | - |
 | 17. Docs + Migration Runbook + Operator Guide | v1.2 | 0/TBD | Not started | - |
