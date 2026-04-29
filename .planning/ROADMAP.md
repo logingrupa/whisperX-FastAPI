@@ -131,7 +131,13 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
   2. User completes the type-email confirmation flow on `/dashboard/account` and `DELETE /api/account` cascades the user row plus tasks, api_keys, subscriptions, usage_events
   3. `/dashboard/account` displays the user's email, plan_tier card, and "Upgrade to Pro" CTA which opens an interest-capture modal documenting v1.3 Stripe integration
   4. External client `POST /billing/checkout` returns `501 Not Implemented` with a placeholder body; `POST /billing/webhook` validates the `Stripe-Signature` header schema (rejects malformed) and returns `501 Not Implemented`
-**Plans**: TBD
+**Plans**: 6 plans (4 waves)
+- [ ] 15-01-groundwork-PLAN.md — apiClient extensions + cookie helper extraction + schemas + accountApi.ts + MSW handlers (Wave 0)
+- [ ] 15-02-logout-all-PLAN.md — POST /auth/logout-all route + integration tests (Wave 1)
+- [ ] 15-03-account-me-PLAN.md — GET /api/account/me + AccountService.get_account_summary + tests (Wave 1)
+- [ ] 15-04-delete-account-PLAN.md — DELETE /api/account + AccountService.delete_account cascade + 7 integration tests (Wave 1)
+- [ ] 15-05-auth-hydration-PLAN.md — authStore.refresh + isHydrating + RequireAuth gate + main.tsx boot probe + tests (Wave 2)
+- [ ] 15-06-account-page-PLAN.md — AccountPage + 3 dialogs + AppRouter swap + 14+ RTL tests via /frontend-design (Wave 3, has human-verify checkpoint)
 **UI hint**: yes
 
 ### Phase 16: Verification + Cross-User Matrix + E2E
@@ -178,7 +184,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | 12. Admin CLI + Task Backfill | v1.2 | 4/4 | Complete    | 2026-04-29 |
 | 13. Atomic Backend Cutover | v1.2 | 10/10 | Complete    | 2026-04-29 |
 | 14. Atomic Frontend Cutover + Test Infra | v1.2 | 7/7 | Complete    | 2026-04-29 |
-| 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 0/TBD | Not started | - |
+| 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 0/6 | Planned     | - |
 | 16. Verification + Cross-User Matrix + E2E | v1.2 | 0/TBD | Not started | - |
 | 17. Docs + Migration Runbook + Operator Guide | v1.2 | 0/TBD | Not started | - |
 | 18. Stretch (Optional) | v1.2 | 0/TBD | Optional | - |
@@ -191,3 +197,4 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 *Updated: 2026-02-05 (v1.1 phase 9 plan)*
 *Updated: 2026-04-29 (v1.2 milestone — 9 phases numbered 10-18; phases 13+14 atomic pair)*
 *Updated: 2026-04-29 (Phase 13 plans finalized — 10 plans across 4 waves)*
+*Updated: 2026-04-29 (Phase 15 plans finalized — 6 plans across 4 waves)*
