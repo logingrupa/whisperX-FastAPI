@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: executing
-stopped_at: Roadmap created — Phase 10 ready for plan-phase
-last_updated: "2026-04-29T04:38:09.686Z"
+stopped_at: Plan 10-02 complete — 6 ORM models + Task tz-aware factories + tasks.user_id FK; Base.metadata.tables=7
+last_updated: "2026-04-29T04:45:27.472Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
-  percent: 25
+  completed_plans: 2
+  percent: 50
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 10 (Alembic Baseline + Auth Schema) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-04-29
 
@@ -49,6 +49,7 @@ Last activity: 2026-04-29
 
 *Reset on each plan completion in v1.2.*
 | Phase 10 P01 | 5min | 3 tasks | 6 files |
+| Phase 10 P02 | 3min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -93,6 +94,9 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - Phase 18 stretch is explicitly optional, no v1.2 reqs (FUTURE-* set; pulled forward only on observed need)
 - Coverage: 95 v1.2 reqs mapped 100% (REQUIREMENTS.md header "84" was stale; actual category sum = 95)
 - [Phase ?]: [10-01]: Alembic 1.17.0 baseline; env.py wired to Config.DB_URL (single source of truth); 0001_baseline mirrors current ORM Task verbatim (19 cols)
+- [Phase ?]: [10-02]: ORM-level tz-awareness for Task migrated proactively in Plan 02 (factory swap), not Plan 03 batch_alter_table — single source of truth, Plan 03 mirrors ORM mechanically
+- [Phase ?]: [10-02]: relationship() not imported anywhere (DRT — back-population deferred to Phase 11 repository layer; zero unused symbols)
+- [Phase ?]: [10-02]: DRY factory invocation table locked at 6 created_at + 3 updated_at = 9 — RateLimitBucket uses inline last_refill (semantic-different), Task gets factory swap to match new tz-aware DB shape
 
 ### Pending Todos
 
@@ -108,6 +112,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T04:38:06.311Z
-Stopped at: Roadmap created — Phase 10 ready for plan-phase
+Last session: 2026-04-29T04:45:19.423Z
+Stopped at: Plan 10-02 complete — 6 ORM models + Task tz-aware factories + tasks.user_id FK; Base.metadata.tables=7
 Resume file: None
