@@ -36,7 +36,11 @@ from app.api._cookie_helpers import (
     SESSION_COOKIE,
     clear_auth_cookies,
 )
-from app.api.dependencies import get_auth_service, get_csrf_service
+from app.api.dependencies import (
+    get_auth_service,
+    get_authenticated_user,
+    get_csrf_service,
+)
 from app.api.schemas.auth_schemas import AuthResponse, LoginRequest, RegisterRequest
 from app.core.config import get_settings
 from app.core.disposable_email import is_disposable
@@ -46,6 +50,7 @@ from app.core.exceptions import (
     ValidationError,
 )
 from app.core.rate_limiter import limiter
+from app.domain.entities.user import User
 from app.services.auth import AuthService, CsrfService
 
 logger = logging.getLogger(__name__)
@@ -185,6 +190,25 @@ async def logout(request: Request) -> Response:
     headers (FastAPI ignores the injected response when an explicit one is
     returned).
     """
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    clear_auth_cookies(response)
+    return response
+
+
+@auth_router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
+async def logout_all(
+    user: User = Depends(get_authenticated_user),
+    auth_service: AuthService = Depends(get_auth_service),
+) -> Response:
+    """POST /auth/logout-all — bump token_version + clear cookies. AUTH-06.
+
+    Invalidates every JWT issued for this user (including the caller's own
+    cookie) by bumping ``users.token_version``. The next middleware ver-check
+    401s any outstanding session (T-15-03). Cookie clearing is for client UX
+    — the JWTs are already dead server-side. Mirrors /auth/logout's
+    fresh-Response pattern (T-15-04 — see logout above for rationale).
+    """
+    auth_service.logout_all_devices(int(user.id))
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     clear_auth_cookies(response)
     return response
