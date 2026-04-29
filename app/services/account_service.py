@@ -1,12 +1,15 @@
-"""AccountService — self-serve user-data deletion (SCOPE-05) + account summary (UI-07).
+"""AccountService — self-serve user-data deletion (SCOPE-05) + account summary (UI-07) + full-account delete (SCOPE-06).
 
 Phase 13 (SCOPE-05): deletes all tasks owned by the caller plus best-effort
 cleanup of uploaded files; the users row itself is PRESERVED.
 
-Phase 15 (UI-07): adds ``get_account_summary`` — pure read of the users row
-for client-side hydration via ``GET /api/account/me``. Future Plan 15-04 will
-add ``delete_account`` (full-row removal, SCOPE-06) reusing the same injected
-``IUserRepository``.
+Phase 15 (UI-07): ``get_account_summary`` — pure read of the users row
+for client-side hydration via ``GET /api/account/me``.
+
+Phase 15 (SCOPE-06): ``delete_account`` orchestrates a 3-step cascade
+(``delete_user_data`` → ``rate_limit_buckets`` prefix-match →
+``user_repository.delete`` to fire ORM CASCADE for the 4 CASCADE FKs).
+Email-confirm guard is enforced at the service boundary (case-insensitive).
 """
 from __future__ import annotations
 
@@ -15,7 +18,7 @@ from pathlib import Path
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import InvalidCredentialsError
+from app.core.exceptions import InvalidCredentialsError, ValidationError
 from app.core.logging import logger
 from app.core.upload_config import UPLOAD_DIR
 from app.domain.repositories.user_repository import IUserRepository
@@ -93,6 +96,98 @@ class AccountService:
             "trial_started_at": user.trial_started_at,
             "token_version": user.token_version,
         }
+
+    def delete_account(
+        self, user_id: int, email_confirm: str
+    ) -> dict[str, int]:
+        """SCOPE-06: full-row delete + cascade. Email-confirm verified.
+
+        Cascade strategy (RESEARCH §"FK Cascade Coverage" — Strategy C
+        LOCKED): service-orchestrated explicit pre-delete + ORM cascade.
+
+            Step 1  delete_user_data(uid)             tasks (SET NULL FK)
+                                                      + on-disk files
+            Step 2  DELETE rate_limit_buckets         no FK; bucket_key
+                                                      text prefix match
+            Step 3  user_repository.delete(uid)       ORM cascade fires
+                                                      for the 4 CASCADE
+                                                      FKs (api_keys,
+                                                      subscriptions,
+                                                      usage_events,
+                                                      device_fingerprints)
+
+        Order matters: Pitfall 2 — ``tasks.user_id`` is NOT NULL after
+        migration 0003; a bare user delete would IntegrityError because
+        ON DELETE SET NULL fires before user-row removal.
+
+        Args:
+            user_id: Authenticated caller's user id (must be positive).
+            email_confirm: Email typed by user; case-insensitive match
+                against ``user.email`` (UI-SPEC §190 + CONTEXT D-RES).
+
+        Returns:
+            Counts dict: ``{tasks_deleted, files_deleted,
+            rate_limit_buckets_deleted}``.
+
+        Raises:
+            InvalidCredentialsError: User not found (anti-enumeration,
+                T-15-05). Same generic error used by AuthService.login.
+            ValidationError: Email confirmation does not match
+                (code=``EMAIL_CONFIRM_MISMATCH``).
+
+        Tiger-style: boundary assertions on both args; flat early-raise
+        guards (no nested-if). Logging discipline: ``user_id`` only,
+        never ``user.email`` (AUTH-09 + T-13-13 + T-15-11).
+        """
+        assert user_id > 0, "user_id must be positive"
+        assert email_confirm and email_confirm.strip(), (
+            "email_confirm required"
+        )
+
+        user = self._user_repository.get_by_id(user_id)
+        if user is None:
+            raise InvalidCredentialsError()
+
+        if email_confirm.strip().lower() != user.email.lower():
+            raise ValidationError(
+                message="Confirmation email does not match",
+                code="EMAIL_CONFIRM_MISMATCH",
+                user_message="Confirmation email does not match",
+            )
+
+        # Step 1: tasks (SET NULL FK) + uploaded files. Reuses SCOPE-05
+        # path which commits internally — that is fine; steps are
+        # independent and idempotent.
+        counts = self.delete_user_data(user_id)
+
+        # Step 2: rate_limit_buckets (no FK; prefix-match avoids ip:*
+        # keys). Pattern locked: 'user:<uid>:%' — matches user:42:hour,
+        # user:42:concurrent, user:42:tx:hour, user:42:audio_min:day.
+        # NEVER matches ip:10.0.0.0/24:*.
+        bucket_count = self.session.execute(
+            text(
+                "DELETE FROM rate_limit_buckets "
+                "WHERE bucket_key LIKE :pattern"
+            ),
+            {"pattern": f"user:{user_id}:%"},
+        ).rowcount or 0
+
+        # Step 3: user row → ORM CASCADE fires for the 4 CASCADE FKs.
+        # PRAGMA foreign_keys=ON enforced globally (Phase 10-04 boot).
+        deleted = self._user_repository.delete(user_id)
+        if not deleted:
+            # Race-defensive: another delete won. Treat as user-not-found.
+            raise InvalidCredentialsError()
+        self.session.commit()
+
+        logger.info(
+            "Account deleted user_id=%s tasks=%s files=%s buckets=%s",
+            user_id,
+            counts["tasks_deleted"],
+            counts["files_deleted"],
+            bucket_count,
+        )
+        return {**counts, "rate_limit_buckets_deleted": bucket_count}
 
     def _collect_user_file_names(self, user_id: int) -> list[str]:
         rows = self.session.execute(
