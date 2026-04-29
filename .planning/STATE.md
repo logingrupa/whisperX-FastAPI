@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: verifying
-stopped_at: Plan 14-05 complete — LoginPage + RegisterPage with react-hook-form + zod + AuthCard + PasswordStrengthMeter; 19 new tests (48/48 total green); 4 atomic commits (c56992f, a93055c, 26af6df, a2ee586)
-last_updated: "2026-04-29T14:56:09.005Z"
-last_activity: 2026-04-29
+status: executing
+stopped_at: Plan 15-01 (Wave 0 groundwork) complete — apiClient.get(opts) + apiClient.delete(body), shared clear_auth_cookies helper, account_schemas.py, accountApi.ts, MSW account handlers; 5 atomic commits (309bc1b, c9d8896, ec79c98, 9f7d041, 7c39712); 14/14 apiClient + 12/12 auth_routes + 2/2 cookie_helpers tests pass
+last_updated: "2026-04-29T19:02:13.852Z"
+last_activity: 2026-04-29 -- Plan 15-01 (Wave 0 groundwork) complete
 progress:
   total_phases: 9
   completed_phases: 5
-  total_plans: 30
-  completed_plans: 30
-  percent: 100
+  total_plans: 36
+  completed_plans: 31
+  percent: 86
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 15
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-04-29
+Plan: 15-01 complete
+Status: Ready for 15-02
+Last activity: 2026-04-29 -- Plan 15-01 (Wave 0 groundwork) complete
 
 ## Performance Metrics
 
@@ -83,6 +83,7 @@ Last activity: 2026-04-29
 | Phase 14 P05 | 5m 30s | 2 tasks | 10 files |
 | Phase 14 P06 | 5m 28s | 2 tasks | 9 files |
 | Phase 14 P07 | 4m 28s | 3 tasks | 7 files |
+| Phase 15 P01 | 9 min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -248,6 +249,9 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [14-07]: TEST-06 floor is 3 smoke assertions (CTA, file-add, start-affordance); deeper progress->complete chain has non-deterministic timing — Phase 16 owns Playwright E2E for the full chain
 - [Phase ?]: [14-07]: MockWebSocket inline class via vi.stubGlobal in smoke.test.tsx — kept inside test file, not extracted to setup.ts (premature-abstraction guard until 3+ tests need it)
 - [Phase ?]: [14-07]: Catch chain order locked: AuthRequiredError rethrown -> RateLimitError -> ApiClientError -> generic Error; subtype-first keeps rate-limit branch reachable (RateLimitError extends ApiClientError)
+- [15-01]: apiClient.get migrated to opts object {headers, suppress401Redirect}; apiClient.delete accepts body — public exports object owns the API surface (request() core unchanged from Phase 14-02)
+- [15-01]: clear_auth_cookies extracted to app.api._cookie_helpers as the public DRY source — SESSION_COOKIE/CSRF_COOKIE constants relocated; auth_routes.py imports the shared helper; no leading underscore on cross-module helper (tiger-style)
+- [15-01]: account_schemas.py uses Pydantic v2 EmailStr field allowlist (T-15-11) — only id/email/plan_tier/trial_started_at/token_version cross the wire; submitUpgradeInterest left bare (no try/catch) so caller in Wave 2 UpgradeInterestDialog catches ApiClientError statusCode===501 as success per T-15-07
 
 ### Pending Todos
 
@@ -263,6 +267,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T14:50:16.078Z
-Stopped at: Plan 14-05 complete — LoginPage + RegisterPage with react-hook-form + zod + AuthCard + PasswordStrengthMeter; 19 new tests (48/48 total green); 4 atomic commits (c56992f, a93055c, 26af6df, a2ee586)
+Last session: 2026-04-29T19:02:13.846Z
+Stopped at: Plan 15-01 (Wave 0 groundwork) complete
 Resume file: None

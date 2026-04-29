@@ -208,7 +208,7 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | AUTH-03 | Phase 13 | Complete |
 | AUTH-04 | Phase 13 | Complete |
 | AUTH-05 | Phase 13 | Complete |
-| AUTH-06 | Phase 15 | Pending |
+| AUTH-06 | Phase 15 | In Progress |
 | AUTH-07 | Phase 13 | Complete |
 | AUTH-08 | Phase 11 | Complete |
 | AUTH-09 | Phase 11 | Complete |
@@ -232,7 +232,7 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | SCOPE-03 | Phase 13 | Complete |
 | SCOPE-04 | Phase 13 | Complete |
 | SCOPE-05 | Phase 13 | Complete |
-| SCOPE-06 | Phase 15 | Pending |
+| SCOPE-06 | Phase 15 | In Progress |
 | RATE-01 | Phase 13 | Complete |
 | RATE-02 | Phase 13 | Complete |
 | RATE-03 | Phase 13 | Complete |
@@ -264,7 +264,7 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | UI-04 | Phase 14 | Complete |
 | UI-05 | Phase 14 | Complete |
 | UI-06 | Phase 14 | Complete |
-| UI-07 | Phase 15 | Pending |
+| UI-07 | Phase 15 | In Progress |
 | UI-08 | Phase 14 | Complete |
 | UI-09 | Phase 14 | Complete |
 | UI-10 | Phase 14 | Complete |

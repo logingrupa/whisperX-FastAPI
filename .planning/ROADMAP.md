@@ -132,7 +132,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
   3. `/dashboard/account` displays the user's email, plan_tier card, and "Upgrade to Pro" CTA which opens an interest-capture modal documenting v1.3 Stripe integration
   4. External client `POST /billing/checkout` returns `501 Not Implemented` with a placeholder body; `POST /billing/webhook` validates the `Stripe-Signature` header schema (rejects malformed) and returns `501 Not Implemented`
 **Plans**: 6 plans (4 waves)
-- [ ] 15-01-groundwork-PLAN.md — apiClient extensions + cookie helper extraction + schemas + accountApi.ts + MSW handlers (Wave 0)
+- [x] 15-01-groundwork-PLAN.md — apiClient extensions + cookie helper extraction + schemas + accountApi.ts + MSW handlers (Wave 0)
 - [ ] 15-02-logout-all-PLAN.md — POST /auth/logout-all route + integration tests (Wave 1)
 - [ ] 15-03-account-me-PLAN.md — GET /api/account/me + AccountService.get_account_summary + tests (Wave 1)
 - [ ] 15-04-delete-account-PLAN.md — DELETE /api/account + AccountService.delete_account cascade + 7 integration tests (Wave 1)
@@ -184,7 +184,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | 12. Admin CLI + Task Backfill | v1.2 | 4/4 | Complete    | 2026-04-29 |
 | 13. Atomic Backend Cutover | v1.2 | 10/10 | Complete    | 2026-04-29 |
 | 14. Atomic Frontend Cutover + Test Infra | v1.2 | 7/7 | Complete    | 2026-04-29 |
-| 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 0/6 | Planned     | - |
+| 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 1/6 | In Progress|  |
 | 16. Verification + Cross-User Matrix + E2E | v1.2 | 0/TBD | Not started | - |
 | 17. Docs + Migration Runbook + Operator Guide | v1.2 | 0/TBD | Not started | - |
 | 18. Stretch (Optional) | v1.2 | 0/TBD | Optional | - |
