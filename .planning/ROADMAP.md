@@ -95,7 +95,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - [x] 13-03-PLAN.md — Auth routes (register/login/logout) + slowapi rate limits (3/hr register, 10/hr login) + disposable-email check + integration tests (Wave 2)
 - [x] 13-04-PLAN.md — Key routes (POST/GET/DELETE /api/keys) + show-once UX + AuthService.start_trial_if_first_key + integration tests (Wave 2)
 - [x] 13-05-PLAN.md — Account routes (DELETE /api/account/data) + Billing stubs (POST /billing/checkout + POST /billing/webhook → 501) + stripe import (Wave 2)
-- [ ] 13-06-PLAN.md — WS ticket flow (POST /api/ws/ticket + WS endpoint validation + 1008 rejection on missing/expired/reused/cross-user) + integration tests (Wave 2)
+- [x] 13-06-PLAN.md — WS ticket flow (POST /api/ws/ticket + WS endpoint validation + 1008 rejection on missing/expired/reused/cross-user) + integration tests (Wave 2)
 - [ ] 13-07-PLAN.md — Per-user scoping (ITaskRepository.set_user_scope + get_scoped_task_repository + scope every existing endpoint) + cross-user 404 tests (Wave 3)
 - [ ] 13-08-PLAN.md — FreeTierGate dependency + RateLimitService wiring + 429/Retry-After + 402/trial-expiry + 403/model-violation + UsageEventWriter on completion + integration tests (Wave 3)
 - [ ] 13-09-PLAN.md — Wire DualAuthMiddleware + CSRF middleware into app/main.py (replace BearerAuthMiddleware) + CORS lockdown to FRONTEND_URL + register all 5 new routers + delete app/core/auth.py legacy file + exception handler registrations + production safety guard (Wave 4, has human-verify checkpoint)
@@ -169,7 +169,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | 10. Alembic Baseline + Auth Schema | v1.2 | 4/4 | Complete    | 2026-04-29 |
 | 11. Auth Core Modules + Services + DI | v1.2 | 5/5 | Complete    | 2026-04-29 |
 | 12. Admin CLI + Task Backfill | v1.2 | 4/4 | Complete    | 2026-04-29 |
-| 13. Atomic Backend Cutover | v1.2 | 5/10 | In Progress|  |
+| 13. Atomic Backend Cutover | v1.2 | 6/10 | In Progress|  |
 | 14. Atomic Frontend Cutover + Test Infra | v1.2 | 0/TBD | Not started (atomic pair w/ 13) | - |
 | 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 0/TBD | Not started | - |
 | 16. Verification + Cross-User Matrix + E2E | v1.2 | 0/TBD | Not started | - |

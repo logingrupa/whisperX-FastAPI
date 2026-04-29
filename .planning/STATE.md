@@ -4,14 +4,14 @@ milestone: v1.2
 milestone_name: milestone
 status: executing
 stopped_at: Plan 13-05 complete — DELETE /api/account/data + Stripe stubs (POST /billing/checkout 501 + /billing/webhook 501 with Stripe-Signature schema check); 12 integration tests pass; PUBLIC_ALLOWLIST extended with /billing/webhook (Rule 3 deviation); 3 commits (db9a24d, 2afedb2, 9661697)
-last_updated: "2026-04-29T10:42:00.281Z"
+last_updated: "2026-04-29T11:02:34.316Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 23
-  completed_plans: 18
-  percent: 78
+  completed_plans: 19
+  percent: 83
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 13 (Atomic Backend Cutover) — EXECUTING
-Plan: 6 of 10
+Plan: 7 of 10
 Status: Ready to execute
 Last activity: 2026-04-29
 
@@ -68,6 +68,7 @@ Last activity: 2026-04-29
 | Phase 13 P03 | ~17m | 3 tasks | 7 files |
 | Phase 13 P04 | 4 min | - tasks | - files |
 | Phase 13 P05 | 10 min | 3 tasks | 8 files |
+| Phase 13 P06 | 25 min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -180,6 +181,9 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [13-05]: PUBLIC_ALLOWLIST extended with /billing/webhook (Rule 3 deviation) — Stripe calls server-to-server; authenticity is via Stripe-Signature HMAC (v1.3); schema-check at 400 is the v1.2 security boundary
 - [Phase ?]: [13-05]: Stripe-Signature regex t=<unix>,vN=<hex>,?+ validates schema only (rejects malformed/spam at 400); v1.3 replaces with stripe.Webhook.construct_event for full HMAC verification
 - [Phase ?]: [13-05]: BILL-07 import stripe at module-load — verifier-checked zero runtime stripe.*() calls in app/; v1.2 dependency tree resolves identically to v1.3 build
+- [Phase ?]: WS ticket store: in-memory dict + threading.Lock; single-worker scope per CONTEXT §93. Multi-worker requires Redis (deferred).
+- [Phase ?]: Defence-in-depth MID-07: WS handler re-checks consumed_user_id == task.user_id after consume() — protects against future tasks.user_id drift.
+- [Phase ?]: Domain Task.user_id surfaced as int|None; ORM column nullable until full Phase 12 backfill verification (tightening to NOT NULL is Phase 12 remediation).
 
 ### Pending Todos
 
@@ -195,6 +199,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T10:42:00.275Z
+Last session: 2026-04-29T11:02:34.310Z
 Stopped at: Plan 13-05 complete — DELETE /api/account/data + Stripe stubs (POST /billing/checkout 501 + /billing/webhook 501 with Stripe-Signature schema check); 12 integration tests pass; PUBLIC_ALLOWLIST extended with /billing/webhook (Rule 3 deviation); 3 commits (db9a24d, 2afedb2, 9661697)
 Resume file: None
