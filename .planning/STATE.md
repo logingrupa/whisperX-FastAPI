@@ -4,14 +4,14 @@ milestone: v1.2
 milestone_name: milestone
 status: executing
 stopped_at: Plan 10-04 complete — Phase 10 schema-foundation milestone closed; PRAGMA listener + tests all green
-last_updated: "2026-04-29T05:47:13.937Z"
+last_updated: "2026-04-29T06:01:00.664Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 1
   total_plans: 9
-  completed_plans: 5
-  percent: 56
+  completed_plans: 6
+  percent: 67
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 11 (Auth Core Modules + Services + DI) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-04-29
 
@@ -53,6 +53,7 @@ Last activity: 2026-04-29
 | Phase 10 P03 | 2min | 1 tasks | 1 files |
 | Phase 10 P04 | 9 | 3 tasks | 2 files |
 | Phase 11 P01 | 6 | 2 tasks | 6 files |
+| Phase 11 P02 | 9m | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -112,6 +113,9 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [11-01]: _sha256_hex extracted to app/core/_hashing.py as the single DRY source — verifier greps def _sha256_hex across app/ for exactly 1 hit; 11-02 api_key + 11-03 csrf/device_fingerprint import from here
 - [Phase ?]: [11-01]: UserAlreadyExistsError takes no constructor arg; message hardcoded 'User with email already exists' (anti-enumeration leak via stack traces — threat T-11-03)
 - [Phase ?]: [11-01]: RedactingFilter import sits at the bottom of app/core/logging.py with noqa: E402 — must run AFTER logging.config.dictConfig(config) which configures the named whisperX logger
+- [Phase ?]: [11-02]: JWT sub claim serialized as str(user_id) per RFC 7519 §4.1.2 (PyJWT 2.x enforces); callers recover int via int(payload['sub'])
+- [Phase ?]: [11-02]: rate_limit.consume on rejection bumps last_refill but preserves tokens — when rate=0 refill is no-op so tokens unchanged
+- [Phase ?]: [11-02]: jwt.decode/jwt.encode locked to single site app/core/jwt_codec.py — verifier-enforced grep gate
 
 ### Pending Todos
 
@@ -127,6 +131,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T05:47:03.053Z
+Last session: 2026-04-29T06:00:33.979Z
 Stopped at: Plan 10-04 complete — Phase 10 schema-foundation milestone closed; PRAGMA listener + tests all green
 Resume file: None

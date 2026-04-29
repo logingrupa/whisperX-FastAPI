@@ -57,7 +57,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
   5. CI Argon2 benchmark asserts hash time stays under 300ms p99 on the deploy hardware profile
 **Plans**: 5 plans (4 waves)
 - [x] 11-01-PLAN.md — Foundation: argon2-cffi+pyjwt deps, AuthSettings, _sha256_hex helper, RedactingFilter wired, 9 typed auth exceptions (Wave 1)
-- [ ] 11-02-PLAN.md — 6 pure-logic core modules (password_hasher, jwt_codec, api_key, csrf, device_fingerprint, rate_limit) + 6 unit-test files (Wave 2)
+- [x] 11-02-PLAN.md — 6 pure-logic core modules (password_hasher, jwt_codec, api_key, csrf, device_fingerprint, rate_limit) + 6 unit-test files (Wave 2)
 - [ ] 11-03-PLAN.md — 4 domain entities + 4 repo Protocols + 4 mappers + 4 SQLAlchemy repos (idx_api_keys_prefix lookup, BEGIN IMMEDIATE upsert) (Wave 3)
 - [ ] 11-04-PLAN.md — 6 services in app/services/auth/ + DI Container providers + 6 service unit-test files (Wave 4)
 - [ ] 11-05-PLAN.md — Argon2 benchmark (p99<300ms slow gate) + DI smoke + log redaction integration tests (Wave 4)
@@ -152,7 +152,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 10. Alembic Baseline + Auth Schema | v1.2 | 4/4 | Complete    | 2026-04-29 |
-| 11. Auth Core Modules + Services + DI | v1.2 | 1/5 | In Progress|  |
+| 11. Auth Core Modules + Services + DI | v1.2 | 2/5 | In Progress|  |
 | 12. Admin CLI + Task Backfill | v1.2 | 0/TBD | Not started | - |
 | 13. Atomic Backend Cutover | v1.2 | 0/TBD | Not started (atomic pair w/ 14) | - |
 | 14. Atomic Frontend Cutover + Test Infra | v1.2 | 0/TBD | Not started (atomic pair w/ 13) | - |
