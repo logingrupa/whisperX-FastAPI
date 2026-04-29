@@ -37,7 +37,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [ ] **AUTH-01**: User can register with email + password (single page, generic error messages — no enumeration)
 - [x] **AUTH-02**: System hashes passwords with Argon2id using OWASP parameters (`m=19456 KiB, t=2, p=1`)
 - [ ] **AUTH-03**: User can log in with email + password and receive an httpOnly + Secure + SameSite=Lax cookie session JWT (HS256)
-- [ ] **AUTH-04**: Session is 7-day sliding-refresh (every authenticated request extends expiry)
+- [x] **AUTH-04**: Session is 7-day sliding-refresh (every authenticated request extends expiry)
 - [ ] **AUTH-05**: User can log out, clearing session cookie
 - [ ] **AUTH-06**: User can "logout all devices" via a `token_version` bump that invalidates every existing session
 - [ ] **AUTH-07**: User can request password reset by clicking a `mailto:hey@logingrupa.lv` link (no SMTP — manual operator response)
@@ -57,10 +57,10 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 
 ### Dual-Auth Middleware (`MID-*`)
 
-- [ ] **MID-01**: System replaces existing `BearerAuthMiddleware` with `DualAuthMiddleware` accepting both cookie session JWT and `whsk_*` API key
-- [ ] **MID-02**: Middleware sets `request.state.user`, `request.state.plan_tier`, `request.state.auth_method`, `request.state.api_key_id`
+- [x] **MID-01**: System replaces existing `BearerAuthMiddleware` with `DualAuthMiddleware` accepting both cookie session JWT and `whsk_*` API key
+- [x] **MID-02**: Middleware sets `request.state.user`, `request.state.plan_tier`, `request.state.auth_method`, `request.state.api_key_id`
 - [x] **MID-03**: Middleware allowlists public paths: `/health`, `/health/live`, `/health/ready`, `/`, `/openapi.json`, `/docs`, `/redoc`, `/static`, `/favicon.ico`, `/auth/register`, `/auth/login`, `/ui/login`, `/ui/register`
-- [ ] **MID-04**: Bearer-authenticated routes skip CSRF verification automatically; cookie-authenticated state-mutating routes require `X-CSRF-Token` header (double-submit cookie pattern)
+- [x] **MID-04**: Bearer-authenticated routes skip CSRF verification automatically; cookie-authenticated state-mutating routes require `X-CSRF-Token` header (double-submit cookie pattern)
 - [ ] **MID-05**: System updates `tus_upload_api` to accept dual auth (API key for external clients, cookie+CSRF for browser)
 - [ ] **MID-06**: WebSocket endpoint requires a single-use 60-second ticket (issued via `POST /api/ws/ticket`, consumed via `?ticket=...` query param) — no subprotocol auth (Cloudflare strips)
 - [ ] **MID-07**: WebSocket handler rejects connection (HTTP 1008) if `ticket.user_id != task.user_id`
@@ -206,7 +206,7 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | AUTH-01 | Phase 13 | Pending |
 | AUTH-02 | Phase 11 | Complete |
 | AUTH-03 | Phase 13 | Pending |
-| AUTH-04 | Phase 13 | Pending |
+| AUTH-04 | Phase 13 | Complete |
 | AUTH-05 | Phase 13 | Pending |
 | AUTH-06 | Phase 15 | Pending |
 | AUTH-07 | Phase 13 | Pending |
@@ -220,10 +220,10 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | KEY-06 | Phase 13 | Pending |
 | KEY-07 | Phase 13 | Pending |
 | KEY-08 | Phase 11 | Complete |
-| MID-01 | Phase 13 | Pending |
-| MID-02 | Phase 13 | Pending |
+| MID-01 | Phase 13 | Complete |
+| MID-02 | Phase 13 | Complete |
 | MID-03 | Phase 13 | Complete |
-| MID-04 | Phase 13 | Pending |
+| MID-04 | Phase 13 | Complete |
 | MID-05 | Phase 13 | Pending |
 | MID-06 | Phase 13 | Pending |
 | MID-07 | Phase 13 | Pending |

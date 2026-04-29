@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: executing
-stopped_at: Plan 13-01 complete — slowapi+stripe deps, AuthSettings extended (8 envs + 2 prod guards), feature_flags helper, 5413-entry disposable-email blocklist (f71a7dd, 588f5c4, c7482d1)
-last_updated: "2026-04-29T09:54:33.157Z"
+stopped_at: Plan 13-02 complete — DualAuthMiddleware + CsrfMiddleware (pure middleware, not yet wired); 5 auth dependencies appended; 29 unit tests pass; 4 commits (97672f4, 3ca7869, b893ddb, 9c512d0)
+last_updated: "2026-04-29T10:05:05.223Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 23
-  completed_plans: 14
-  percent: 61
+  completed_plans: 15
+  percent: 65
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 13 (Atomic Backend Cutover) — EXECUTING
-Plan: 2 of 10
+Plan: 3 of 10
 Status: Ready to execute
 Last activity: 2026-04-29
 
@@ -64,6 +64,7 @@ Last activity: 2026-04-29
 | Phase 12 P03 | 3 | 1 tasks | 2 files |
 | Phase 12 P04 | 90 min | 2 tasks tasks | 3 files files |
 | Phase 13 P01 | 3m 39s | 3 tasks | 4 files |
+| Phase 13 P02 | 6m | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -154,6 +155,11 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [13-01]: AuthSettings extended with 8 Phase-13 envs (V2_ENABLED, FRONTEND_URL, COOKIE_SECURE/DOMAIN, TRUST_CF_HEADER, HCAPTCHA_*); validator refuses boot when V2 + localhost FRONTEND_URL or COOKIE_SECURE=false
 - [Phase ?]: [13-01]: app/core/feature_flags.py single source for is_auth_v2_enabled / is_hcaptcha_enabled; flat returns, no nested-if (DRY — downstream never imports AuthSettings directly)
 - [Phase ?]: [13-01]: data/disposable-emails.txt bundled with 5413 entries from disposable-email-domains GitHub master (deterministic boot); loader scheduled for Plan 13-03
+- [Phase ?]: [13-02]: DualAuthMiddleware decodes cookie JWT once via jwt_codec.decode_session (recover sub) then delegates to TokenService.verify_and_refresh — verifier-checked grep jwt.decode( returns 0; bearer wins resolution order locked
+- [Phase ?]: [13-02]: PUBLIC_ALLOWLIST 13 paths locked from MID-03 (/health/* /openapi.json /docs /redoc /static /favicon.ico /auth/{register,login} /ui/{login,register} /); PUBLIC_PREFIXES adds /static/ + /uploads/files/ for nested static + tus uploads
+- [Phase ?]: [13-02]: Single 401 detail string 'Authentication required' for ALL bearer/cookie/missing-auth failures (T-13-05); WWW-Authenticate Bearer realm header on 401
+- [Phase ?]: [13-02]: CsrfMiddleware uses getattr(request.state, auth_method, None) defensively — if mounted before DualAuthMiddleware (mis-order) the None fallback safely bypasses; STATE_MUTATING_METHODS=POST/PUT/PATCH/DELETE only
+- [Phase ?]: [13-02]: 5 new auth dependencies appended to app/api/dependencies.py — get_authenticated_user (defence-in-depth 401), get_current_user_id, get_csrf_service/key_service/auth_service/rate_limit_service; reused across all Phase 13 routes (DRT)
 
 ### Pending Todos
 
@@ -169,6 +175,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T09:54:33.151Z
-Stopped at: Plan 13-01 complete — slowapi+stripe deps, AuthSettings extended (8 envs + 2 prod guards), feature_flags helper, 5413-entry disposable-email blocklist (f71a7dd, 588f5c4, c7482d1)
+Last session: 2026-04-29T10:05:05.217Z
+Stopped at: Plan 13-02 complete — DualAuthMiddleware + CsrfMiddleware (pure middleware, not yet wired); 5 auth dependencies appended; 29 unit tests pass; 4 commits (97672f4, 3ca7869, b893ddb, 9c512d0)
 Resume file: None

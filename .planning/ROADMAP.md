@@ -91,7 +91,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
   5. Free-tier user hitting the 6th transcribe within an hour receives 429 with `Retry-After`; uploading >5min audio is rejected; only `tiny`/`small` models accept; trial countdown starts at first-key-creation; expired-trial transcribe returns 402; `POST /auth/register` from a single /24 returns 429 after 3/hr; `POST /auth/login` after 10/hr; disposable-email registrations are rejected; every completed transcription writes a `usage_events` row; user's `plan_tier` defaults to `trial` post-first-key, with nullable `stripe_customer_id` and `subscriptions` schema in place but unused at runtime
 **Plans**: 10 plans (4 waves)
 - [x] 13-01-PLAN.md — Deps (slowapi, stripe) + AuthSettings (V2_ENABLED, FRONTEND_URL, COOKIE_SECURE, TRUST_CF_HEADER, HCAPTCHA_*) + disposable-email blocklist + production-safety boot assertion (Wave 1)
-- [ ] 13-02-PLAN.md — DualAuthMiddleware + CsrfMiddleware + get_authenticated_user/get_csrf_service/get_key_service/get_auth_service/get_rate_limit_service dependencies (Wave 1)
+- [x] 13-02-PLAN.md — DualAuthMiddleware + CsrfMiddleware + get_authenticated_user/get_csrf_service/get_key_service/get_auth_service/get_rate_limit_service dependencies (Wave 1)
 - [ ] 13-03-PLAN.md — Auth routes (register/login/logout) + slowapi rate limits (3/hr register, 10/hr login) + disposable-email check + integration tests (Wave 2)
 - [ ] 13-04-PLAN.md — Key routes (POST/GET/DELETE /api/keys) + show-once UX + AuthService.start_trial_if_first_key + integration tests (Wave 2)
 - [ ] 13-05-PLAN.md — Account routes (DELETE /api/account/data) + Billing stubs (POST /billing/checkout + POST /billing/webhook → 501) + stripe import (Wave 2)
@@ -169,7 +169,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | 10. Alembic Baseline + Auth Schema | v1.2 | 4/4 | Complete    | 2026-04-29 |
 | 11. Auth Core Modules + Services + DI | v1.2 | 5/5 | Complete    | 2026-04-29 |
 | 12. Admin CLI + Task Backfill | v1.2 | 4/4 | Complete    | 2026-04-29 |
-| 13. Atomic Backend Cutover | v1.2 | 1/10 | In Progress|  |
+| 13. Atomic Backend Cutover | v1.2 | 2/10 | In Progress|  |
 | 14. Atomic Frontend Cutover + Test Infra | v1.2 | 0/TBD | Not started (atomic pair w/ 13) | - |
 | 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 0/TBD | Not started | - |
 | 16. Verification + Cross-User Matrix + E2E | v1.2 | 0/TBD | Not started | - |
