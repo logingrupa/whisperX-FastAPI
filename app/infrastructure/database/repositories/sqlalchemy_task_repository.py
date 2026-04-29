@@ -1,10 +1,26 @@
-"""SQLAlchemy implementation of the ITaskRepository interface."""
+"""SQLAlchemy implementation of the ITaskRepository interface.
+
+Phase 13-07 — per-user scoping
+------------------------------
+``set_user_scope(user_id)`` pushes a ``WHERE user_id = :user_id`` predicate
+into every read/write performed afterwards via the shared ``_scoped_query``
+helper (DRT). The scope is request-bound: ``get_scoped_task_repository``
+sets it before yielding and clears it on cleanup, so concurrent callers
+never observe a stale filter even if the Factory provider is pooled.
+
+A fail-loud guard in ``add()`` refuses to persist a Task that has neither
+an explicit ``user_id`` nor a scope set — closes T-13-34 (orphan-task
+write via mis-wired route) per /tiger-style.
+
+Default scope is ``None`` so existing un-scoped callers (Phase 12 CLI,
+internal services) keep working unchanged.
+"""
 
 from typing import Any
 from uuid import uuid4
 
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Query, Session
 
 from app.core.exceptions import DatabaseOperationError
 from app.core.logging import logger
@@ -22,6 +38,8 @@ class SQLAlchemyTaskRepository:
 
     Attributes:
         session: The SQLAlchemy database session for executing queries
+        _user_scope: Optional user id pushed into every read/write WHERE
+            clause; ``None`` means unscoped (admin / CLI default).
     """
 
     def __init__(self, session: Session):
@@ -32,6 +50,28 @@ class SQLAlchemyTaskRepository:
             session: The SQLAlchemy database session
         """
         self.session = session
+        self._user_scope: int | None = None
+
+    def set_user_scope(self, user_id: int | None) -> None:
+        """Push a user_id filter into all subsequent reads/writes.
+
+        See ``ITaskRepository.set_user_scope`` for the contract. ``None``
+        clears the filter; an int sets it. Idempotent — calling twice with
+        the same value is a no-op.
+        """
+        self._user_scope = user_id
+
+    def _scoped_query(self) -> Query:
+        """Return a base query filtered by ``_user_scope`` when set.
+
+        Single source of truth for the scope predicate — get_by_id, get_all,
+        update, and delete all funnel through this helper (DRT). When
+        ``_user_scope is None`` the query is un-filtered (admin/CLI path).
+        """
+        query = self.session.query(ORMTask)
+        if self._user_scope is not None:
+            query = query.filter(ORMTask.user_id == self._user_scope)
+        return query
 
     def add(self, task: DomainTask) -> str:
         """
@@ -44,8 +84,22 @@ class SQLAlchemyTaskRepository:
             str: UUID of the newly created task
 
         Raises:
-            Exception: If task creation fails
+            ValueError: If neither ``task.user_id`` nor ``_user_scope``
+                is set (T-13-34 fail-loud — refuses to persist orphan tasks).
+            DatabaseOperationError: If the underlying INSERT fails.
         """
+        # Inject scope user_id when the entity lacks an explicit owner.
+        if (task.user_id is None or task.user_id == 0) and self._user_scope is not None:
+            task.user_id = self._user_scope
+
+        # Fail-loud: refuse to persist a task with no owner. /tiger-style —
+        # silent orphan writes break per-user scoping invariants downstream
+        # (cross-user GET would leak the row because user_id IS NULL).
+        if task.user_id is None or task.user_id == 0:
+            raise ValueError(
+                "Cannot persist task without user_id (no scope set, no explicit value)"
+            )
+
         try:
             # If task doesn't have a UUID yet, generate one
             if not task.uuid:
@@ -56,7 +110,9 @@ class SQLAlchemyTaskRepository:
             self.session.commit()
             self.session.refresh(orm_task)
 
-            logger.info(f"Task added successfully with UUID: {orm_task.uuid}")
+            logger.info(
+                f"Task added successfully with UUID: {orm_task.uuid} user_id={orm_task.user_id}"
+            )
             return str(orm_task.uuid)
 
         except SQLAlchemyError as e:
@@ -71,17 +127,21 @@ class SQLAlchemyTaskRepository:
 
     def get_by_id(self, identifier: str) -> DomainTask | None:
         """
-        Get a task by its UUID.
+        Get a task by its UUID — scoped to ``_user_scope`` when set.
+
+        Cross-user lookups return None (route then raises 404 opaquely —
+        no enumeration of foreign tasks per SCOPE-02..04).
 
         Args:
             identifier: The UUID of the task to retrieve
 
         Returns:
-            DomainTask | None: The Task entity if found, None otherwise
+            DomainTask | None: The Task entity if found AND owned by the
+            scoped user (or any task when unscoped), None otherwise.
         """
         try:
             orm_task = (
-                self.session.query(ORMTask).filter(ORMTask.uuid == identifier).first()
+                self._scoped_query().filter(ORMTask.uuid == identifier).first()
             )
 
             if orm_task:
@@ -97,13 +157,16 @@ class SQLAlchemyTaskRepository:
 
     def get_all(self) -> list[DomainTask]:
         """
-        Get all tasks from the database.
+        Get all tasks from the database — scoped to ``_user_scope`` when set.
+
+        Scoped callers see only their own tasks; unscoped callers (CLI,
+        admin) see every row.
 
         Returns:
-            list[DomainTask]: List of all Task entities
+            list[DomainTask]: List of Task entities matching the scope.
         """
         try:
-            orm_tasks = self.session.query(ORMTask).all()
+            orm_tasks = self._scoped_query().all()
             domain_tasks = [to_domain(orm_task) for orm_task in orm_tasks]
 
             logger.debug(f"Retrieved {len(domain_tasks)} tasks from database")
@@ -115,7 +178,11 @@ class SQLAlchemyTaskRepository:
 
     def update(self, identifier: str, update_data: dict[str, Any]) -> None:
         """
-        Update a task by its UUID.
+        Update a task by its UUID — scoped to ``_user_scope`` when set.
+
+        Cross-user updates raise ``ValueError("Task not found...")`` because
+        the scoped query returns no row — identical surface to a genuine
+        miss (no enumeration).
 
         Args:
             identifier: The UUID of the task to update
@@ -123,11 +190,11 @@ class SQLAlchemyTaskRepository:
                         along with their new values
 
         Raises:
-            ValueError: If the task is not found
-            Exception: If update fails
+            ValueError: If the task is not found within the current scope.
+            DatabaseOperationError: If the underlying UPDATE fails.
         """
         orm_task = (
-            self.session.query(ORMTask).filter(ORMTask.uuid == identifier).first()
+            self._scoped_query().filter(ORMTask.uuid == identifier).first()
         )
 
         if not orm_task:
@@ -155,17 +222,21 @@ class SQLAlchemyTaskRepository:
 
     def delete(self, identifier: str) -> bool:
         """
-        Delete a task by its UUID.
+        Delete a task by its UUID — scoped to ``_user_scope`` when set.
+
+        Cross-user deletes return False (route then raises 404 opaquely);
+        the foreign row is never touched.
 
         Args:
             identifier: The UUID of the task to delete
 
         Returns:
-            bool: True if the task was deleted, False if not found
+            bool: True if the task was deleted, False if not found within
+            the current scope.
         """
         try:
             orm_task = (
-                self.session.query(ORMTask).filter(ORMTask.uuid == identifier).first()
+                self._scoped_query().filter(ORMTask.uuid == identifier).first()
             )
 
             if orm_task:

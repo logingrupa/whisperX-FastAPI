@@ -42,6 +42,9 @@ class TaskFactory(factory.Factory):
     error = None
     created_at = factory.LazyFunction(lambda: datetime.now(timezone.utc))
     updated_at = factory.LazyFunction(lambda: datetime.now(timezone.utc))
+    user_id = 1  # Phase 13-07: tasks require an owner; default fits unit tests
+    progress_percentage = None
+    progress_stage = None
 
     @classmethod
     def processing(cls, **kwargs: Any) -> Task:

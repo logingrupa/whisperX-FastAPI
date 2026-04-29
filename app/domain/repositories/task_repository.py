@@ -79,3 +79,25 @@ class ITaskRepository(Protocol):
             bool: True if the task was deleted, False if not found
         """
         ...
+
+    def set_user_scope(self, user_id: int | None) -> None:
+        """
+        Push a user_id filter into all subsequent reads/writes.
+
+        When ``set_user_scope(N)`` is called:
+          - ``get_by_id``, ``get_all``, ``update``, ``delete`` filter
+            ``WHERE user_id = N`` at the SQL layer.
+          - ``add()`` injects ``task.user_id = N`` if the entity does not
+            already carry an explicit owner.
+        When ``set_user_scope(None)`` is called:
+          - All filters removed (admin / unscoped CLI access).
+
+        The scope is request-bound — set by ``get_scoped_task_repository``
+        before yielding and cleared on cleanup. Cross-user requests therefore
+        see an empty result set (returns None / [] / False) and routes raise
+        ``404`` opaquely (no enumeration of foreign tasks — SCOPE-02..04).
+
+        Args:
+            user_id: The owning user's id, or None for unscoped operations.
+        """
+        ...
