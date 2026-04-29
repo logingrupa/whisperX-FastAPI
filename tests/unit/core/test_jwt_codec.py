@@ -25,13 +25,16 @@ class TestJwtCodec:
             user_id=42, token_version=0, secret=_SECRET, ttl_days=7,
         )
         payload = jwt_codec.decode_session(token, secret=_SECRET)
-        assert payload["sub"] == 42
+        # RFC 7519 §4.1.2: `sub` is a case-sensitive string on the wire.
+        # Caller recovers the int via int(payload["sub"]).
+        assert payload["sub"] == "42"
+        assert int(payload["sub"]) == 42
         assert payload["ver"] == 0
         assert payload["method"] == "session"
 
     def test_decode_alg_none_token_is_rejected(self) -> None:
-        # Forge an alg=none token manually.
-        forged = pyjwt.encode({"sub": 1}, "", algorithm="none")
+        # Forge an alg=none token manually (sub as str — PyJWT 2.12 enforces RFC 7519).
+        forged = pyjwt.encode({"sub": "1"}, "", algorithm="none")
         with pytest.raises((JwtAlgorithmError, JwtTamperedError)):
             jwt_codec.decode_session(forged, secret=_SECRET)
 
@@ -43,9 +46,10 @@ class TestJwtCodec:
 
     def test_decode_expired_token_is_rejected(self) -> None:
         # Hand-craft an already-expired payload via PyJWT directly.
+        # `sub` is str per RFC 7519 §4.1.2 (PyJWT 2.x enforces).
         past = datetime.now(timezone.utc) - timedelta(days=1)
         expired = pyjwt.encode(
-            {"sub": 1, "exp": int(past.timestamp()), "ver": 0, "method": "session"},
+            {"sub": "1", "exp": int(past.timestamp()), "ver": 0, "method": "session"},
             _SECRET, algorithm="HS256",
         )
         with pytest.raises(JwtExpiredError):
