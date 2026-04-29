@@ -42,7 +42,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [ ] **AUTH-06**: User can "logout all devices" via a `token_version` bump that invalidates every existing session
 - [ ] **AUTH-07**: User can request password reset by clicking a `mailto:hey@logingrupa.lv` link (no SMTP — manual operator response)
 - [ ] **AUTH-08**: All JWT decodes use `algorithms=["HS256"]` to prevent algorithm confusion (single decode site `app/core/jwt_codec.py`)
-- [ ] **AUTH-09**: System never logs raw passwords, JWT secrets, or full API keys at any log level
+- [x] **AUTH-09**: System never logs raw passwords, JWT secrets, or full API keys at any log level
 
 ### API Keys (`KEY-*`)
 
@@ -211,7 +211,7 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | AUTH-06 | Phase 15 | Pending |
 | AUTH-07 | Phase 13 | Pending |
 | AUTH-08 | Phase 11 | Pending |
-| AUTH-09 | Phase 11 | Pending |
+| AUTH-09 | Phase 11 | Complete |
 | KEY-01 | Phase 13 | Pending |
 | KEY-02 | Phase 11 | Pending |
 | KEY-03 | Phase 11 | Pending |

@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: verifying
+status: executing
 stopped_at: Plan 10-04 complete — Phase 10 schema-foundation milestone closed; PRAGMA listener + tests all green
-last_updated: "2026-04-29T05:10:48.819Z"
+last_updated: "2026-04-29T05:47:13.937Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
-  percent: 100
+  total_plans: 9
+  completed_plans: 5
+  percent: 56
 ---
 
 # Project State
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-29)
 
 **Core value:** Users can sign up, get API keys, and use WhisperX via browser or external API with free-tier limits and Stripe-ready billing
-**Current focus:** Phase 10 — Alembic Baseline + Auth Schema
+**Current focus:** Phase 11 — Auth Core Modules + Services + DI
 
 ## Current Position
 
-Phase: 11
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 11 (Auth Core Modules + Services + DI) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
 Last activity: 2026-04-29
 
 ## Performance Metrics
@@ -52,6 +52,7 @@ Last activity: 2026-04-29
 | Phase 10 P02 | 3min | 2 tasks | 2 files |
 | Phase 10 P03 | 2min | 1 tasks | 1 files |
 | Phase 10 P04 | 9 | 3 tasks | 2 files |
+| Phase 11 P01 | 6 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -106,6 +107,11 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [10-04]: Base.metadata.create_all removed from app/main.py — Alembic is the sole schema source; partial-staged via git apply --cached to isolate from pre-existing dirty BearerAuthMiddleware diff
 - [Phase ?]: [10-04]: subprocess invocation uses [sys.executable, '-m', 'alembic', ...] — venv-portable, PATH-independent, fixes Windows pytest test discovery
 - [Phase ?]: [10-04]: Phase 10 schema-foundation milestone closed — SCHEMA-01..08 all delivered across plans 10-01..10-04
+- [Phase ?]: [11-01]: AuthSettings env_prefix=AUTH__ explicitly set on model_config — required for default_factory-constructed nested settings to honor AUTH__JWT_SECRET / AUTH__CSRF_SECRET env vars
+- [Phase ?]: [11-01]: Production-safety model_validator on AuthSettings — refuses to boot when ENVIRONMENT=production AND JWT_SECRET/CSRF_SECRET are dev defaults; threat T-11-02 mitigated in this phase rather than deferred to Phase 13
+- [Phase ?]: [11-01]: _sha256_hex extracted to app/core/_hashing.py as the single DRY source — verifier greps def _sha256_hex across app/ for exactly 1 hit; 11-02 api_key + 11-03 csrf/device_fingerprint import from here
+- [Phase ?]: [11-01]: UserAlreadyExistsError takes no constructor arg; message hardcoded 'User with email already exists' (anti-enumeration leak via stack traces — threat T-11-03)
+- [Phase ?]: [11-01]: RedactingFilter import sits at the bottom of app/core/logging.py with noqa: E402 — must run AFTER logging.config.dictConfig(config) which configures the named whisperX logger
 
 ### Pending Todos
 
@@ -121,6 +127,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T05:05:06.561Z
+Last session: 2026-04-29T05:47:03.053Z
 Stopped at: Plan 10-04 complete — Phase 10 schema-foundation milestone closed; PRAGMA listener + tests all green
 Resume file: None
