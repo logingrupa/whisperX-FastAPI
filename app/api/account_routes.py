@@ -62,7 +62,22 @@ async def get_account_me(
     user: User = Depends(get_authenticated_user),
     account_service: AccountService = Depends(get_account_service),
 ) -> AccountSummaryResponse:
-    """GET /api/account/me — return account summary for client hydration (UI-07)."""
+    """GET /api/account/me — return account summary for client hydration (UI-07).
+
+    Anti-enumeration design (WR-03 — deliberate, NOT a missing 404):
+    AccountService.get_account_summary raises InvalidCredentialsError
+    when the users row is gone (race-condition self-delete or admin
+    purge). The global exception handler maps this to HTTP 401, which
+    is intentionally indistinguishable from session-expired from the
+    client's perspective.
+
+    Frontend contract: ``fetchAccountSummary`` sets ``suppress401Redirect``,
+    so apiClient throws AuthRequiredError; ``authStore.refresh()`` catches
+    it and silently clears the user. Effect: a stale-session client sees
+    a sign-out instead of a "your row vanished" error — uniform with
+    every other 401 surface (T-15-05). Future maintainers: do NOT
+    "improve" this to 404, you would re-introduce the enumeration leak.
+    """
     summary = account_service.get_account_summary(int(user.id))
     return AccountSummaryResponse(**summary)
 
