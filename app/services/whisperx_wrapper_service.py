@@ -17,6 +17,7 @@ from whisperx.diarize import DiarizationPipeline
 from app.callbacks import post_task_callback
 from app.core.config import Config, get_settings
 from app.core.logging import logger
+from app.domain.entities.user import User
 from app.domain.repositories.task_repository import ITaskRepository
 from app.domain.services.alignment_service import IAlignmentService
 from app.domain.services.diarization_service import IDiarizationService
@@ -289,6 +290,29 @@ def align_whisper_output(
     return result  # type: ignore[no-any-return]
 
 
+def _resolve_user_for_task(task_user_id: int | None) -> User | None:
+    """Look up the User domain entity for a completed task (W1 release path).
+
+    Returns None if the task has no owner (legacy unscoped path) or if
+    DI/container is unavailable — in those cases there's no concurrency
+    slot to release (free-tier gate never consumed one).
+    """
+    if task_user_id is None:
+        return None
+    try:
+        from app.api.dependencies import _container
+
+        if _container is None:
+            return None
+        user_repo = _container.user_repository()
+        return user_repo.get_by_id(task_user_id)
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.warning(
+            "Failed to resolve user for task user_id=%s: %s", task_user_id, exc
+        )
+        return None
+
+
 def process_audio_common(
     params: SpeechToTextProcessingParams,
     transcription_service: ITranscriptionService | None = None,
@@ -308,6 +332,11 @@ def process_audio_common(
 
     Returns:
         None: The result is saved in the transcription requests dict.
+
+    Phase 13-08 W1: completion hook (success AND failure) writes a
+    usage_events row and releases the user's concurrency slot via
+    FreeTierGate.release_concurrency. Both wrapped in try/finally so a
+    transcription crash never locks the user out indefinitely.
     """
     # Import here to avoid circular dependency
     from app.infrastructure.ml import (
@@ -328,6 +357,28 @@ def process_audio_common(
     # Create repository for this background task
     session = SessionLocal()
     repository: ITaskRepository = SQLAlchemyTaskRepository(session)
+
+    # Phase 13-08 — resolve DI services for usage_events + slot release.
+    # Best-effort: if container is unavailable (test bypass) we degrade
+    # gracefully. The W1 finally block tolerates None.
+    free_tier_gate = None
+    usage_writer = None
+    try:
+        from app.api.dependencies import _container
+
+        if _container is not None:
+            free_tier_gate = _container.free_tier_gate()
+            usage_writer = _container.usage_event_writer()
+    except Exception as exc:
+        logger.warning("DI unavailable in process_audio_common: %s", exc)
+
+    # Track success-only state for usage_events write
+    transcription_succeeded = False
+    duration_observed: float = 0.0
+    task_user_id: int | None = None
+    task_uuid: str = ""
+    task_audio_duration: float = 0.0
+    task_model: str = "unknown"
 
     # Initial progress: queued
     _update_progress(repository, params.identifier, TaskProgressStage.queued, 0)
@@ -440,6 +491,10 @@ def process_audio_common(
             },
         )
 
+        # Phase 13-08 success-path snapshot — usage_events written in finally
+        transcription_succeeded = True
+        duration_observed = duration
+
     except (RuntimeError, ValueError, KeyError) as e:
         logger.error(
             "Speech-to-text processing failed for identifier: %s. Error: %s",
@@ -480,34 +535,95 @@ def process_audio_common(
         )
 
     finally:
+        # Capture per-task data needed for usage_events + slot release.
+        # Single repo lookup serves callback + W1 release paths (DRT).
+        completed_task = None
         try:
-            if params.callback_url:
-                task = repository.get_by_id(params.identifier)
-                if task:
-                    metadata = Metadata(
-                        task_type=task.task_type,
-                        task_params=task.task_params,
-                        language=task.language,
-                        file_name=task.file_name,
-                        url=task.url,
-                        callback_url=task.callback_url,
-                        duration=task.duration,
-                        audio_duration=task.audio_duration,
-                        start_time=task.start_time,
-                        end_time=task.end_time,
-                    )
-                    result_payload = Result(
-                        status=task.status,
-                        result=task.result,
-                        metadata=metadata,
-                        error=task.error,
-                    )
-                    post_task_callback(params.callback_url, result_payload.model_dump())
+            completed_task = repository.get_by_id(params.identifier)
+        except Exception as exc:  # pragma: no cover — defensive
+            logger.warning(
+                "Failed to load completed task %s: %s",
+                params.identifier,
+                exc,
+            )
+
+        if completed_task is not None:
+            task_user_id = completed_task.user_id
+            task_uuid = completed_task.uuid
+            task_audio_duration = completed_task.audio_duration or 0.0
+            params_dict = completed_task.task_params or {}
+            model_value = params_dict.get("model", "unknown")
+            task_model = (
+                model_value.value if hasattr(model_value, "value") else str(model_value)
+            )
+
+        # Existing callback path — unchanged behavior, reusing completed_task.
+        try:
+            if params.callback_url and completed_task is not None:
+                metadata = Metadata(
+                    task_type=completed_task.task_type,
+                    task_params=completed_task.task_params,
+                    language=completed_task.language,
+                    file_name=completed_task.file_name,
+                    url=completed_task.url,
+                    callback_url=completed_task.callback_url,
+                    duration=completed_task.duration,
+                    audio_duration=completed_task.audio_duration,
+                    start_time=completed_task.start_time,
+                    end_time=completed_task.end_time,
+                )
+                result_payload = Result(
+                    status=completed_task.status,
+                    result=completed_task.result,
+                    metadata=metadata,
+                    error=completed_task.error,
+                )
+                post_task_callback(params.callback_url, result_payload.model_dump())
         except Exception as e:
             logger.error(
                 "Failed to send callback for identifier %s: %s",
                 params.identifier,
                 str(e),
             )
+
+        # Phase 13-08 — write usage_events row on success-only path
+        # (idempotent: duplicate task_uuid replays are silent no-ops).
+        if (
+            transcription_succeeded
+            and usage_writer is not None
+            and task_user_id is not None
+            and task_uuid
+        ):
+            try:
+                usage_writer.record(
+                    user_id=task_user_id,
+                    task_uuid=task_uuid,
+                    gpu_seconds=duration_observed,
+                    file_seconds=task_audio_duration,
+                    model=task_model,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to record usage_events for task %s: %s",
+                    params.identifier,
+                    exc,
+                )
+
+        # Phase 13-08 W1 — ALWAYS release the concurrency slot (success
+        # OR failure). Slot was consumed at transcribe-start by
+        # FreeTierGate.check; without this release the user is locked
+        # out of further transcribes until the bucket resets.
+        if free_tier_gate is not None and task_user_id is not None:
+            user_for_release = _resolve_user_for_task(task_user_id)
+            if user_for_release is not None:
+                try:
+                    free_tier_gate.release_concurrency(user_for_release)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to release concurrency slot user_id=%s task=%s: %s",
+                        task_user_id,
+                        params.identifier,
+                        exc,
+                    )
 
         session.close()

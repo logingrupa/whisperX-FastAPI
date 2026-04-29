@@ -26,8 +26,10 @@ from app.api.constants import (
 )
 from app.api.dependencies import (
     get_alignment_service,
+    get_authenticated_user,
     get_diarization_service,
     get_file_service,
+    get_free_tier_gate,
     get_scoped_task_repository,
     get_speaker_assignment_service,
     get_transcription_service,
@@ -37,7 +39,9 @@ from app.core.config import Config
 from app.core.exceptions import FileValidationError, ValidationError
 from app.core.logging import logger
 from app.domain.entities.task import Task as DomainTask
+from app.domain.entities.user import User
 from app.domain.repositories.task_repository import ITaskRepository
+from app.services.free_tier_gate import FreeTierGate
 from app.domain.services.alignment_service import IAlignmentService
 from app.domain.services.diarization_service import IDiarizationService
 from app.domain.services.speaker_assignment_service import ISpeakerAssignmentService
@@ -83,6 +87,8 @@ async def transcribe(
     repository: ITaskRepository = Depends(get_scoped_task_repository),
     file_service: FileService = Depends(get_file_service),
     transcription_service: ITranscriptionService = Depends(get_transcription_service),
+    user: User = Depends(get_authenticated_user),
+    free_tier_gate: FreeTierGate = Depends(get_free_tier_gate),
 ) -> Response:
     """
     Transcribe an uploaded audio file.
@@ -110,13 +116,23 @@ async def transcribe(
 
     temp_file = file_service.save_upload(file)
     audio = process_audio_file(temp_file)
+    audio_duration = get_audio_duration(audio)
+
+    # Phase 13-08 free-tier gate (RATE-01..10) — diarize=False on this
+    # transcribe-only route. Slot held until process_transcribe completion.
+    free_tier_gate.check(
+        user=user,
+        file_seconds=audio_duration,
+        model=model_params.model.value,
+        diarize=False,
+    )
 
     # Create domain task
     task = DomainTask(
         uuid=str(uuid4()),
         status=TaskStatus.processing,
         file_name=file.filename,
-        audio_duration=get_audio_duration(audio),
+        audio_duration=audio_duration,
         language=model_params.language,
         task_type=TaskType.transcription,
         task_params={
@@ -125,6 +141,7 @@ async def transcribe(
             "vad_options": vad_options_params.model_dump(),
         },
         start_time=datetime.now(tz=timezone.utc),
+        user_id=int(user.id) if user.id is not None else None,
     )
 
     identifier = repository.add(task)
@@ -181,6 +198,9 @@ def align(
     Returns:
         Response: Confirmation message of task queuing.
     """
+    # NOTE: align + combine don't transcribe — no FreeTierGate.check() needed.
+    # Per-user scoping (13-07) still applies via get_scoped_task_repository.
+
     logger.info(
         "Received alignment request for file: %s and transcript: %s",
         file.filename,
@@ -262,6 +282,8 @@ async def diarize(
     diarize_params: DiarizationParams = Depends(),
     file_service: FileService = Depends(get_file_service),
     diarization_service: IDiarizationService = Depends(get_diarization_service),
+    user: User = Depends(get_authenticated_user),
+    free_tier_gate: FreeTierGate = Depends(get_free_tier_gate),
 ) -> Response:
     """
     Perform diarization on an uploaded audio file.
@@ -279,6 +301,10 @@ async def diarize(
         Response: Confirmation message of task queuing.
     """
     logger.info("Received diarization request for file: %s", file.filename)
+
+    # Phase 13-08 — diarize-only route is pro-only; check_diarize_route
+    # short-circuits free/trial users with FreeTierViolationError -> 403
+    free_tier_gate.check_diarize_route(user=user)
 
     # Validate and save file using file service
     if file.filename is None:
@@ -301,6 +327,7 @@ async def diarize(
             "device": device,
         },
         start_time=datetime.now(tz=timezone.utc),
+        user_id=int(user.id) if user.id is not None else None,
     )
 
     identifier = repository.add(task)
@@ -347,6 +374,9 @@ async def combine(
     Returns:
         Response: Confirmation message of task queuing.
     """
+    # NOTE: align + combine don't transcribe — no FreeTierGate.check() needed.
+    # Per-user scoping (13-07) still applies via get_scoped_task_repository.
+
     logger.info(
         "Received combine request for aligned transcript: %s and diarization result: %s",
         aligned_transcript.filename,

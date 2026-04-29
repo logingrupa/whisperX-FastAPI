@@ -11,10 +11,14 @@ from fastapi import Request, status
 from fastapi.responses import JSONResponse
 
 from app.core.exceptions import (
+    ConcurrencyLimitError,
     DomainError,
+    FreeTierViolationError,
     InfrastructureError,
     InvalidCredentialsError,
+    RateLimitExceededError,
     TaskNotFoundError,
+    TrialExpiredError,
     ValidationError,
 )
 
@@ -214,4 +218,86 @@ async def invalid_credentials_handler(
 
     return JSONResponse(
         status_code=status.HTTP_401_UNAUTHORIZED, content=ic_exc.to_dict()
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 13-08 — free-tier gate / billing handlers (RATE-01..12, BILL-01).
+# Registration in app/main.py wiring (plan 13-09).
+# ---------------------------------------------------------------------------
+
+
+async def trial_expired_handler(
+    request: Request, exc: TrialExpiredError | Exception
+) -> JSONResponse:
+    """Map TrialExpiredError -> HTTP 402 Payment Required (RATE-09)."""
+    te_exc = exc if isinstance(exc, TrialExpiredError) else TrialExpiredError()
+    logger.info(
+        "Trial expired",
+        extra={"correlation_id": te_exc.correlation_id, "path": request.url.path},
+    )
+    return JSONResponse(
+        status_code=status.HTTP_402_PAYMENT_REQUIRED, content=te_exc.to_dict()
+    )
+
+
+async def free_tier_violation_handler(
+    request: Request, exc: FreeTierViolationError | Exception
+) -> JSONResponse:
+    """Map FreeTierViolationError -> HTTP 403 Forbidden.
+
+    Covers model rejection, file-too-long, diarize-not-allowed.
+    """
+    ft_exc = (
+        exc
+        if isinstance(exc, FreeTierViolationError)
+        else FreeTierViolationError("violation")
+    )
+    logger.info(
+        "Free-tier violation: %s",
+        ft_exc.details.get("reason", ""),
+        extra={"correlation_id": ft_exc.correlation_id, "path": request.url.path},
+    )
+    return JSONResponse(
+        status_code=status.HTTP_403_FORBIDDEN, content=ft_exc.to_dict()
+    )
+
+
+async def rate_limit_exceeded_handler(
+    request: Request, exc: RateLimitExceededError | Exception
+) -> JSONResponse:
+    """Map RateLimitExceededError -> HTTP 429 + Retry-After header (RATE-12)."""
+    rl_exc = (
+        exc
+        if isinstance(exc, RateLimitExceededError)
+        else RateLimitExceededError("unknown", 60)
+    )
+    retry_after = int(rl_exc.details.get("retry_after_seconds", 60))
+    logger.info(
+        "Rate limit exceeded",
+        extra={"correlation_id": rl_exc.correlation_id, "path": request.url.path},
+    )
+    return JSONResponse(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        content=rl_exc.to_dict(),
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
+async def concurrency_limit_handler(
+    request: Request, exc: ConcurrencyLimitError | Exception
+) -> JSONResponse:
+    """Map ConcurrencyLimitError -> HTTP 429 + Retry-After header (W1)."""
+    cl_exc = (
+        exc if isinstance(exc, ConcurrencyLimitError) else ConcurrencyLimitError()
+    )
+    retry_after = int(cl_exc.details.get("retry_after_seconds", 60))
+    logger.info(
+        "Concurrency limit reached",
+        extra={"correlation_id": cl_exc.correlation_id, "path": request.url.path},
+    )
+    return JSONResponse(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        content=cl_exc.to_dict(),
+        headers={"Retry-After": str(retry_after)},
     )
