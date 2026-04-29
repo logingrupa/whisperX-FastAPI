@@ -270,3 +270,64 @@ def test_delete_user_data_requires_auth(
     response = client_no_auth.delete("/api/account/data")
     assert response.status_code == 401
     assert response.json()["detail"] == "Authentication required"
+
+
+# ---------------------------------------------------------------
+# GET /api/account/me — Plan 15-03 (UI-07 server-side hydration)
+# ---------------------------------------------------------------
+
+
+@pytest.mark.integration
+def test_get_account_me_returns_summary(
+    client: TestClient, upload_dirs: tuple[Path, Path]
+) -> None:
+    """Authenticated GET returns AccountSummaryResponse-shaped JSON for caller."""
+    email = "alice-me@example.com"
+    _register(client, email)
+
+    response = client.get("/api/account/me")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["email"] == email
+    assert body["plan_tier"] in {"trial", "free", "pro", "team"}
+    assert isinstance(body["user_id"], int)
+    assert body["user_id"] > 0
+    assert isinstance(body["token_version"], int)
+    # trial_started_at can be null (no API key created yet) but key MUST exist
+    assert "trial_started_at" in body
+
+
+@pytest.mark.integration
+def test_get_account_me_requires_auth(
+    account_app: tuple[FastAPI, Container],
+) -> None:
+    """Anonymous GET → 401 with the same generic detail used elsewhere (T-15-04)."""
+    app, _ = account_app
+    anon = TestClient(app)
+
+    response = anon.get("/api/account/me")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Authentication required"
+
+
+@pytest.mark.integration
+def test_get_account_me_response_shape_locked(
+    client: TestClient, upload_dirs: tuple[Path, Path]
+) -> None:
+    """Response keys are EXACTLY the 5 declared fields — no extras leaked (T-15-11)."""
+    email = "alice-shape@example.com"
+    _register(client, email)
+
+    response = client.get("/api/account/me")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert set(body.keys()) == {
+        "user_id",
+        "email",
+        "plan_tier",
+        "trial_started_at",
+        "token_version",
+    }
