@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: Ready for 15-04
-stopped_at: Plan 15-04 (DELETE /api/account end-to-end, SCOPE-06 closed)
-last_updated: "2026-04-29T19:25:41.147Z"
-last_activity: 2026-04-29 -- Plan 15-03 (GET /api/account/me wired, UI-07 hydration source ready)
+status: Ready for 15-06
+stopped_at: Plan 15-05 (auth hydration: refresh + isHydrating + RequireAuth gate + main.tsx boot probe — UI-07 closed)
+last_updated: "2026-04-29T22:32:00.000Z"
+last_activity: 2026-04-29 -- Plan 15-05 (frontend session hydration wired, UI-07 closed)
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 36
-  completed_plans: 34
-  percent: 94
+  completed_plans: 35
+  percent: 97
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 15
-Plan: 15-03 complete
-Status: Ready for 15-04
-Last activity: 2026-04-29 -- Plan 15-03 (GET /api/account/me wired, UI-07 hydration source ready)
+Plan: 15-05 complete
+Status: Ready for 15-06
+Last activity: 2026-04-29 -- Plan 15-05 (frontend session hydration wired, UI-07 closed)
 
 ## Performance Metrics
 
@@ -87,6 +87,7 @@ Last activity: 2026-04-29 -- Plan 15-03 (GET /api/account/me wired, UI-07 hydrat
 | Phase 15 P02 | 4 min | 1 task (TDD) | 2 files |
 | Phase 15 P03 | 6 min | 2 tasks (3 commits, TDD) tasks | 3 files files |
 | Phase 15 P04 | 9 min | 3 tasks | 3 files |
+| Phase 15 P05 | 9 min | 2 tasks (TDD) tasks | 7 files files |
 
 ## Accumulated Context
 
@@ -266,6 +267,10 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [15-04]: ValidationError → 400 EMAIL_CONFIRM_MISMATCH translated route-locally via HTTPException; global validation_error_handler default 422 preserved for register/login flows (Option B route-local, RESEARCH §1252)
 - [Phase ?]: [15-04]: T-15-03 LOCKED — no token_version bump on delete; user-row-gone is the invalidation signal (middleware get_by_id returns None on next request → 401). Cookie clearing is route-level UX cleanup, not a security gate.
 - [Phase ?]: [15-04]: Rule-1 test fix — Starlette TestClient.delete() does not accept json= kwarg in this httpx version; all 6 delete-with-body tests use client.request('DELETE', url, json=...). Pattern recorded for future DELETE-with-body tests.
+- [Phase ?]: [15-05]: refresh() error-class branch narrows on AuthRequiredError + ApiClientError; truly unexpected errors propagate (T-15-04 mitigation); isHydrating still flips via finally on every code path
+- [Phase ?]: [15-05]: Module-scope boot probe void useAuthStore.getState().refresh() in main.tsx (BEFORE createRoot.render) — StrictMode-safe single-fire (useEffect would double-hydrate)
+- [Phase ?]: [15-05]: RequireAuth 3-state gate uses two flat early-return guards (isHydrating then user===null) — fail-closed null render; nested-if invariant 0 across all 5 modified files
+- [Phase ?]: [15-05]: 3 sibling test files (AppRouter, KeysDashboardPage, smoke) updated to seed full AuthUser shape (Rule 3 deviation — TS strict compile gate); AppRouter helper migrated to import AuthUser type (DRY single source)
 
 ### Pending Todos
 
@@ -281,6 +286,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T19:25:41.140Z
+Last session: 2026-04-29T19:32:58.019Z
 Stopped at: Plan 15-04 (DELETE /api/account end-to-end, SCOPE-06 closed)
 Resume file: None
