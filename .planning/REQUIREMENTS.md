@@ -27,7 +27,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [x] **SCHEMA-02**: System has a baseline migration that mirrors the existing `tasks` table structure
 - [x] **SCHEMA-03**: System adds `users`, `api_keys`, `subscriptions`, `usage_events`, `rate_limit_buckets`, `device_fingerprints` tables
 - [x] **SCHEMA-04**: System adds `tasks.user_id` foreign key (nullable, then NOT NULL after backfill)
-- [ ] **SCHEMA-05**: System enforces SQLite `PRAGMA foreign_keys = ON` on every connection via SQLAlchemy event listener
+- [x] **SCHEMA-05**: System enforces SQLite `PRAGMA foreign_keys = ON` on every connection via SQLAlchemy event listener
 - [x] **SCHEMA-06**: System uses `DateTime(timezone=True)` for every datetime column (prevents tz bugs at Stripe webhook time)
 - [x] **SCHEMA-07**: `Subscription` table has `plan_tier` enum-CHECK constraint, `cancelled_at` soft-delete column, `stripe_customer_id` unique constraint
 - [x] **SCHEMA-08**: `UsageEvent` table has `idempotency_key UNIQUE NOT NULL` for Stripe webhook replay safety
@@ -199,7 +199,7 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | SCHEMA-02 | Phase 10 | Complete |
 | SCHEMA-03 | Phase 10 | Complete |
 | SCHEMA-04 | Phase 10 | Complete |
-| SCHEMA-05 | Phase 10 | Pending |
+| SCHEMA-05 | Phase 10 | Complete |
 | SCHEMA-06 | Phase 10 | Complete |
 | SCHEMA-07 | Phase 10 | Complete |
 | SCHEMA-08 | Phase 10 | Complete |

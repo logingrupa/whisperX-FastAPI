@@ -17,7 +17,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - Decimal phases (e.g. 13.1): Reserved for urgent insertions via `/gsd-insert-phase`
 - v1.1 phase 10 (Cloudflare e2e) deferred to v1.3 — v1.2 resumes integer numbering at 10
 
-- [ ] **Phase 10: Alembic Baseline + Auth Schema** — Replace `create_all()` with hand-written baseline + auth/billing/rate-limit tables; zero behavior change
+- [x] **Phase 10: Alembic Baseline + Auth Schema** — Replace `create_all()` with hand-written baseline + auth/billing/rate-limit tables; zero behavior change (completed 2026-04-29)
 - [ ] **Phase 11: Auth Core Modules + Services + DI** — Pure logic modules (jwt_codec, api_key, password hasher, services, DI providers); HTTP-untouched
 - [ ] **Phase 12: Admin CLI + Task Backfill** — Typer CLI seeds admin user + backfills `tasks.user_id`; FK NOT NULL constraint applied last
 - [ ] **Phase 13: Atomic Backend Cutover (ATOMIC PAIR with Phase 14)** — DualAuthMiddleware + auth/keys/account routes + per-user scoping + WS ticket + CSRF + CORS lockdown + rate-limit + free-tier gates + Stripe schema stubs
@@ -43,7 +43,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - [x] 10-01-PLAN.md — Alembic install + scaffolding + 0001_baseline empty stamp revision (Wave 1)
 - [x] 10-02-PLAN.md — ORM models extension: 6 new classes + tasks.user_id + DRY column factories (Wave 2)
 - [x] 10-03-PLAN.md — 0002_auth_schema migration: 6 tables + tasks.user_id FK + tz=True ALTER (Wave 2)
-- [ ] 10-04-PLAN.md — PRAGMA listener + main.py cleanup + integration tests (Wave 3)
+- [x] 10-04-PLAN.md — PRAGMA listener + main.py cleanup + integration tests (Wave 3)
 
 ### Phase 11: Auth Core Modules + Services + DI
 **Goal**: Pure-logic auth/key/rate-limit/CSRF modules and services exist with single-source-of-truth invariants and pass unit tests; not yet wired into any HTTP route.
@@ -146,7 +146,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 10. Alembic Baseline + Auth Schema | v1.2 | 3/4 | In Progress|  |
+| 10. Alembic Baseline + Auth Schema | v1.2 | 4/4 | Complete   | 2026-04-29 |
 | 11. Auth Core Modules + Services + DI | v1.2 | 0/TBD | Not started | - |
 | 12. Admin CLI + Task Backfill | v1.2 | 0/TBD | Not started | - |
 | 13. Atomic Backend Cutover | v1.2 | 0/TBD | Not started (atomic pair w/ 14) | - |

@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: executing
-stopped_at: Plan 10-02 complete — 6 ORM models + Task tz-aware factories + tasks.user_id FK; Base.metadata.tables=7
-last_updated: "2026-04-29T04:50:49.752Z"
+status: verifying
+stopped_at: Plan 10-04 complete — Phase 10 schema-foundation milestone closed; PRAGMA listener + tests all green
+last_updated: "2026-04-29T05:05:06.566Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
-  percent: 75
+  completed_plans: 4
+  percent: 100
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 
 Phase: 10 (Alembic Baseline + Auth Schema) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-29
 
 ## Performance Metrics
@@ -51,6 +51,7 @@ Last activity: 2026-04-29
 | Phase 10 P01 | 5min | 3 tasks | 6 files |
 | Phase 10 P02 | 3min | 2 tasks | 2 files |
 | Phase 10 P03 | 2min | 1 tasks | 1 files |
+| Phase 10 P04 | 9 | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -101,6 +102,10 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [10-03]: Single-line op.create_table opener form mandated by plan grep gates — same Plan-10-01-style fix applied
 - [Phase ?]: [10-03]: 14 named constraints in 0002_auth_schema (6 FK + 1 CK + 1 IX + 6 UQ); usage_events.task_id FK lacks ondelete=CASCADE (audit trail per CONTEXT §38)
 - [Phase ?]: [10-03]: Greenfield smoke verified end-to-end: alembic upgrade head creates 8 tables; ck_users_plan_tier rejects invalid; uq_usage_events_idempotency_key rejects duplicate; downgrade -1 returns to baseline shape
+- [Phase ?]: [10-04]: SQLAlchemy global Engine 'connect' listener for PRAGMA foreign_keys=ON; module-load fail-loud assert refuses to boot if FK enforcement off
+- [Phase ?]: [10-04]: Base.metadata.create_all removed from app/main.py — Alembic is the sole schema source; partial-staged via git apply --cached to isolate from pre-existing dirty BearerAuthMiddleware diff
+- [Phase ?]: [10-04]: subprocess invocation uses [sys.executable, '-m', 'alembic', ...] — venv-portable, PATH-independent, fixes Windows pytest test discovery
+- [Phase ?]: [10-04]: Phase 10 schema-foundation milestone closed — SCHEMA-01..08 all delivered across plans 10-01..10-04
 
 ### Pending Todos
 
@@ -116,6 +121,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T04:50:26.773Z
-Stopped at: Plan 10-02 complete — 6 ORM models + Task tz-aware factories + tasks.user_id FK; Base.metadata.tables=7
+Last session: 2026-04-29T05:05:06.561Z
+Stopped at: Plan 10-04 complete — Phase 10 schema-foundation milestone closed; PRAGMA listener + tests all green
 Resume file: None
