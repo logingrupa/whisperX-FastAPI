@@ -39,7 +39,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [x] **AUTH-03**: User can log in with email + password and receive an httpOnly + Secure + SameSite=Lax cookie session JWT (HS256)
 - [x] **AUTH-04**: Session is 7-day sliding-refresh (every authenticated request extends expiry)
 - [x] **AUTH-05**: User can log out, clearing session cookie
-- [ ] **AUTH-06**: User can "logout all devices" via a `token_version` bump that invalidates every existing session
+- [x] **AUTH-06**: User can "logout all devices" via a `token_version` bump that invalidates every existing session
 - [x] **AUTH-07**: User can request password reset by clicking a `mailto:hey@logingrupa.lv` link (no SMTP — manual operator response)
 - [x] **AUTH-08**: All JWT decodes use `algorithms=["HS256"]` to prevent algorithm confusion (single decode site `app/core/jwt_codec.py`)
 - [x] **AUTH-09**: System never logs raw passwords, JWT secrets, or full API keys at any log level
