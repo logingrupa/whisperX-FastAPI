@@ -4,7 +4,7 @@ from functools import lru_cache
 from typing import Optional
 
 import torch
-from pydantic import Field, computed_field, field_validator, model_validator
+from pydantic import Field, SecretStr, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.schemas import ComputeType, Device, WhisperModel
@@ -83,7 +83,7 @@ class WhisperSettings(BaseSettings):
         Resolve the model and compute type for a given language.
 
         If a language-specific override is configured, returns the override
-        path and forces int8 compute type (CTranslate2 int8 models).
+        path and preserves the default compute type (typically float16).
         Otherwise returns the original model and compute type unchanged.
 
         Returns:
@@ -91,7 +91,7 @@ class WhisperSettings(BaseSettings):
         """
         override = self.LANGUAGE_MODEL_OVERRIDES.get(language)
         if override:
-            return override, ComputeType.int8.value
+            return override, self.COMPUTE_TYPE.value
         return model, self.COMPUTE_TYPE.value
 
     @model_validator(mode="after")
@@ -133,6 +133,55 @@ class CallbackSettings(BaseSettings):
     )
 
 
+class AuthSettings(BaseSettings):
+    """Authentication configuration settings.
+
+    Per .planning/phases/11-auth-core-modules-services-di/11-CONTEXT.md §138-147 (locked):
+    - JWT HS256 secret (required; fail loudly if missing in non-test envs).
+    - Argon2id OWASP params: m=19456 KiB, t=2, p=1.
+    - CSRF double-submit secret (required for prod; defaultable in test envs).
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="AUTH__",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
+    )
+
+    JWT_SECRET: SecretStr = Field(
+        default=SecretStr("change-me-dev-only"),
+        description="HS256 secret for session tokens (override in production)",
+    )
+    JWT_TTL_DAYS: int = Field(default=7, description="JWT validity period (days)")
+    ARGON2_M_COST: int = Field(default=19456, description="Argon2 memory cost (KiB)")
+    ARGON2_T_COST: int = Field(default=2, description="Argon2 time cost (iterations)")
+    ARGON2_PARALLELISM: int = Field(default=1, description="Argon2 parallelism")
+    CSRF_SECRET: SecretStr = Field(
+        default=SecretStr("change-me-dev-only"),
+        description="CSRF double-submit token signing secret",
+    )
+
+    @model_validator(mode="after")
+    def _reject_dev_defaults_in_production(self) -> "AuthSettings":
+        """Production safety: refuse to boot with the dev-only secret defaults.
+
+        pydantic-settings cannot conditionally require fields, so we use harmless
+        dev defaults and assert at construction time that production never sees them.
+        """
+        import os
+
+        if os.environ.get("ENVIRONMENT", "").lower() != "production":
+            return self
+        dev_default = "change-me-dev-only"
+        if self.JWT_SECRET.get_secret_value() == dev_default:
+            raise ValueError("AUTH__JWT_SECRET must be set in production")
+        if self.CSRF_SECRET.get_secret_value() == dev_default:
+            raise ValueError("AUTH__CSRF_SECRET must be set in production")
+        return self
+
+
 class Settings(BaseSettings):
     """Main application settings."""
 
@@ -158,6 +207,7 @@ class Settings(BaseSettings):
     whisper: WhisperSettings = Field(default_factory=WhisperSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     callback: CallbackSettings = Field(default_factory=CallbackSettings)
+    auth: AuthSettings = Field(default_factory=AuthSettings)
 
     @field_validator("ENVIRONMENT", mode="before")
     @classmethod

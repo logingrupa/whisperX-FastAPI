@@ -123,6 +123,8 @@ class TestSettings:
     def test_default_values(self) -> None:
         """Test that default values are set correctly."""
         # Use patch.dict to ensure environment is clean for this test
+        # Phase 11: AUTH__JWT_SECRET / AUTH__CSRF_SECRET required when
+        # ENVIRONMENT=production (AuthSettings._reject_dev_defaults_in_production).
         with patch.dict(
             os.environ,
             {
@@ -133,6 +135,8 @@ class TestSettings:
                 "COMPUTE_TYPE": "int8",
                 "WHISPER_MODEL": "tiny",
                 "DEFAULT_LANG": "en",
+                "AUTH__JWT_SECRET": "test-jwt-secret-not-the-default",
+                "AUTH__CSRF_SECRET": "test-csrf-secret-not-the-default",
             },
             clear=False,
         ):

@@ -49,6 +49,8 @@ dependencies = [
     "torchaudio<=2.8.0",
     "torchvision<=0.23.0",
     "setuptools>=78.1.1",  # CVE-2025-47273 fix
+    "argon2-cffi>=23.1.0",  # Argon2id password hashing (Phase 11 / AUTH-02)
+    "pyjwt>=2.8.0",         # JWT HS256 encode/decode (Phase 11 / AUTH-08)
 ]
 
 [project.optional-dependencies]
