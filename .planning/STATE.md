@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: executing
-stopped_at: Plan 14-01 complete — Vitest+jsdom+RTL+MSW infra online; shadcn primitives + zustand/RHF/zod deps installed; sentinel 2/2; 2 commits (b0de895, dff607a)
-last_updated: "2026-04-29T13:35:18.923Z"
+stopped_at: Plan 14-04 complete — 6 routes wired at BrowserRouter basename=/ui; RequireAuth Outlet HOC; TranscribePage verbatim; AppShell+ErrorBoundary; 29/29 tests; 2 commits (4b42215, 475da67)
+last_updated: "2026-04-29T13:43:31.527Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 30
-  completed_plans: 26
-  percent: 87
+  completed_plans: 27
+  percent: 90
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 14 (Atomic Frontend Cutover + Test Infra) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 Status: Ready to execute
 Last activity: 2026-04-29
 
@@ -78,6 +78,7 @@ Last activity: 2026-04-29
 | Phase 14 P01 | 3m 30s | 2 tasks | 16 files |
 | Phase 14 P02 | 2m 28s | 2 tasks | 5 files |
 | Phase 14 P03 | 3m 46s | 2 tasks | 3 files |
+| Phase 14 P04 | 4m 9s | 2 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -223,6 +224,11 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [14-03]: refresh()/hydration deferred to Phase 15 — no /api/account/me yet. Cookie session persists 7d but in-memory user null on reload; RequireAuth (14-04) redirects via /login?next=
 - [Phase ?]: [14-03]: Lazy _channel sentinel in authStore — BroadcastChannel constructed only on first state action; tolerates stray-import side effects + SSR/Node paths
 - [Phase ?]: [14-03]: toAuthUser(response, email) helper — DRY mapping shared by login()/register(); single extension point for Phase 15 AuthUser fields
+- [Phase ?]: [14-04]: AppShell wraps /dashboard/* only — / (TranscribePage) renders without it to preserve UploadDropzone full-bleed layout (UI-10 zero-regression)
+- [Phase ?]: [14-04]: Catch-all path='*' Navigates to / (replace); RequireAuth then handles unauth /login?next= redirect — saves a dedicated 404 page in v1.2
+- [Phase ?]: [14-04]: PageWrap DRY composer wraps RouteErrorBoundary + Suspense around every route element — 1-line route registration; impossible to ship a page without per-route ErrorBoundary
+- [Phase ?]: [14-04]: Lazy named-export shim — lazy(() => import('./X').then((m) => ({default: m.X}))) — Plans 05/06 ship named exports; routes/ stays consistently named-export
+- [Phase ?]: [14-04]: Rule 3 fix — apiErrors.ts + setup.ts constructor parameter properties rewritten to explicit field declarations to satisfy tsconfig erasableSyntaxOnly (was pre-existing build break from 14-01/14-02)
 
 ### Pending Todos
 
@@ -238,6 +244,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T13:34:34.232Z
-Stopped at: Plan 14-01 complete — Vitest+jsdom+RTL+MSW infra online; shadcn primitives + zustand/RHF/zod deps installed; sentinel 2/2; 2 commits (b0de895, dff607a)
+Last session: 2026-04-29T13:43:31.521Z
+Stopped at: Plan 14-04 complete — 6 routes wired at BrowserRouter basename=/ui; RequireAuth Outlet HOC; TranscribePage verbatim; AppShell+ErrorBoundary; 29/29 tests; 2 commits (4b42215, 475da67)
 Resume file: None

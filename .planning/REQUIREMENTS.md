@@ -110,7 +110,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 
 ### Auth UI Pages (`UI-*`) — `/frontend-design` skill
 
-- [ ] **UI-01**: System uses `react-router-dom` with `<BrowserRouter basename="/ui">` and routes: `/`, `/login`, `/register`, `/dashboard/keys`, `/dashboard/usage`, `/dashboard/account`
+- [x] **UI-01**: System uses `react-router-dom` with `<BrowserRouter basename="/ui">` and routes: `/`, `/login`, `/register`, `/dashboard/keys`, `/dashboard/usage`, `/dashboard/account`
 - [ ] **UI-02**: `/login` page has email + password fields with react-hook-form + zod validation, shadcn `<Form>` styling, submit-disabled-while-loading
 - [ ] **UI-03**: `/register` page has email + password + password-confirm + terms-checkbox, password strength meter (zxcvbn-style heuristic — no external library required)
 - [x] **UI-04**: After successful login or registration, user is redirected to `/` (transcription page) or original `?next=` URL
@@ -119,7 +119,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [ ] **UI-07**: `/dashboard/account` shows email, plan_tier card, "Upgrade to Pro" CTA opening interest-capture modal (real Stripe in v1.3), delete-account flow with type-email confirmation
 - [x] **UI-08**: 401 responses from `apiClient.ts` redirect to `/login?next=<currentUrl>`
 - [x] **UI-09**: 429 responses surface inline error with `Retry-After` countdown — no toast spam
-- [ ] **UI-10**: Existing transcription page (`<UploadDropzone>`, `<FileQueueList>`, `<ConnectionStatus>`) is moved verbatim to `routes/TranscribePage.tsx` and rendered at `/`
+- [x] **UI-10**: Existing transcription page (`<UploadDropzone>`, `<FileQueueList>`, `<ConnectionStatus>`) is moved verbatim to `routes/TranscribePage.tsx` and rendered at `/`
 - [x] **UI-11**: All API/WebSocket calls go through a single `frontend/src/lib/apiClient.ts` wrapper that auto-attaches credentials and `X-CSRF-Token`
 - [x] **UI-12**: `BroadcastChannel('auth')` synchronizes login/logout state across browser tabs
 - [x] **UI-13**: UI uses shadcn/ui + Tailwind v4 + Radix only — no custom components — and meets the "super pro modern" bar set via `/frontend-design` skill
@@ -258,7 +258,7 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | BILL-05 | Phase 15 | Complete |
 | BILL-06 | Phase 15 | Complete |
 | BILL-07 | Phase 13 | Complete |
-| UI-01 | Phase 14 | Pending |
+| UI-01 | Phase 14 | Complete |
 | UI-02 | Phase 14 | Pending |
 | UI-03 | Phase 14 | Pending |
 | UI-04 | Phase 14 | Complete |
@@ -267,7 +267,7 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | UI-07 | Phase 15 | Pending |
 | UI-08 | Phase 14 | Complete |
 | UI-09 | Phase 14 | Complete |
-| UI-10 | Phase 14 | Pending |
+| UI-10 | Phase 14 | Complete |
 | UI-11 | Phase 14 | Complete |
 | UI-12 | Phase 14 | Complete |
 | UI-13 | Phase 14 | Complete |
