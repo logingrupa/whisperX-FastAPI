@@ -44,7 +44,6 @@ from app.spa_handler import setup_spa_routes  # noqa: E402
 # Load environment variables from .env
 load_dotenv()
 
-Base.metadata.create_all(bind=engine)
 
 # Create dependency injection container
 container = Container()
