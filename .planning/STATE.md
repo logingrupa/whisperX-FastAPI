@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: executing
-stopped_at: Plan 13-03 complete — auth routes (POST /auth/{register,login,logout}) + disposable-email loader + slowapi /24/64 limiter + invalid_credentials_handler; 12 integration tests pass; 3 commits (5a814ff, 0bad87c, b77962b)
-last_updated: "2026-04-29T13:25:00.000Z"
+stopped_at: Plan 13-04 complete — POST/GET/DELETE /api/keys + show-once + trial-trigger + cross-user 404; 12 integration tests pass; 3 commits (30cb055, f4d7763, 459cd25)
+last_updated: "2026-04-29T10:27:50.476Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 23
-  completed_plans: 16
-  percent: 70
+  completed_plans: 17
+  percent: 74
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 13 (Atomic Backend Cutover) — EXECUTING
-Plan: 4 of 10
+Plan: 5 of 10
 Status: Ready to execute
 Last activity: 2026-04-29
 
@@ -66,6 +66,7 @@ Last activity: 2026-04-29
 | Phase 13 P01 | 3m 39s | 3 tasks | 4 files |
 | Phase 13 P02 | 6m | 2 tasks | 5 files |
 | Phase 13 P03 | ~17m | 3 tasks | 7 files |
+| Phase 13 P04 | 4 min | - tasks | - files |
 
 ## Accumulated Context
 
@@ -169,6 +170,10 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [13-03]: invalid_credentials_handler defined in app/api/exception_handlers.py (maps InvalidCredentialsError → 401); registration in plan 13-09 alongside RateLimitExceeded + ValidationError handlers
 - [Phase ?]: [13-03]: email-validator>=2.0.0 pinned in pyproject.toml — required by pydantic EmailStr at validation time (foreseen in plan body as fallback action)
 - [Phase ?]: [13-03]: Test isolation: per-test Container with providers.Factory(sessionmaker(bind=tmp_engine)) override + limiter.reset() in setup AND teardown; slim FastAPI app (no main.py legacy middleware) keeps tests independent of plan 13-09 wiring
+- [Phase ?]: [13-04]: AuthService.start_trial_if_first_key takes count as parameter (not derived) — keeps service free of ApiKey-repository knowledge (SRP); three flat guards; idempotent on subsequent creations
+- [Phase ?]: [13-04]: Cross-user DELETE 404 mechanism uses list_for_user-then-filter — KeyService.list_for_user already scopes to user_id; foreign keys never appear in candidate list (T-13-15); identical 404 body for missing-id and foreign-id
+- [Phase ?]: [13-04]: Show-once UX enforced at TWO layers — route returns key=plaintext only in CreateKeyResponse; ListKeyItem schema lacks key field entirely (Pydantic discards on serialize, defence-in-depth)
+- [Phase ?]: [13-04]: Integration tests use TWO TestClient instances for cross-user (separate cookie jars same app+DB); bearer auth path bootstraps via cookie POST then re-issues plaintext as Authorization: Bearer
 
 ### Pending Todos
 
@@ -184,6 +189,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T13:25:00.000Z
-Stopped at: Plan 13-03 complete — auth routes (POST /auth/{register,login,logout}) + disposable-email loader + slowapi /24/64 limiter + invalid_credentials_handler; 12 integration tests pass; 3 commits (5a814ff, 0bad87c, b77962b)
+Last session: 2026-04-29T10:27:50.470Z
+Stopped at: Plan 13-04 complete — POST/GET/DELETE /api/keys + show-once + trial-trigger + cross-user 404; 12 integration tests pass; 3 commits (30cb055, f4d7763, 459cd25)
 Resume file: None

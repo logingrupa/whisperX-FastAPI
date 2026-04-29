@@ -46,13 +46,13 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 
 ### API Keys (`KEY-*`)
 
-- [ ] **KEY-01**: Authenticated user can create named API keys via dashboard or API
+- [x] **KEY-01**: Authenticated user can create named API keys via dashboard or API
 - [x] **KEY-02**: System generates keys in format `whsk_<8charPrefix>_<22charBase64Random>` (16-byte url-safe base64, ~128 bits entropy)
 - [x] **KEY-03**: System stores SHA-256 hash of API keys, never plaintext; uses `secrets.compare_digest` for verification
-- [ ] **KEY-04**: System shows the full API key exactly once at creation time (modal with copy-to-clipboard)
-- [ ] **KEY-05**: User can list their API keys with name, prefix, created_at, last_used_at, status (active/revoked)
-- [ ] **KEY-06**: User can have multiple active API keys simultaneously (no hard cap in v1.2)
-- [ ] **KEY-07**: User can revoke an API key; revoked keys are soft-deleted (kept indefinitely for audit until account deletion)
+- [x] **KEY-04**: System shows the full API key exactly once at creation time (modal with copy-to-clipboard)
+- [x] **KEY-05**: User can list their API keys with name, prefix, created_at, last_used_at, status (active/revoked)
+- [x] **KEY-06**: User can have multiple active API keys simultaneously (no hard cap in v1.2)
+- [x] **KEY-07**: User can revoke an API key; revoked keys are soft-deleted (kept indefinitely for audit until account deletion)
 - [x] **KEY-08**: API key prefix lookup is indexed (no full-table scan on every bearer request)
 
 ### Dual-Auth Middleware (`MID-*`)
@@ -83,7 +83,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [ ] **RATE-05**: Free tier: maximum 30 minutes of audio processed per day
 - [ ] **RATE-06**: Free tier: only `tiny` and `small` models available; diarization disabled
 - [ ] **RATE-07**: Free tier: maximum 1 concurrent transcription
-- [ ] **RATE-08**: Free tier: 7-day trial counter starts at first API key creation (not registration)
+- [x] **RATE-08**: Free tier: 7-day trial counter starts at first API key creation (not registration)
 - [ ] **RATE-09**: Free tier: trial expiry returns `402 Payment Required` for transcription routes (auth still works)
 - [ ] **RATE-10**: Pro tier (€5/mo stub): 100 req/hr, file duration ≤60min, 600min/day audio cap, all models including `large-v3`, diarization enabled, 3 concurrent, queue priority
 - [ ] **RATE-11**: System writes a `usage_events` row for every completed transcription (user_id, task_id, gpu_seconds, file_seconds, model, idempotency_key)
@@ -212,13 +212,13 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | AUTH-07 | Phase 13 | Complete |
 | AUTH-08 | Phase 11 | Complete |
 | AUTH-09 | Phase 11 | Complete |
-| KEY-01 | Phase 13 | Pending |
+| KEY-01 | Phase 13 | Complete |
 | KEY-02 | Phase 11 | Complete |
 | KEY-03 | Phase 11 | Complete |
-| KEY-04 | Phase 13 | Pending |
-| KEY-05 | Phase 13 | Pending |
-| KEY-06 | Phase 13 | Pending |
-| KEY-07 | Phase 13 | Pending |
+| KEY-04 | Phase 13 | Complete |
+| KEY-05 | Phase 13 | Complete |
+| KEY-06 | Phase 13 | Complete |
+| KEY-07 | Phase 13 | Complete |
 | KEY-08 | Phase 11 | Complete |
 | MID-01 | Phase 13 | Complete |
 | MID-02 | Phase 13 | Complete |
@@ -240,7 +240,7 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | RATE-05 | Phase 13 | Pending |
 | RATE-06 | Phase 13 | Pending |
 | RATE-07 | Phase 13 | Pending |
-| RATE-08 | Phase 13 | Pending |
+| RATE-08 | Phase 13 | Complete |
 | RATE-09 | Phase 13 | Pending |
 | RATE-10 | Phase 13 | Pending |
 | RATE-11 | Phase 13 | Pending |
