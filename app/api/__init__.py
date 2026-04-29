@@ -5,4 +5,21 @@ from app.api.audio_services_api import service_router
 from app.api.task_api import task_router
 from app.api.websocket_api import websocket_router
 
-__all__ = ["stt_router", "service_router", "task_router", "websocket_router"]
+# Phase 13 routers — registered conditionally on AUTH_V2_ENABLED in app/main.py
+from app.api.auth_routes import auth_router
+from app.api.key_routes import key_router
+from app.api.account_routes import account_router
+from app.api.billing_routes import billing_router
+from app.api.ws_ticket_routes import ws_ticket_router
+
+__all__ = [
+    "stt_router",
+    "service_router",
+    "task_router",
+    "websocket_router",
+    "auth_router",
+    "key_router",
+    "account_router",
+    "billing_router",
+    "ws_ticket_router",
+]
