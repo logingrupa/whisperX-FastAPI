@@ -76,18 +76,18 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 
 ### Rate Limiting and Free Tier (`RATE-*`)
 
-- [ ] **RATE-01**: System uses slowapi with a custom `key_func` that resolves `CF-Connecting-IP` (when `TRUST_CF_HEADER=true`), groups IPv4 by /24 and IPv6 by /64
-- [ ] **RATE-02**: System uses a SQLite-backed token bucket (`rate_limit_buckets`) with `BEGIN IMMEDIATE` for worker-safety
-- [ ] **RATE-03**: Free tier: 5 transcribe requests per hour per user
-- [ ] **RATE-04**: Free tier: maximum file duration 5 minutes
-- [ ] **RATE-05**: Free tier: maximum 30 minutes of audio processed per day
-- [ ] **RATE-06**: Free tier: only `tiny` and `small` models available; diarization disabled
-- [ ] **RATE-07**: Free tier: maximum 1 concurrent transcription
+- [x] **RATE-01**: System uses slowapi with a custom `key_func` that resolves `CF-Connecting-IP` (when `TRUST_CF_HEADER=true`), groups IPv4 by /24 and IPv6 by /64
+- [x] **RATE-02**: System uses a SQLite-backed token bucket (`rate_limit_buckets`) with `BEGIN IMMEDIATE` for worker-safety
+- [x] **RATE-03**: Free tier: 5 transcribe requests per hour per user
+- [x] **RATE-04**: Free tier: maximum file duration 5 minutes
+- [x] **RATE-05**: Free tier: maximum 30 minutes of audio processed per day
+- [x] **RATE-06**: Free tier: only `tiny` and `small` models available; diarization disabled
+- [x] **RATE-07**: Free tier: maximum 1 concurrent transcription
 - [x] **RATE-08**: Free tier: 7-day trial counter starts at first API key creation (not registration)
-- [ ] **RATE-09**: Free tier: trial expiry returns `402 Payment Required` for transcription routes (auth still works)
-- [ ] **RATE-10**: Pro tier (€5/mo stub): 100 req/hr, file duration ≤60min, 600min/day audio cap, all models including `large-v3`, diarization enabled, 3 concurrent, queue priority
-- [ ] **RATE-11**: System writes a `usage_events` row for every completed transcription (user_id, task_id, gpu_seconds, file_seconds, model, idempotency_key)
-- [ ] **RATE-12**: 429 responses include `Retry-After` header in seconds; UI shows inline countdown
+- [x] **RATE-09**: Free tier: trial expiry returns `402 Payment Required` for transcription routes (auth still works)
+- [x] **RATE-10**: Pro tier (€5/mo stub): 100 req/hr, file duration ≤60min, 600min/day audio cap, all models including `large-v3`, diarization enabled, 3 concurrent, queue priority
+- [x] **RATE-11**: System writes a `usage_events` row for every completed transcription (user_id, task_id, gpu_seconds, file_seconds, model, idempotency_key)
+- [x] **RATE-12**: 429 responses include `Retry-After` header in seconds; UI shows inline countdown
 
 ### Anti-Spam and Anti-DDOS (`ANTI-*`)
 
@@ -233,18 +233,18 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | SCOPE-04 | Phase 13 | Complete |
 | SCOPE-05 | Phase 13 | Complete |
 | SCOPE-06 | Phase 15 | Pending |
-| RATE-01 | Phase 13 | Pending |
-| RATE-02 | Phase 13 | Pending |
-| RATE-03 | Phase 13 | Pending |
-| RATE-04 | Phase 13 | Pending |
-| RATE-05 | Phase 13 | Pending |
-| RATE-06 | Phase 13 | Pending |
-| RATE-07 | Phase 13 | Pending |
+| RATE-01 | Phase 13 | Complete |
+| RATE-02 | Phase 13 | Complete |
+| RATE-03 | Phase 13 | Complete |
+| RATE-04 | Phase 13 | Complete |
+| RATE-05 | Phase 13 | Complete |
+| RATE-06 | Phase 13 | Complete |
+| RATE-07 | Phase 13 | Complete |
 | RATE-08 | Phase 13 | Complete |
-| RATE-09 | Phase 13 | Pending |
-| RATE-10 | Phase 13 | Pending |
-| RATE-11 | Phase 13 | Pending |
-| RATE-12 | Phase 13 | Pending |
+| RATE-09 | Phase 13 | Complete |
+| RATE-10 | Phase 13 | Complete |
+| RATE-11 | Phase 13 | Complete |
+| RATE-12 | Phase 13 | Complete |
 | ANTI-01 | Phase 13 | Complete |
 | ANTI-02 | Phase 13 | Complete |
 | ANTI-03 | Phase 11 | Complete |
