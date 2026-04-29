@@ -142,6 +142,90 @@ def _insert_task(
         return int(task.id)
 
 
+def _seed_full_user_universe(session_factory, *, user_id: int) -> None:
+    """Seed one row per dependent table for cascade tests (Plan 15-04).
+
+    Tables: tasks, api_keys, subscriptions, usage_events,
+    device_fingerprints, rate_limit_buckets. Column lists locked at
+    Phase 10/11 schema (verified against app/infrastructure/database/models.py).
+    """
+    seed_ts = datetime(2026, 4, 29, tzinfo=timezone.utc)
+    with session_factory() as session:
+        # tasks (FK SET NULL — must be deleted before user)
+        session.execute(
+            text(
+                "INSERT INTO tasks (uuid, status, file_name, task_type, "
+                "created_at, updated_at, user_id) "
+                "VALUES (:uuid, 'pending', :fn, 'speech-to-text', "
+                ":ts, :ts, :uid)"
+            ),
+            {
+                "uuid": f"uuid-seed-{user_id}",
+                "fn": f"seed-{user_id}.wav",
+                "ts": seed_ts,
+                "uid": user_id,
+            },
+        )
+        # api_keys (FK CASCADE)
+        session.execute(
+            text(
+                "INSERT INTO api_keys (user_id, name, prefix, hash, scopes, "
+                "created_at, last_used_at, revoked_at) "
+                "VALUES (:uid, 'seeded', :pfx, :h, 'transcribe', "
+                ":ts, NULL, NULL)"
+            ),
+            {
+                "uid": user_id,
+                "pfx": f"pfx{user_id:04d}"[:8],
+                "h": "deadbeef" * 8,
+                "ts": seed_ts,
+            },
+        )
+        # subscriptions (FK CASCADE)
+        session.execute(
+            text(
+                "INSERT INTO subscriptions (user_id, plan, status, "
+                "created_at, updated_at) "
+                "VALUES (:uid, 'pro', 'active', :ts, :ts)"
+            ),
+            {"uid": user_id, "ts": seed_ts},
+        )
+        # usage_events (FK CASCADE)
+        session.execute(
+            text(
+                "INSERT INTO usage_events (user_id, idempotency_key, "
+                "gpu_seconds, file_seconds, model, created_at) "
+                "VALUES (:uid, :idk, 1, 1, 'tiny', :ts)"
+            ),
+            {"uid": user_id, "idk": f"seed-{user_id}", "ts": seed_ts},
+        )
+        # device_fingerprints (FK CASCADE)
+        session.execute(
+            text(
+                "INSERT INTO device_fingerprints (user_id, cookie_hash, "
+                "ua_hash, ip_subnet, device_id, created_at) "
+                "VALUES (:uid, :ck, :ua, :ip, :did, :ts)"
+            ),
+            {
+                "uid": user_id,
+                "ck": "c" * 64,
+                "ua": "a" * 64,
+                "ip": "10.0.0.0/24",
+                "did": f"dev-{user_id}",
+                "ts": seed_ts,
+            },
+        )
+        # rate_limit_buckets (no FK — bucket_key prefix-match required)
+        session.execute(
+            text(
+                "INSERT INTO rate_limit_buckets (bucket_key, tokens, "
+                "last_refill) VALUES (:k, 5, :ts)"
+            ),
+            {"k": f"user:{user_id}:hour", "ts": seed_ts},
+        )
+        session.commit()
+
+
 # ---------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------
@@ -331,3 +415,198 @@ def test_get_account_me_response_shape_locked(
         "trial_started_at",
         "token_version",
     }
+
+
+# ---------------------------------------------------------------
+# DELETE /api/account — Plan 15-04 (SCOPE-06 full-row delete + cascade)
+# ---------------------------------------------------------------
+
+
+@pytest.mark.integration
+def test_delete_account_cascade_full_universe(
+    client: TestClient, session_factory, upload_dirs: tuple[Path, Path]
+) -> None:
+    """DELETE /api/account cascades to all 6 dependent tables + removes user row."""
+    user_id = _register(client, "cascade@example.com")
+    _seed_full_user_universe(session_factory, user_id=user_id)
+
+    response = client.delete(
+        "/api/account",
+        json={"email_confirm": "cascade@example.com"},
+    )
+
+    assert response.status_code == 204, response.text
+    with session_factory() as session:
+        for table_with_fk in (
+            "tasks",
+            "api_keys",
+            "subscriptions",
+            "usage_events",
+            "device_fingerprints",
+        ):
+            count = session.execute(
+                text(f"SELECT COUNT(*) FROM {table_with_fk} WHERE user_id = :uid"),
+                {"uid": user_id},
+            ).scalar_one()
+            assert count == 0, f"{table_with_fk} not cascaded"
+        bucket_count = session.execute(
+            text(
+                "SELECT COUNT(*) FROM rate_limit_buckets "
+                "WHERE bucket_key LIKE :pattern"
+            ),
+            {"pattern": f"user:{user_id}:%"},
+        ).scalar_one()
+        assert bucket_count == 0, "rate_limit_buckets not pre-deleted"
+        user_count = session.execute(
+            text("SELECT COUNT(*) FROM users WHERE id = :uid"),
+            {"uid": user_id},
+        ).scalar_one()
+        assert user_count == 0, "users row not deleted"
+
+
+@pytest.mark.integration
+def test_delete_account_email_mismatch_400(
+    client: TestClient, session_factory, upload_dirs: tuple[Path, Path]
+) -> None:
+    """Email mismatch returns 400 + EMAIL_CONFIRM_MISMATCH; data preserved."""
+    user_id = _register(client, "mismatch@example.com")
+    _seed_full_user_universe(session_factory, user_id=user_id)
+
+    response = client.delete(
+        "/api/account",
+        json={"email_confirm": "different@example.com"},
+    )
+
+    assert response.status_code == 400, response.text
+    body = response.json()
+    flattened = str(body)
+    assert "EMAIL_CONFIRM_MISMATCH" in flattened
+    # Data preserved on mismatch
+    with session_factory() as session:
+        user_count = session.execute(
+            text("SELECT COUNT(*) FROM users WHERE id = :uid"),
+            {"uid": user_id},
+        ).scalar_one()
+        assert user_count == 1
+        task_count = session.execute(
+            text("SELECT COUNT(*) FROM tasks WHERE user_id = :uid"),
+            {"uid": user_id},
+        ).scalar_one()
+        assert task_count == 1
+
+
+@pytest.mark.integration
+def test_delete_account_email_case_insensitive(
+    client: TestClient, session_factory, upload_dirs: tuple[Path, Path]
+) -> None:
+    """Case-insensitive email match: FOO@Example.COM matches foo@example.com."""
+    user_id = _register(client, "case@example.com")
+    _seed_full_user_universe(session_factory, user_id=user_id)
+
+    response = client.delete(
+        "/api/account",
+        json={"email_confirm": "CASE@Example.COM"},
+    )
+
+    assert response.status_code == 204, response.text
+    with session_factory() as session:
+        user_count = session.execute(
+            text("SELECT COUNT(*) FROM users WHERE id = :uid"),
+            {"uid": user_id},
+        ).scalar_one()
+        assert user_count == 0
+
+
+@pytest.mark.integration
+def test_delete_account_clears_cookies(
+    client: TestClient, upload_dirs: tuple[Path, Path]
+) -> None:
+    """Successful DELETE clears session + csrf cookies (Max-Age=0, T-15-04)."""
+    _register(client, "cookies@example.com")
+
+    response = client.delete(
+        "/api/account",
+        json={"email_confirm": "cookies@example.com"},
+    )
+
+    assert response.status_code == 204, response.text
+    set_cookie_headers = response.headers.get_list("set-cookie")
+    joined = "\n".join(set_cookie_headers).lower()
+    assert "session=" in joined
+    assert "csrf_token=" in joined
+    assert joined.count("max-age=0") == 2
+
+
+@pytest.mark.integration
+def test_delete_account_requires_auth(
+    account_app: tuple[FastAPI, Container],
+) -> None:
+    """Anonymous DELETE → 401 'Authentication required'."""
+    app, _ = account_app
+    anon = TestClient(app)
+
+    response = anon.delete(
+        "/api/account",
+        json={"email_confirm": "noone@example.com"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Authentication required"
+
+
+@pytest.mark.integration
+def test_delete_account_preserves_other_user_data(
+    account_app: tuple[FastAPI, Container],
+    session_factory,
+    upload_dirs: tuple[Path, Path],
+) -> None:
+    """Cross-user isolation smoke: Bob's data fully intact after Alice's delete."""
+    app, _ = account_app
+
+    alice_client = TestClient(app)
+    alice_id = _register(alice_client, "alice-iso@example.com")
+    _seed_full_user_universe(session_factory, user_id=alice_id)
+
+    bob_client = TestClient(app)
+    bob_id = _register(bob_client, "bob-iso@example.com")
+    _seed_full_user_universe(session_factory, user_id=bob_id)
+
+    response = alice_client.delete(
+        "/api/account",
+        json={"email_confirm": "alice-iso@example.com"},
+    )
+    assert response.status_code == 204, response.text
+
+    with session_factory() as session:
+        for table in (
+            "tasks",
+            "api_keys",
+            "subscriptions",
+            "usage_events",
+            "device_fingerprints",
+        ):
+            count = session.execute(
+                text(f"SELECT COUNT(*) FROM {table} WHERE user_id = :uid"),
+                {"uid": bob_id},
+            ).scalar_one()
+            assert count == 1, f"Bob lost data in {table}"
+        bob_buckets = session.execute(
+            text(
+                "SELECT COUNT(*) FROM rate_limit_buckets "
+                "WHERE bucket_key LIKE :pattern"
+            ),
+            {"pattern": f"user:{bob_id}:%"},
+        ).scalar_one()
+        assert bob_buckets == 1
+
+
+@pytest.mark.integration
+def test_delete_account_no_body_returns_422(
+    client: TestClient, upload_dirs: tuple[Path, Path]
+) -> None:
+    """Missing body → 422 (Pydantic field-required for email_confirm)."""
+    _register(client, "nobody@example.com")
+
+    response = client.delete("/api/account")
+
+    assert response.status_code == 422
