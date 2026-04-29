@@ -43,6 +43,7 @@ dependencies = [
     "apscheduler==3.10.4",
     "streaming-form-data>=1.19.0",
     "aiofiles>=25.1.0",
+    "alembic>=1.13.0",
     "puremagic>=1.30",
     "torch<=2.8.0",
     "torchaudio<=2.8.0",
