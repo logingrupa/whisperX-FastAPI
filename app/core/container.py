@@ -43,6 +43,10 @@ from app.services.auth import (
 # Phase 13 — WS ticket service (single-use 60s WebSocket auth, MID-06)
 from app.services.ws_ticket_service import WsTicketService
 
+# Phase 13-08 — free-tier gate + usage event writer (RATE-01..12, BILL-01)
+from app.services.free_tier_gate import FreeTierGate
+from app.services.usage_event_writer import UsageEventWriter
+
 
 class Container(containers.DeclarativeContainer):
     """
@@ -146,6 +150,23 @@ class Container(containers.DeclarativeContainer):
     # defeating the ticket store.
     # ---------------------------------------------------------------
     ws_ticket_service = providers.Singleton(WsTicketService)
+
+    # ---------------------------------------------------------------
+    # Phase 13-08 — Free-tier gate + usage event writer (RATE-01..12, BILL-01)
+    #
+    # Both Factory: each request resolves a fresh instance bound to a
+    # fresh DB session (UsageEventWriter) / fresh RateLimitService
+    # (FreeTierGate). The shared state lives in SQLite buckets, not in
+    # the service instance.
+    # ---------------------------------------------------------------
+    free_tier_gate = providers.Factory(
+        FreeTierGate,
+        rate_limit_service=rate_limit_service,
+    )
+    usage_event_writer = providers.Factory(
+        UsageEventWriter,
+        session=db_session_factory,
+    )
 
     # ML Services - Singletons for model caching and reuse
     # These services load heavy ML models and should be reused

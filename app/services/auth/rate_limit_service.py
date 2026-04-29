@@ -49,3 +49,40 @@ class RateLimitService:
         if not allowed:
             logger.debug("RateLimit denied bucket=%s", bucket_key)
         return allowed
+
+    def release(
+        self,
+        bucket_key: str,
+        *,
+        tokens: int = 1,
+        capacity: int = 1,
+    ) -> None:
+        """Refund ``tokens`` to bucket (capped at ``capacity``).
+
+        Used to release a held slot — e.g. concurrency semaphore slot
+        held while a transcription runs. Caller passes the same
+        ``capacity`` it used in the matching ``check_and_consume()`` call
+        so the refunded count is never inflated past the bucket cap.
+
+        No-op if ``bucket_key`` absent (defensive — release without prior
+        consume should never crash).
+
+        Phase 13-08 W1 fix: pairs with FreeTierGate.release_concurrency()
+        called from ``process_audio_common`` try/finally so a
+        concurrency slot is ALWAYS returned (success OR failure).
+        """
+        existing = self.repository.get_by_key(bucket_key)
+        if existing is None:
+            logger.debug("RateLimit release no-op (no bucket) key=%s", bucket_key)
+            return
+        new_tokens = min(capacity, existing.tokens + tokens)
+        self.repository.upsert_atomic(
+            bucket_key,
+            {"tokens": new_tokens, "last_refill": existing.last_refill},
+        )
+        logger.debug(
+            "RateLimit released bucket=%s tokens=%d/%d",
+            bucket_key,
+            new_tokens,
+            capacity,
+        )

@@ -20,7 +20,9 @@ from app.services.auth import (
     RateLimitService,
 )
 from app.services.file_service import FileService
+from app.services.free_tier_gate import FreeTierGate
 from app.services.task_management_service import TaskManagementService
+from app.services.usage_event_writer import UsageEventWriter
 
 
 # Global container instance - will be set by main.py
@@ -334,3 +336,27 @@ def get_db_session() -> Generator[Session, None, None]:
         yield session
     finally:
         session.close()
+
+
+# ---------------------------------------------------------------
+# Phase 13-08 — Free-tier gate + usage event writer dependencies
+#
+# Free-tier gate is wired into transcribe routes BEFORE BackgroundTask
+# scheduling. Usage event writer + FreeTierGate.release_concurrency are
+# called from process_audio_common's completion try/finally (W1).
+# ---------------------------------------------------------------
+
+
+def get_free_tier_gate() -> Generator[FreeTierGate, None, None]:
+    """Provide a per-request FreeTierGate (factory; binds fresh
+    RateLimitService -> fresh repo -> fresh DB session)."""
+    if _container is None:
+        raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
+    yield _container.free_tier_gate()
+
+
+def get_usage_event_writer() -> Generator[UsageEventWriter, None, None]:
+    """Provide a per-request UsageEventWriter (factory; fresh DB session)."""
+    if _container is None:
+        raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
+    yield _container.usage_event_writer()

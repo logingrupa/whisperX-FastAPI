@@ -713,3 +713,47 @@ class RateLimitExceededError(DomainError):
             user_message="Too many requests. Please try again later.",
             retry_after_seconds=retry_after_seconds,
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 13-08 — Free-tier gate exceptions (RATE-01..RATE-12 + BILL-01).
+# Mapped to HTTP via app.api.exception_handlers:
+#   TrialExpiredError       -> 402 Payment Required
+#   FreeTierViolationError  -> 403 Forbidden
+#   ConcurrencyLimitError   -> 429 Too Many Requests + Retry-After
+# ---------------------------------------------------------------------------
+
+
+class TrialExpiredError(DomainError):
+    """Free trial expired — user must upgrade to continue (RATE-09 → 402)."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            message="Trial expired",
+            code="TRIAL_EXPIRED",
+            user_message="Your 7-day trial has expired. Please upgrade to continue.",
+        )
+
+
+class FreeTierViolationError(DomainError):
+    """Free-tier policy violated (model/diarize/file-duration) → 403."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(
+            message=f"Free tier violation: {reason}",
+            code="FREE_TIER_VIOLATION",
+            user_message=reason,
+            reason=reason,
+        )
+
+
+class ConcurrencyLimitError(DomainError):
+    """User exceeded their concurrent transcription cap → 429."""
+
+    def __init__(self, retry_after_seconds: int = 60) -> None:
+        super().__init__(
+            message="Concurrency limit reached",
+            code="CONCURRENCY_LIMIT",
+            user_message="You have a transcription in progress. Please wait for it to complete.",
+            retry_after_seconds=retry_after_seconds,
+        )
