@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { useAuthStore } from '@/lib/stores/authStore';
+import { LogoutButton } from '@/components/dashboard/LogoutButton';
 
 /**
  * Dashboard shell — top nav + main content area.
@@ -39,6 +40,7 @@ export function AppShell() {
                 {user.email}
               </Badge>
             )}
+            <LogoutButton />
           </nav>
         </div>
       </header>
