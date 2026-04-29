@@ -140,10 +140,12 @@ AppShell (existing — header + nav unchanged)
 
 **Container width:** `max-w-2xl` (matches `AccountStubPage:11` — narrower than dashboard `max-w-6xl` because content is form-heavy / scannable, not tabular). Centered via `mx-auto`.
 
+**Primary focal point:** the Plan card's "Upgrade to Pro" CTA is the sole `bg-primary` element on the page; the Danger Zone card's `border-destructive/40` + heading draws a secondary focal point for risk-awareness.
+
 **Mobile responsive (`< md` = `< 768px`):**
 - Outer wrapper drops gap to `gap-4` via `gap-4 md:gap-6`
 - Cards retain `p-6` (already mobile-friendly via `max-w-[calc(100%-2rem)]` ancestor padding from `AppShell`)
-- Danger-zone rows stack vertically on `< md`: helper text on top, button below at full width — `flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4`
+- Danger-zone rows stack vertically on `< md`: helper text on top, button below at full width — `flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-4`
 
 **Mobile `< sm` (= `< 640px`) for dialogs:**
 - shadcn `Dialog` already adapts (max-w-[calc(100%-2rem)] from `dialog.tsx:61`); no Sheet/drawer swap needed
@@ -166,7 +168,7 @@ All three dialogs use shadcn `<Dialog>` + `<DialogContent>` (default `sm:max-w-l
 | Description | `Tell us what you need from Pro. Real Stripe checkout ships in v1.3.` |
 | Form field | `<Textarea>` (NOTE: textarea is NOT in current shadcn inventory — use native `<textarea class="...">` styled inline with shadcn input class until/if shadcn `textarea` primitive added; see Registry section) — label `What do you want from Pro? — optional`, `maxLength={500}`, autoFocus |
 | Submit button | `<Button type="submit" variant="default">Send</Button>` |
-| Cancel button | `<Button type="button" variant="ghost">Cancel</Button>` |
+| Cancel button | `<Button type="button" variant="ghost">No thanks</Button>` |
 | Submit endpoint | `POST /billing/checkout` (returns 501 stub — swallowed by `submitUpgradeInterest`; surface success regardless) |
 | Success state | replace form body with `<Alert>` + copy: heading `Thanks!`, body `Stripe checkout arrives in v1.3. We'll email you when it goes live.` |
 | Auto-close | yes — `setTimeout(handleClose, 2000)` after success render (CONTEXT.md §58) |
@@ -183,7 +185,7 @@ All three dialogs use shadcn `<Dialog>` + `<DialogContent>` (default `sm:max-w-l
 | Description | `This permanently deletes your account, API keys, tasks, and usage history. This cannot be undone.` |
 | Form field | `<Input type="email" id="confirm-email">` — label `Type your email to confirm: {user.email}`, autoFocus, `autoComplete="off"`, `spellCheck={false}` |
 | Confirm button | `<Button type="submit" variant="destructive">Delete account</Button>` |
-| Cancel button | `<Button type="button" variant="ghost">Cancel</Button>` |
+| Cancel button | `<Button type="button" variant="ghost">Keep account</Button>` |
 | Submit endpoint | `DELETE /api/account` body `{email_confirm: confirmEmail}` |
 | Type-match logic | `confirmEmail.trim().toLowerCase() === user.email.toLowerCase()` — case-insensitive match (forgiving while still type-exact for backend) |
 | Error state | `<Alert variant="destructive">` with copy by branch — see State Machine below |
@@ -199,7 +201,7 @@ All three dialogs use shadcn `<Dialog>` + `<DialogContent>` (default `sm:max-w-l
 | Description | `Every active session — including this one — will be ended. You'll need to sign in again on every device.` |
 | Form field | none (single-confirm pattern, mirrors `RevokeKeyDialog`) |
 | Confirm button | `<Button type="button" variant="destructive">Sign out everywhere</Button>` |
-| Cancel button | `<Button type="button" variant="ghost">Cancel</Button>` |
+| Cancel button | `<Button type="button" variant="ghost">Stay signed in</Button>` |
 | Submit endpoint | `POST /auth/logout-all` |
 | Success behavior | call `authStore.logout()` synchronously then `navigate('/login', { replace: true })` |
 | Error state | `<Alert variant="destructive">` with copy `Could not sign out. Try again.` |
@@ -249,7 +251,7 @@ Disabled→enabled transition is **purely client-side** based on `confirmEmail.t
 | State | Trigger | Render |
 |-------|---------|--------|
 | **loading** | mount: `useEffect` triggers `fetchAccountSummary()` and component has `summary === null && error === null` | Three skeleton cards (Profile / Plan / Danger Zone) — each is a `<Card class="p-6">` containing 1 placeholder heading line + 2 muted lines via `<div class="h-4 w-32 rounded bg-muted">` style; render time should be sub-200ms typically; **no spinner, no "Loading…" text** |
-| **error** | hydration request failed (any non-401 error; 401 redirects via apiClient) | Single `<Card class="p-6">` showing `<Alert variant="destructive"><AlertDescription>Could not load account. {retry button}</AlertDescription></Alert>` + `<Button variant="outline" size="sm" onClick={refresh}>Try again</Button>` |
+| **error** | hydration request failed (any non-401 error; 401 redirects via apiClient) | Single `<Card class="p-6">` showing `<Alert variant="destructive"><AlertDescription>Could not load account. {retry button}</AlertDescription></Alert>` + `<Button variant="outline" size="sm" onClick={refresh}>Reload account</Button>` |
 | **empty** | n/a — every authenticated user has a profile; this state cannot occur | (no UI defined; defensive code paths fall through to error state) |
 | **ready** | summary fetched | three cards rendered as per Layout section |
 
@@ -284,7 +286,7 @@ All copy is locked here. Executor must use these strings verbatim (modulo `{user
 | Delete-account helper text | `Permanently delete your account and every task, API key, subscription, and usage record. This cannot be undone.` |
 | Delete-account button | `Delete account` |
 | Hydration error | `Could not load account.` |
-| Hydration retry button | `Try again` |
+| Hydration retry button | `Reload account` |
 | Password reset hint (footer of Profile card) | `For password reset, email hey@logingrupa.lv.` (mailto link on email — matches `AccountStubPage:18-21` existing pattern) |
 
 ### `UpgradeInterestDialog`
@@ -297,7 +299,7 @@ All copy is locked here. Executor must use these strings verbatim (modulo `{user
 | Textarea placeholder | `Diarization on long files, faster turnaround, larger uploads…` |
 | Submit button (idle) | `Send` |
 | Submit button (submitting) | `Sending…` |
-| Cancel button | `Cancel` |
+| Cancel button | `No thanks` |
 | Success heading | `Thanks!` |
 | Success body | `Stripe checkout arrives in v1.3. We'll email you when it goes live.` |
 | Error 429 | `Too many requests. Try again in {retryAfterSeconds}s.` |
@@ -313,7 +315,7 @@ All copy is locked here. Executor must use these strings verbatim (modulo `{user
 | Email input placeholder | `you@example.com` |
 | Confirm button (idle) | `Delete account` |
 | Confirm button (submitting) | `Deleting…` |
-| Cancel button | `Cancel` |
+| Cancel button | `Keep account` |
 | Error 400 (server mismatch) | `Confirmation email does not match.` |
 | Error 429 | `Too many requests. Try again in {retryAfterSeconds}s.` |
 | Error other | `Could not delete account. Try again.` |
@@ -326,7 +328,7 @@ All copy is locked here. Executor must use these strings verbatim (modulo `{user
 | Description | `Every active session — including this one — will be ended. You'll need to sign in again on every device.` |
 | Confirm button (idle) | `Sign out everywhere` |
 | Confirm button (submitting) | `Signing out…` |
-| Cancel button | `Cancel` |
+| Cancel button | `Stay signed in` |
 | Error 429 | `Rate limited. Try again in {retryAfterSeconds}s.` |
 | Error other | `Could not sign out. Try again.` |
 
@@ -337,7 +339,7 @@ All copy is locked here. Executor must use these strings verbatim (modulo `{user
 | Primary CTA | `Upgrade to Pro` (Plan card) |
 | Empty state heading | n/a — Account page cannot be empty for an authenticated user; loading skeleton + error card replace this slot |
 | Empty state body | n/a (see above) |
-| Error state | `Could not load account.` + `Try again` retry button |
+| Error state | `Could not load account.` + `Reload account` retry button |
 | Destructive confirmation 1 — Sign out of all devices | dialog title `Sign out of all devices?` + button `Sign out everywhere` (single-confirm) |
 | Destructive confirmation 2 — Delete account | dialog title `Delete account?` + type-exact-email input + button `Delete account` (type-confirm) |
 
@@ -411,8 +413,8 @@ frontend/src/
 
 | Breakpoint | AccountPage outer gap | Card padding | Danger-zone row direction | Dialog max-width |
 |------------|------------------------|---------------|----------------------------|--------------------|
-| `< sm` (< 640px) | `gap-4` (16px) | `p-6` (24px) | `flex-col gap-3` (helper text above button at full width) | `max-w-[calc(100%-2rem)]` (full-bleed minus 32px gutter, shadcn default) |
-| `≥ sm`, `< md` (640-767px) | `gap-4` (16px) | `p-6` | `flex-col gap-3` | `max-w-lg` (32rem, shadcn `sm:max-w-lg`) |
+| `< sm` (< 640px) | `gap-4` (16px) | `p-6` (24px) | `flex-col gap-4` (helper text above button at full width) | `max-w-[calc(100%-2rem)]` (full-bleed minus 32px gutter, shadcn default) |
+| `≥ sm`, `< md` (640-767px) | `gap-4` (16px) | `p-6` | `flex-col gap-4` | `max-w-lg` (32rem, shadcn `sm:max-w-lg`) |
 | `≥ md` (≥ 768px) | `gap-6` (24px) | `p-6` (Profile/Plan), `p-6` (Danger Zone) | `flex-row items-center justify-between gap-4` (helper text left, button right) | `max-w-lg` |
 | `≥ lg` (≥ 1024px) | `gap-6` | `p-6` | `flex-row` | `max-w-lg` |
 
