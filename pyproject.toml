@@ -54,6 +54,7 @@ dependencies = [
     "typer[all]>=0.12.0",   # Admin CLI framework (Phase 12 / OPS-01, OPS-02)
     "slowapi>=0.1.9",       # Token-bucket + per-IP rate limiting (Phase 13 / RATE-01)
     "stripe==15.1.0",       # Imported at boot; zero runtime calls in v1.2 (Phase 13 / BILL-07)
+    "email-validator>=2.0.0",  # pydantic EmailStr validation (Phase 13 / AUTH-01)
 ]
 
 [project.optional-dependencies]
