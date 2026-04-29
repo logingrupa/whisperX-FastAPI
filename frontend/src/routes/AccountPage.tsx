@@ -151,7 +151,7 @@ export function AccountPage() {
       {/* Profile card */}
       <Card className="gap-4 p-6">
         <h2 className="text-lg font-semibold">Profile</h2>
-        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-[6rem_1fr]">
+        <dl className="grid grid-cols-1 gap-2 sm:grid-cols-[6rem_1fr]">
           <dt className="text-sm font-medium text-muted-foreground">Email</dt>
           <dd className="text-sm">{summary.email}</dd>
           <dt className="text-sm font-medium text-muted-foreground">Plan</dt>

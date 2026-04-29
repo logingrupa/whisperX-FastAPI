@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { submitUpgradeInterest } from '@/lib/api/accountApi';
 import { ApiClientError, RateLimitError } from '@/lib/apiClient';
 
@@ -114,9 +114,9 @@ export function UpgradeInterestDialog({
 
         {success ? (
           <Alert className="my-2">
+            <AlertTitle>Thanks!</AlertTitle>
             <AlertDescription>
-              <p className="font-medium text-foreground">Thanks!</p>
-              <p>Stripe checkout arrives in v1.3. We'll email you when it goes live.</p>
+              Stripe checkout arrives in v1.3. We'll email you when it goes live.
             </AlertDescription>
           </Alert>
         ) : (
