@@ -4,7 +4,7 @@ milestone: v1.2
 milestone_name: milestone
 status: verifying
 stopped_at: Plan 12-04 complete — 0003 migration + e2e test (SCOPE-01 satisfied; Phase 12 ready for /gsd-verify-phase 12-admin-cli-task-backfill; 509b2ab + 970a54f)
-last_updated: "2026-04-29T08:59:10.975Z"
+last_updated: "2026-04-29T09:04:21.443Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
@@ -25,8 +25,8 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 
 ## Current Position
 
-Phase: 12 (Admin CLI + Task Backfill) — EXECUTING
-Plan: 4 of 4
+Phase: 13
+Plan: Not started
 Status: Phase complete — ready for verification
 Last activity: 2026-04-29
 
@@ -34,7 +34,7 @@ Last activity: 2026-04-29
 
 **Velocity (v1.1 final):**
 
-- Total plans completed: 17 (v1.1)
+- Total plans completed: 21 (v1.1)
 - Average duration: 2.9 min
 - Total execution time: 0.39 hours
 
@@ -47,6 +47,7 @@ Last activity: 2026-04-29
 | 9 | 2/3 | 7m | 3.5m |
 | 10 | 4 | - | - |
 | 11 | 5 | - | - |
+| 12 | 4 | - | - |
 
 *Reset on each plan completion in v1.2.*
 | Phase 10 P01 | 5min | 3 tasks | 6 files |
