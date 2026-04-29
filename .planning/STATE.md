@@ -4,7 +4,7 @@ milestone: v1.2
 milestone_name: milestone
 status: Ready for 15-04
 stopped_at: Plan 15-03 (GET /api/account/me wired, UI-07 hydration source ready)
-last_updated: "2026-04-29T19:10:13Z"
+last_updated: "2026-04-29T19:12:54.274Z"
 last_activity: 2026-04-29 -- Plan 15-03 (GET /api/account/me wired, UI-07 hydration source ready)
 progress:
   total_phases: 9
@@ -258,6 +258,9 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [15-02]: Test fixture choice locked Option A (PATTERNS.md) — added a NEW `auth_full_app` fixture mounting DualAuthMiddleware to test_auth_routes.py rather than mutating the slim `auth_app` fixture (would 401 the existing test_logout_idempotent because /auth/logout is NOT in PUBLIC_ALLOWLIST). Net: zero regression on the 12 existing auth tests.
 - [15-02]: JWT-invalidation test cookie-snapshot pattern — the 204 response clears the client-side cookie, so the natural next-request would be anonymous (401 for the wrong reason). Snapshot the cookie BEFORE logout-all then re-attach via `client.cookies.set('session', old_session_cookie)` to exercise ver=N JWT vs server-side ver=N+1 explicitly (token_version invariant verified, T-15-03 mitigation tested end-to-end).
 - [15-02]: Acceptance criterion AC5 (`grep -c "Depends(Response)" auth_routes.py == 0`) flagged a docstring containing the literal anti-pattern phrase — verifier-grep doesn't distinguish docstrings from code. Rule 1 fix: paraphrased docstring to `"see logout above for rationale"` without the literal token. Pattern: keep verifier-grep gates literal-token-clean even in comments.
+- [Phase 15]: [15-03]: AccountService.__init__ accepts user_repository: IUserRepository | None — None lazy-constructs SQLAlchemyUserRepository(session) preserving Phase-13 SCOPE-05 backward compat (DRT); Plan 15-04 delete_account reuses _user_repository (DRY)
+- [Phase 15]: [15-03]: get_account_summary returns dict (not domain entity) so route wraps via AccountSummaryResponse(**summary) — keeps service Pydantic-free, mirrors Phase 13-04 CreateKeyResponse(**dict) idiom (SRP)
+- [Phase 15]: [15-03]: User-not-found → InvalidCredentialsError → 401 (not 404) for anti-enumeration parity with auth failures (T-15-05); response_model=AccountSummaryResponse enforces T-15-11 field allowlist (no password_hash leak)
 
 ### Pending Todos
 
@@ -273,6 +276,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T19:09:29Z
-Stopped at: Plan 15-02 (POST /auth/logout-all wired, AUTH-06 closed)
+Last session: 2026-04-29T19:12:54.267Z
+Stopped at: Plan 15-03 (GET /api/account/me wired, UI-07 hydration source ready)
 Resume file: None

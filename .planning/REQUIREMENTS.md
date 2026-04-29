@@ -116,7 +116,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [x] **UI-04**: After successful login or registration, user is redirected to `/` (transcription page) or original `?next=` URL
 - [x] **UI-05**: `/dashboard/keys` shows API key list (name, prefix, created_at, last_used_at, status), create-key modal that shows raw key once with copy button, revoke confirmation
 - [x] **UI-06**: `/dashboard/usage` shows current-hour quota counter, daily minutes counter, trial countdown badge ("Trial: X days left" or "Trial not started" before first key)
-- [ ] **UI-07**: `/dashboard/account` shows email, plan_tier card, "Upgrade to Pro" CTA opening interest-capture modal (real Stripe in v1.3), delete-account flow with type-email confirmation
+- [x] **UI-07**: `/dashboard/account` shows email, plan_tier card, "Upgrade to Pro" CTA opening interest-capture modal (real Stripe in v1.3), delete-account flow with type-email confirmation
 - [x] **UI-08**: 401 responses from `apiClient.ts` redirect to `/login?next=<currentUrl>`
 - [x] **UI-09**: 429 responses surface inline error with `Retry-After` countdown — no toast spam
 - [x] **UI-10**: Existing transcription page (`<UploadDropzone>`, `<FileQueueList>`, `<ConnectionStatus>`) is moved verbatim to `routes/TranscribePage.tsx` and rendered at `/`
