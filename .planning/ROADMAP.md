@@ -18,7 +18,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - v1.1 phase 10 (Cloudflare e2e) deferred to v1.3 — v1.2 resumes integer numbering at 10
 
 - [x] **Phase 10: Alembic Baseline + Auth Schema** — Replace `create_all()` with hand-written baseline + auth/billing/rate-limit tables; zero behavior change (completed 2026-04-29)
-- [ ] **Phase 11: Auth Core Modules + Services + DI** — Pure logic modules (jwt_codec, api_key, password hasher, services, DI providers); HTTP-untouched
+- [x] **Phase 11: Auth Core Modules + Services + DI** — Pure logic modules (jwt_codec, api_key, password hasher, services, DI providers); HTTP-untouched (completed 2026-04-29)
 - [ ] **Phase 12: Admin CLI + Task Backfill** — Typer CLI seeds admin user + backfills `tasks.user_id`; FK NOT NULL constraint applied last
 - [ ] **Phase 13: Atomic Backend Cutover (ATOMIC PAIR with Phase 14)** — DualAuthMiddleware + auth/keys/account routes + per-user scoping + WS ticket + CSRF + CORS lockdown + rate-limit + free-tier gates + Stripe schema stubs
 - [ ] **Phase 14: Atomic Frontend Cutover + Test Infra (ATOMIC PAIR with Phase 13)** — Router shell + auth pages + dashboard (keys/usage) + apiClient wrapper + zustand store + BroadcastChannel + Vitest/RTL/MSW
@@ -60,7 +60,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - [x] 11-02-PLAN.md — 6 pure-logic core modules (password_hasher, jwt_codec, api_key, csrf, device_fingerprint, rate_limit) + 6 unit-test files (Wave 2)
 - [x] 11-03-PLAN.md — 4 domain entities + 4 repo Protocols + 4 mappers + 4 SQLAlchemy repos (idx_api_keys_prefix lookup, BEGIN IMMEDIATE upsert) (Wave 3)
 - [x] 11-04-PLAN.md — 6 services in app/services/auth/ + DI Container providers + 6 service unit-test files (Wave 4)
-- [ ] 11-05-PLAN.md — Argon2 benchmark (p99<300ms slow gate) + DI smoke + log redaction integration tests (Wave 4)
+- [x] 11-05-PLAN.md — Argon2 benchmark (p99<300ms slow gate) + DI smoke + log redaction integration tests (Wave 4)
 
 ### Phase 12: Admin CLI + Task Backfill
 **Goal**: Operator can bootstrap an admin account and reassign all orphan `tasks` rows so the upcoming NOT-NULL FK constraint applies cleanly against the production database.
@@ -152,7 +152,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 10. Alembic Baseline + Auth Schema | v1.2 | 4/4 | Complete    | 2026-04-29 |
-| 11. Auth Core Modules + Services + DI | v1.2 | 4/5 | In Progress|  |
+| 11. Auth Core Modules + Services + DI | v1.2 | 5/5 | Complete   | 2026-04-29 |
 | 12. Admin CLI + Task Backfill | v1.2 | 0/TBD | Not started | - |
 | 13. Atomic Backend Cutover | v1.2 | 0/TBD | Not started (atomic pair w/ 14) | - |
 | 14. Atomic Frontend Cutover + Test Infra | v1.2 | 0/TBD | Not started (atomic pair w/ 13) | - |

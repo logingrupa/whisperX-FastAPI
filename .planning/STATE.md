@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: executing
-stopped_at: Plan 11-04 complete — 6 auth services + 4 repo + 6 service DI providers wired; 22 service unit tests pass; combined Phase 11 unit count 50
-last_updated: "2026-04-29T06:26:27.746Z"
+status: verifying
+stopped_at: Plan 11-05 complete — Phase 11 closes (3 integration test files, 15 tests, p99=34.7ms; all 6 DI services resolve; RedactingFilter end-to-end verified)
+last_updated: "2026-04-29T06:35:24.588Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 9
-  completed_plans: 8
-  percent: 89
+  completed_plans: 9
+  percent: 100
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 
 Phase: 11 (Auth Core Modules + Services + DI) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-29
 
 ## Performance Metrics
@@ -56,6 +56,7 @@ Last activity: 2026-04-29
 | Phase 11 P02 | 9m | 2 tasks | 12 files |
 | Phase 11 P03 | 5m | 2 tasks | 16 files |
 | Phase 11 P04 | 11m | 2 tasks | 15 files |
+| Phase 11 P05 | 5m | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -128,6 +129,7 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [11-04]: AuthService.login emits generic InvalidCredentialsError on both wrong-email and wrong-password legs — no enumeration via differential responses (T-11-13); skips verify_password on missing user (timing oracle accepted, ANTI-02 throttles to 10/hr/IP)
 - [Phase ?]: [11-04]: DI Container lifecycle split — 3 Singletons (PasswordService, CsrfService, TokenService) + 3 Factories (AuthService, KeyService, RateLimitService) + 4 repo Factories binding session=db_session_factory
 - [Phase ?]: [11-04]: KeyService.create_key returns plaintext exactly once (KEY-02 show-once UX); plaintext never logged; service stores prefix + sha256 hash via repo.add
+- [Phase ?]: [11-05]: Phase 11 closes — 3 integration tests (15 cases): DI Container resolves all 6 auth services; Argon2 p99=34.7ms (88% headroom under 300ms budget); RedactingFilter scrubs sensitive structured fields end-to-end
 
 ### Pending Todos
 
@@ -143,6 +145,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T06:26:27.741Z
-Stopped at: Plan 11-04 complete — 6 auth services + 4 repo + 6 service DI providers wired; 22 service unit tests pass; combined Phase 11 unit count 50
+Last session: 2026-04-29T06:35:24.582Z
+Stopped at: Plan 11-05 complete — Phase 11 closes (3 integration test files, 15 tests, p99=34.7ms; all 6 DI services resolve; RedactingFilter end-to-end verified)
 Resume file: None

@@ -147,7 +147,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [ ] **VERIFY-02**: JWT alg=none token is rejected with 401
 - [ ] **VERIFY-03**: Tampered JWT signature is rejected with 401
 - [ ] **VERIFY-04**: Expired JWT is rejected with 401
-- [ ] **VERIFY-05**: Argon2 hash benchmark stays under 300ms p99 on the deploy hardware (CI gate)
+- [x] **VERIFY-05**: Argon2 hash benchmark stays under 300ms p99 on the deploy hardware (CI gate)
 - [ ] **VERIFY-06**: CSRF token mismatch returns 403
 - [ ] **VERIFY-07**: WebSocket ticket flow rejects re-use, expired tickets, and tickets bound to other users
 - [ ] **VERIFY-08**: Migration smoke test runs against a copy of `records.db` end-to-end (baseline → upgrade → verify task ownership backfill correct)
@@ -286,7 +286,7 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | VERIFY-02 | Phase 16 | Pending |
 | VERIFY-03 | Phase 16 | Pending |
 | VERIFY-04 | Phase 16 | Pending |
-| VERIFY-05 | Phase 11 | Pending |
+| VERIFY-05 | Phase 11 | Complete |
 | VERIFY-06 | Phase 16 | Pending |
 | VERIFY-07 | Phase 16 | Pending |
 | VERIFY-08 | Phase 16 | Pending |
