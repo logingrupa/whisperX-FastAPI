@@ -17,24 +17,50 @@ from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse, RedirectResponse  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
-from app.api import service_router, stt_router, task_router, websocket_router  # noqa: E402
+from app.api import (  # noqa: E402
+    account_router,
+    auth_router,
+    billing_router,
+    key_router,
+    service_router,
+    stt_router,
+    task_router,
+    websocket_router,
+    ws_ticket_router,
+)
 from app.api.streaming_upload_api import streaming_upload_router  # noqa: E402
 from app.api.tus_upload_api import tus_upload_router, TUS_UPLOAD_DIR  # noqa: E402
 from app.api.exception_handlers import (  # noqa: E402
+    concurrency_limit_handler,
     domain_error_handler,
+    free_tier_violation_handler,
     generic_error_handler,
     infrastructure_error_handler,
+    invalid_credentials_handler,
+    rate_limit_exceeded_handler,
     task_not_found_handler,
+    trial_expired_handler,
     validation_error_handler,
 )
-from app.core.config import Config  # noqa: E402
+from app.core.auth import BearerAuthMiddleware  # noqa: E402  (W4 — V2_ENABLED=false fallback)
+from app.core.config import Config, get_settings  # noqa: E402
 from app.core.container import Container  # noqa: E402
+from app.core.csrf_middleware import CsrfMiddleware  # noqa: E402
+from app.core.dual_auth import DualAuthMiddleware  # noqa: E402
 from app.core.exceptions import (  # noqa: E402
+    ConcurrencyLimitError,
     DomainError,
+    FreeTierViolationError,
     InfrastructureError,
+    InvalidCredentialsError,
+    RateLimitExceededError,
     TaskNotFoundError,
+    TrialExpiredError,
     ValidationError,
 )
+from app.core.feature_flags import is_auth_v2_enabled  # noqa: E402
+from app.core.rate_limiter import limiter, rate_limit_handler  # noqa: E402
+from slowapi.errors import RateLimitExceeded  # noqa: E402
 from app.docs import generate_db_schema, save_openapi_json  # noqa: E402
 from app.infrastructure.scheduler import start_cleanup_scheduler, stop_cleanup_scheduler  # noqa: E402
 from app.infrastructure.database import Base, engine  # noqa: E402
@@ -161,12 +187,36 @@ TUS_HEADERS: list[str] = [
     "Upload-Expires",
 ]
 
-# CORS middleware - must be added before routers for TUS header exposure
+# Phase 13 atomic-cutover middleware stack — single is_auth_v2_enabled() check
+# decides which auth path is wired. CORS is locked to FRONTEND_URL in BOTH
+# branches (never wildcard) per ANTI-06 / T-13-42.
+settings = get_settings()
+
+# slowapi state — required for @limiter.limit decorators on routes.
+app.state.limiter = limiter
+
+if is_auth_v2_enabled():
+    # ASGI middleware reverses registration order (last-registered runs first
+    # on request). Required request flow: CORS → DualAuth → CSRF → route.
+    # So register: CSRF → DualAuth → CORS.
+    app.add_middleware(CsrfMiddleware, container=container)
+    app.add_middleware(DualAuthMiddleware, container=container)
+else:
+    # W4 — Legacy fallback during atomic cutover window. Without this branch
+    # dev/CI environments running AUTH_V2_ENABLED=false would have zero auth
+    # middleware. Removed in Phase 16+ once V2 is verified stable in prod.
+    app.add_middleware(BearerAuthMiddleware)
+
+# CORS — locked to FRONTEND_URL allowlist with credentials enabled (ANTI-06).
+# Single-origin (or comma-separated allowlist) — NEVER use wildcard origins
+# alongside credentials (browsers reject the combination).
+cors_origins = [origin.strip() for origin in settings.auth.FRONTEND_URL.split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=cors_origins,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    allow_credentials=True,
     expose_headers=TUS_HEADERS,
 )
 
@@ -176,14 +226,40 @@ app.add_exception_handler(ValidationError, validation_error_handler)
 app.add_exception_handler(DomainError, domain_error_handler)
 app.add_exception_handler(InfrastructureError, infrastructure_error_handler)
 app.add_exception_handler(Exception, generic_error_handler)
+# Phase 13 typed exception handlers — registered in BOTH branches; the
+# domain exceptions can surface from any code path even under V2-OFF.
+app.add_exception_handler(InvalidCredentialsError, invalid_credentials_handler)
+app.add_exception_handler(TrialExpiredError, trial_expired_handler)
+app.add_exception_handler(FreeTierViolationError, free_tier_violation_handler)
+app.add_exception_handler(RateLimitExceededError, rate_limit_exceeded_handler)
+app.add_exception_handler(ConcurrencyLimitError, concurrency_limit_handler)
+app.add_exception_handler(RateLimitExceeded, rate_limit_handler)  # slowapi
 
-# Include routers
+# Include existing v1.1 routers (active under both V2 branches).
 app.include_router(stt_router)
 app.include_router(task_router)
 app.include_router(service_router)
 app.include_router(websocket_router)
 app.include_router(streaming_upload_router)
 app.include_router(tus_upload_router)
+
+# Phase 13 routers — gated on AUTH_V2_ENABLED (atomic flip).
+if is_auth_v2_enabled():
+    app.include_router(auth_router)
+    app.include_router(key_router)
+    app.include_router(account_router)
+    app.include_router(billing_router)
+    app.include_router(ws_ticket_router)
+
+# Fail-loud production safety guard — refuse to boot in production with the
+# legacy fallback active (T-13-43). Dev/CI may run V2_ENABLED=false; prod must
+# always run the Phase 13 stack once frontend Phase 14 ships.
+if settings.ENVIRONMENT == "production" and not is_auth_v2_enabled():
+    raise RuntimeError(
+        "Production refuses to boot with AUTH_V2_ENABLED=false — "
+        "set AUTH__V2_ENABLED=true to enable the Phase 13 auth stack. "
+        "The BearerAuthMiddleware fallback is for dev/CI environments only."
+    )
 
 
 @app.get("/", include_in_schema=False)
