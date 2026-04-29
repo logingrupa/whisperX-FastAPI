@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: Ready for 15-04
-stopped_at: Plan 15-03 (GET /api/account/me wired, UI-07 hydration source ready)
-last_updated: "2026-04-29T19:12:54.274Z"
+stopped_at: Plan 15-04 (DELETE /api/account end-to-end, SCOPE-06 closed)
+last_updated: "2026-04-29T19:25:41.147Z"
 last_activity: 2026-04-29 -- Plan 15-03 (GET /api/account/me wired, UI-07 hydration source ready)
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 36
-  completed_plans: 33
-  percent: 92
+  completed_plans: 34
+  percent: 94
 ---
 
 # Project State
@@ -86,6 +86,7 @@ Last activity: 2026-04-29 -- Plan 15-03 (GET /api/account/me wired, UI-07 hydrat
 | Phase 15 P01 | 9 min | 3 tasks | 9 files |
 | Phase 15 P02 | 4 min | 1 task (TDD) | 2 files |
 | Phase 15 P03 | 6 min | 2 tasks (3 commits, TDD) tasks | 3 files files |
+| Phase 15 P04 | 9 min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -261,6 +262,10 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase 15]: [15-03]: AccountService.__init__ accepts user_repository: IUserRepository | None — None lazy-constructs SQLAlchemyUserRepository(session) preserving Phase-13 SCOPE-05 backward compat (DRT); Plan 15-04 delete_account reuses _user_repository (DRY)
 - [Phase 15]: [15-03]: get_account_summary returns dict (not domain entity) so route wraps via AccountSummaryResponse(**summary) — keeps service Pydantic-free, mirrors Phase 13-04 CreateKeyResponse(**dict) idiom (SRP)
 - [Phase 15]: [15-03]: User-not-found → InvalidCredentialsError → 401 (not 404) for anti-enumeration parity with auth failures (T-15-05); response_model=AccountSummaryResponse enforces T-15-11 field allowlist (no password_hash leak)
+- [Phase ?]: [15-04]: Strategy C LOCKED — service-orchestrated 3-step cascade (delete_user_data → DELETE rate_limit_buckets prefix-match → user_repository.delete fires ORM CASCADE for 4 CASCADE FKs); tasks.user_id NOT NULL after migration 0003 forbids bare user delete (Pitfall 2)
+- [Phase ?]: [15-04]: ValidationError → 400 EMAIL_CONFIRM_MISMATCH translated route-locally via HTTPException; global validation_error_handler default 422 preserved for register/login flows (Option B route-local, RESEARCH §1252)
+- [Phase ?]: [15-04]: T-15-03 LOCKED — no token_version bump on delete; user-row-gone is the invalidation signal (middleware get_by_id returns None on next request → 401). Cookie clearing is route-level UX cleanup, not a security gate.
+- [Phase ?]: [15-04]: Rule-1 test fix — Starlette TestClient.delete() does not accept json= kwarg in this httpx version; all 6 delete-with-body tests use client.request('DELETE', url, json=...). Pattern recorded for future DELETE-with-body tests.
 
 ### Pending Todos
 
@@ -276,6 +281,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T19:12:54.267Z
-Stopped at: Plan 15-03 (GET /api/account/me wired, UI-07 hydration source ready)
+Last session: 2026-04-29T19:25:41.140Z
+Stopped at: Plan 15-04 (DELETE /api/account end-to-end, SCOPE-06 closed)
 Resume file: None

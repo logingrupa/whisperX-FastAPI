@@ -72,7 +72,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [x] **SCOPE-03**: `GET /tasks` returns only tasks owned by the authenticated user (cross-user matrix tests prove this for every endpoint)
 - [x] **SCOPE-04**: `GET /task/{id}`, `DELETE /task/{id}`, `POST /speech-to-text*`, TUS upload routes, callback routes are all user-scoped
 - [x] **SCOPE-05**: User can call `DELETE /api/account/data` to delete all their tasks and uploaded files; user row is preserved
-- [ ] **SCOPE-06**: User can call `DELETE /api/account` to delete their account entirely (cascades to tasks, api_keys, subscriptions, usage_events); type-email confirmation required at UI
+- [x] **SCOPE-06**: User can call `DELETE /api/account` to delete their account entirely (cascades to tasks, api_keys, subscriptions, usage_events); type-email confirmation required at UI
 
 ### Rate Limiting and Free Tier (`RATE-*`)
 
