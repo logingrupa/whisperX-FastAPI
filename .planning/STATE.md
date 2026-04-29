@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: executing
-stopped_at: Plan 14-04 complete — 6 routes wired at BrowserRouter basename=/ui; RequireAuth Outlet HOC; TranscribePage verbatim; AppShell+ErrorBoundary; 29/29 tests; 2 commits (4b42215, 475da67)
-last_updated: "2026-04-29T13:43:31.527Z"
+stopped_at: Plan 14-05 complete — LoginPage + RegisterPage with react-hook-form + zod + AuthCard + PasswordStrengthMeter; 19 new tests (48/48 total green); 4 atomic commits (c56992f, a93055c, 26af6df, a2ee586)
+last_updated: "2026-04-29T13:53:24.106Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 30
-  completed_plans: 27
-  percent: 90
+  completed_plans: 28
+  percent: 93
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 14 (Atomic Frontend Cutover + Test Infra) — EXECUTING
-Plan: 5 of 7
+Plan: 6 of 7
 Status: Ready to execute
 Last activity: 2026-04-29
 
@@ -79,6 +79,7 @@ Last activity: 2026-04-29
 | Phase 14 P02 | 2m 28s | 2 tasks | 5 files |
 | Phase 14 P03 | 3m 46s | 2 tasks | 3 files |
 | Phase 14 P04 | 4m 9s | 2 tasks | 17 files |
+| Phase 14 P05 | 5m 30s | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -229,6 +230,12 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [14-04]: PageWrap DRY composer wraps RouteErrorBoundary + Suspense around every route element — 1-line route registration; impossible to ship a page without per-route ErrorBoundary
 - [Phase ?]: [14-04]: Lazy named-export shim — lazy(() => import('./X').then((m) => ({default: m.X}))) — Plans 05/06 ship named exports; routes/ stays consistently named-export
 - [Phase ?]: [14-04]: Rule 3 fix — apiErrors.ts + setup.ts constructor parameter properties rewritten to explicit field declarations to satisfy tsconfig erasableSyntaxOnly (was pre-existing build break from 14-01/14-02)
+- [Phase ?]: [14-05]: Pure roll-our-own zxcvbn-style scorer (no external library) — cumulative bands {len>=8, mixed-case, digit, symbol, len>=16} capped at 4; pure function, 8/8 boundary tests, swap path to real zxcvbn preserved
+- [Phase ?]: [14-05]: AuthCard layout shell shared by /login + /register only — dashboards (Plan 14-06) live in AppShell instead; AuthCard is the locked layout for credential-collection pages
+- [Phase ?]: [14-05]: FormFieldRow DRY primitive (text-input rows only) — bespoke FormField for terms checkbox is a deliberate non-DRY exception (different layout); FormCheckboxRow extraction deferred until 3+ checkbox rows exist
+- [Phase ?]: [14-05]: Anti-enumeration error funnel — RateLimitError handled BEFORE ApiClientError in catch chain (subtype-first); single generic 'Login failed.' / 'Registration failed.' string regardless of backend code/detail (T-14-12 mitigation)
+- [Phase ?]: [14-05]: Native input type=checkbox for termsAccepted — no shadcn Checkbox component shipped; native input + manual styling keeps Plan 14-05 zero-dep, swappable later
+- [Phase ?]: [14-05]: Rule 1 fix — AppRouter.test.tsx assertions migrated from placeholder text ('LoginPage placeholder' / 'RegisterPage placeholder') to heading-role queries ('Sign in' / 'Create account'); placeholder text was a transient Plan 14-04 artifact, heading-role survives copy reshuffles
 
 ### Pending Todos
 
@@ -244,6 +251,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T13:43:31.521Z
-Stopped at: Plan 14-04 complete — 6 routes wired at BrowserRouter basename=/ui; RequireAuth Outlet HOC; TranscribePage verbatim; AppShell+ErrorBoundary; 29/29 tests; 2 commits (4b42215, 475da67)
+Last session: 2026-04-29T13:50:36Z
+Stopped at: Plan 14-05 complete — LoginPage + RegisterPage with react-hook-form + zod + AuthCard + PasswordStrengthMeter; 19 new tests (48/48 total green); 4 atomic commits (c56992f, a93055c, 26af6df, a2ee586)
 Resume file: None

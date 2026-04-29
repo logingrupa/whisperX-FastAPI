@@ -111,8 +111,8 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 ### Auth UI Pages (`UI-*`) — `/frontend-design` skill
 
 - [x] **UI-01**: System uses `react-router-dom` with `<BrowserRouter basename="/ui">` and routes: `/`, `/login`, `/register`, `/dashboard/keys`, `/dashboard/usage`, `/dashboard/account`
-- [ ] **UI-02**: `/login` page has email + password fields with react-hook-form + zod validation, shadcn `<Form>` styling, submit-disabled-while-loading
-- [ ] **UI-03**: `/register` page has email + password + password-confirm + terms-checkbox, password strength meter (zxcvbn-style heuristic — no external library required)
+- [x] **UI-02**: `/login` page has email + password fields with react-hook-form + zod validation, shadcn `<Form>` styling, submit-disabled-while-loading
+- [x] **UI-03**: `/register` page has email + password + password-confirm + terms-checkbox, password strength meter (zxcvbn-style heuristic — no external library required)
 - [x] **UI-04**: After successful login or registration, user is redirected to `/` (transcription page) or original `?next=` URL
 - [ ] **UI-05**: `/dashboard/keys` shows API key list (name, prefix, created_at, last_used_at, status), create-key modal that shows raw key once with copy button, revoke confirmation
 - [ ] **UI-06**: `/dashboard/usage` shows current-hour quota counter, daily minutes counter, trial countdown badge ("Trial: X days left" or "Trial not started" before first key)
@@ -259,8 +259,8 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | BILL-06 | Phase 15 | Complete |
 | BILL-07 | Phase 13 | Complete |
 | UI-01 | Phase 14 | Complete |
-| UI-02 | Phase 14 | Pending |
-| UI-03 | Phase 14 | Pending |
+| UI-02 | Phase 14 | Complete |
+| UI-03 | Phase 14 | Complete |
 | UI-04 | Phase 14 | Complete |
 | UI-05 | Phase 14 | Pending |
 | UI-06 | Phase 14 | Pending |
