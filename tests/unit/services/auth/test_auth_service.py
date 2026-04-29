@@ -103,3 +103,24 @@ class TestAuthService:
         assert user.id == 1
         assert token == "jwt.token.here"
         mock_token_service.issue.assert_called_once_with(1, 3)
+
+    def test_register_with_pro_plan_tier_persists_pro_user(
+        self,
+        service: AuthService,
+        mock_user_repo: MagicMock,
+        mock_password_service: MagicMock,
+    ) -> None:
+        """register(plan_tier='pro') must persist a User with plan_tier='pro'."""
+        mock_user_repo.get_by_email.return_value = None
+        mock_user_repo.add.return_value = 42
+        mock_password_service.hash_password.return_value = "argon2-hash"
+
+        user = service.register(
+            "admin@example.com", "pw-123456789012", plan_tier="pro",
+        )
+
+        assert user.id == 42
+        assert user.plan_tier == "pro"
+        # Verify the User passed to repo.add() carries plan_tier='pro' (not 'trial'):
+        added_user = mock_user_repo.add.call_args.args[0]
+        assert added_user.plan_tier == "pro"

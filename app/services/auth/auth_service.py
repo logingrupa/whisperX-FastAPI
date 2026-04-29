@@ -40,20 +40,39 @@ class AuthService:
         self.password_service = password_service
         self.token_service = token_service
 
-    def register(self, email: str, plain_password: str) -> User:
+    def register(
+        self,
+        email: str,
+        plain_password: str,
+        *,
+        plan_tier: str = "trial",
+    ) -> User:
         """Register a new user.
 
-        Raises UserAlreadyExistsError if email already taken.
+        Args:
+            email: Unique login identifier.
+            plain_password: Plain password — hashed via PasswordService.
+            plan_tier: Subscription tier — one of `free`/`trial`/`pro`/`team`.
+                Defaults to `trial` to match the schema CHECK constraint default.
+                CLI bootstrap path passes `pro` for admin users.
+
+        Raises:
+            UserAlreadyExistsError: If email already taken.
         """
         logger.debug("AuthService.register called")
         existing = self.user_repository.get_by_email(email)
         if existing is not None:
             raise UserAlreadyExistsError()
         hashed = self.password_service.hash_password(plain_password)
-        user = User(id=None, email=email, password_hash=hashed)
+        user = User(
+            id=None,
+            email=email,
+            password_hash=hashed,
+            plan_tier=plan_tier,
+        )
         new_id = self.user_repository.add(user)
         user.id = new_id
-        logger.info("User registered id=%s", new_id)
+        logger.info("User registered id=%s plan_tier=%s", new_id, plan_tier)
         return user
 
     def login(self, email: str, plain_password: str) -> tuple[User, str]:
