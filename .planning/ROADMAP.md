@@ -23,7 +23,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - [x] **Phase 12: Admin CLI + Task Backfill** — Typer CLI seeds admin user + backfills `tasks.user_id`; FK NOT NULL constraint applied last (completed 2026-04-29)
 - [x] **Phase 13: Atomic Backend Cutover (ATOMIC PAIR with Phase 14)** — DualAuthMiddleware + auth/keys/account routes + per-user scoping + WS ticket + CSRF + CORS lockdown + rate-limit + free-tier gates + Stripe schema stubs (completed 2026-04-29)
 - [x] **Phase 14: Atomic Frontend Cutover + Test Infra (ATOMIC PAIR with Phase 13)** — Router shell + auth pages + dashboard (keys/usage) + apiClient wrapper + zustand store + BroadcastChannel + Vitest/RTL/MSW (completed 2026-04-29)
-- [ ] **Phase 15: Account Dashboard Hardening + Billing Stubs** — Account page (delete + logout-all-devices + Pro upgrade CTA) + checkout/webhook 501 stubs
+- [x] **Phase 15: Account Dashboard Hardening + Billing Stubs** — Account page (delete + logout-all-devices + Pro upgrade CTA) + checkout/webhook 501 stubs (completed 2026-04-29)
 - [ ] **Phase 16: Verification + Cross-User Matrix + E2E** — Cross-user tests + JWT attack tests + WS ticket reuse + CSRF mismatch + migration smoke against records.db
 - [ ] **Phase 17: Docs + Migration Runbook + Operator Guide** — `.env.example`, README auth flow, migration runbook, OpenAPI updates
 - [ ] **Phase 18: Stretch (Optional)** — hCaptcha enable, HaveIBeenPwned check, per-key scopes UI, per-key expiration
@@ -137,7 +137,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - [x] 15-03-account-me-PLAN.md — GET /api/account/me + AccountService.get_account_summary + tests (Wave 1)
 - [x] 15-04-delete-account-PLAN.md — DELETE /api/account + AccountService.delete_account cascade + 7 integration tests (Wave 1)
 - [x] 15-05-auth-hydration-PLAN.md — authStore.refresh + isHydrating + RequireAuth gate + main.tsx boot probe + tests (Wave 2)
-- [ ] 15-06-account-page-PLAN.md — AccountPage + 3 dialogs + AppRouter swap + 14+ RTL tests via /frontend-design (Wave 3, has human-verify checkpoint)
+- [x] 15-06-account-page-PLAN.md — AccountPage + 3 dialogs + AppRouter swap + 14+ RTL tests via /frontend-design (Wave 3, has human-verify checkpoint)
 **UI hint**: yes
 
 ### Phase 16: Verification + Cross-User Matrix + E2E
@@ -184,7 +184,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | 12. Admin CLI + Task Backfill | v1.2 | 4/4 | Complete    | 2026-04-29 |
 | 13. Atomic Backend Cutover | v1.2 | 10/10 | Complete    | 2026-04-29 |
 | 14. Atomic Frontend Cutover + Test Infra | v1.2 | 7/7 | Complete    | 2026-04-29 |
-| 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 5/6 | In Progress|  |
+| 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 6/6 | Complete   | 2026-04-29 |
 | 16. Verification + Cross-User Matrix + E2E | v1.2 | 0/TBD | Not started | - |
 | 17. Docs + Migration Runbook + Operator Guide | v1.2 | 0/TBD | Not started | - |
 | 18. Stretch (Optional) | v1.2 | 0/TBD | Optional | - |

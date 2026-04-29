@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: Ready for 15-06
-stopped_at: Plan 15-05 (auth hydration: refresh + isHydrating + RequireAuth gate + main.tsx boot probe — UI-07 closed)
-last_updated: "2026-04-29T22:32:00.000Z"
+stopped_at: Completed 15-06-PLAN.md (Task 3 human-verify pending)
+last_updated: "2026-04-29T19:46:13.184Z"
 last_activity: 2026-04-29 -- Plan 15-05 (frontend session hydration wired, UI-07 closed)
 progress:
   total_phases: 9
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 36
-  completed_plans: 35
-  percent: 97
+  completed_plans: 36
+  percent: 100
 ---
 
 # Project State
@@ -88,6 +88,7 @@ Last activity: 2026-04-29 -- Plan 15-05 (frontend session hydration wired, UI-07
 | Phase 15 P03 | 6 min | 2 tasks (3 commits, TDD) tasks | 3 files files |
 | Phase 15 P04 | 9 min | 3 tasks | 3 files |
 | Phase 15 P05 | 9 min | 2 tasks (TDD) tasks | 7 files files |
+| Phase 15 P06 | 7 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -271,6 +272,8 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [15-05]: Module-scope boot probe void useAuthStore.getState().refresh() in main.tsx (BEFORE createRoot.render) — StrictMode-safe single-fire (useEffect would double-hydrate)
 - [Phase ?]: [15-05]: RequireAuth 3-state gate uses two flat early-return guards (isHydrating then user===null) — fail-closed null render; nested-if invariant 0 across all 5 modified files
 - [Phase ?]: [15-05]: 3 sibling test files (AppRouter, KeysDashboardPage, smoke) updated to seed full AuthUser shape (Rule 3 deviation — TS strict compile gate); AppRouter helper migrated to import AuthUser type (DRY single source)
+- [Phase 15]: [15-06]: AccountPage three-card layout (Profile/Plan/Danger Zone) with PLAN_BADGE_VARIANT + PLAN_COPY narrowed Record<plan_tier,...> + 'Plan details unavailable.' fallback for unknown values (T-15-10 mitigation); inline-styled native textarea in UpgradeInterestDialog (no shadcn primitive vendored); isMatched gate adds && userEmail.length > 0 defence-in-depth — Locked design contract executed verbatim per UI-SPEC §116-160; tiger-style boundary defence; matches sibling KeysDashboardPage pattern.
+- [Phase 15]: [15-06]: setTimeout-spy assertion pattern for auto-close timer test (UpgradeInterestDialog) — fake timers deadlock against MSW response promises in this codebase; spy + invoke-callback-directly + act() is more precise than wall-clock and side-steps the deadlock — Discovered during Task 2 — 5000ms timeout on findByText after vi.useFakeTimers() with MSW pending. Pattern saves ~2s per test run vs real-timer wait.
 
 ### Pending Todos
 
@@ -286,6 +289,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T19:32:58.019Z
-Stopped at: Plan 15-04 (DELETE /api/account end-to-end, SCOPE-06 closed)
+Last session: 2026-04-29T19:45:46.256Z
+Stopped at: Completed 15-06-PLAN.md (Task 3 human-verify pending)
 Resume file: None
