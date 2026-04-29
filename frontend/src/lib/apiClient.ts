@@ -153,16 +153,16 @@ async function request<T>(opts: RequestOptions): Promise<T> {
 }
 
 export const apiClient = {
-  get: <T>(path: string, headers?: Record<string, string>) =>
-    request<T>({ method: 'GET', path, headers }),
+  get: <T>(path: string, opts?: { headers?: Record<string, string>; suppress401Redirect?: boolean }) =>
+    request<T>({ method: 'GET', path, headers: opts?.headers, suppress401Redirect: opts?.suppress401Redirect }),
   post: <T>(path: string, body?: unknown, opts?: { suppress401Redirect?: boolean }) =>
     request<T>({ method: 'POST', path, body, suppress401Redirect: opts?.suppress401Redirect }),
   put: <T>(path: string, body?: unknown) =>
     request<T>({ method: 'PUT', path, body }),
   patch: <T>(path: string, body?: unknown) =>
     request<T>({ method: 'PATCH', path, body }),
-  delete: <T>(path: string) =>
-    request<T>({ method: 'DELETE', path }),
+  delete: <T>(path: string, body?: unknown) =>
+    request<T>({ method: 'DELETE', path, body }),
 };
 
 export { ApiClientError, AuthRequiredError, RateLimitError } from './apiErrors';
