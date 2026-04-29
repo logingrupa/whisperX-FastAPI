@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from app.core.exceptions import (
     DomainError,
     InfrastructureError,
+    InvalidCredentialsError,
     TaskNotFoundError,
     ValidationError,
 )
@@ -190,4 +191,27 @@ async def generic_error_handler(request: Request, exc: Exception) -> JSONRespons
                 "correlation_id": correlation_id,
             }
         },
+    )
+
+
+async def invalid_credentials_handler(
+    request: Request, exc: InvalidCredentialsError | Exception
+) -> JSONResponse:
+    """Map InvalidCredentialsError -> HTTP 401 (Phase 13 / AUTH-03).
+
+    Generic 401 body — anti-enumeration: identical shape on either
+    wrong-email or wrong-password (T-13-10). Registered alongside
+    DualAuthMiddleware in plan 13-09.
+    """
+    ic_exc = (
+        exc if isinstance(exc, InvalidCredentialsError) else InvalidCredentialsError()
+    )
+
+    logger.info(
+        "Authentication failed: invalid_credentials",
+        extra={"correlation_id": ic_exc.correlation_id, "path": request.url.path},
+    )
+
+    return JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED, content=ic_exc.to_dict()
     )
