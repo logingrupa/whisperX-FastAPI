@@ -147,4 +147,57 @@ describe('apiClient', () => {
     await apiClient.get('/api/test');
     expect(capturedCredentials).toBe('include');
   });
+
+  // --- Phase 15-01 extensions ---------------------------------------------
+
+  it('GET with suppress401Redirect=true does NOT redirect on 401', async () => {
+    const before = window.location.href;
+    server.use(
+      http.get('/api/test', () =>
+        HttpResponse.json({ detail: 'Authentication required' }, { status: 401 }),
+      ),
+    );
+    await expect(
+      apiClient.get('/api/test', { suppress401Redirect: true }),
+    ).rejects.toBeInstanceOf(AuthRequiredError);
+    expect(window.location.href).toBe(before);
+  });
+
+  it('GET forwards custom headers through opts.headers', async () => {
+    let capturedHeader: string | null = null;
+    server.use(
+      http.get('/api/test', ({ request }) => {
+        capturedHeader = request.headers.get('X-Foo');
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    await apiClient.get('/api/test', { headers: { 'X-Foo': 'bar' } });
+    expect(capturedHeader).toBe('bar');
+  });
+
+  it('DELETE with body sends JSON body to server', async () => {
+    let capturedBody: unknown = null;
+    server.use(
+      http.delete('/api/test', async ({ request }) => {
+        capturedBody = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    await apiClient.delete('/api/test', { email_confirm: 'x@y.com' });
+    expect(capturedBody).toEqual({ email_confirm: 'x@y.com' });
+  });
+
+  it('DELETE without body argument still sends a no-body request (no regression)', async () => {
+    let capturedContentType: string | null = 'sentinel';
+    server.use(
+      http.delete('/api/keys/:id', ({ request }) => {
+        capturedContentType = request.headers.get('Content-Type');
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const result = await apiClient.delete('/api/keys/1');
+    expect(result).toBeUndefined();
+    // No body -> no Content-Type forced (buildBody returns undefined)
+    expect(capturedContentType).toBe(null);
+  });
 });
