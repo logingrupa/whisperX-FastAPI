@@ -104,8 +104,8 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [x] **BILL-02**: User row has nullable `stripe_customer_id` (will be populated when Stripe goes live in v1.3)
 - [x] **BILL-03**: `subscriptions` table is present with `stripe_subscription_id`, `plan`, `status`, `current_period_start`, `current_period_end`, `cancelled_at` (all nullable, populated by Stripe webhook in v1.3)
 - [x] **BILL-04**: `usage_events` table is populated by every completed transcription (foundation for Stripe metered billing in v1.3)
-- [ ] **BILL-05**: `POST /billing/checkout` is a stub returning `501 Not Implemented` with a placeholder response (no live Stripe integration)
-- [ ] **BILL-06**: `POST /billing/webhook` is a stub that validates `Stripe-Signature` header schema (rejects malformed) and returns `501 Not Implemented`
+- [x] **BILL-05**: `POST /billing/checkout` is a stub returning `501 Not Implemented` with a placeholder response (no live Stripe integration)
+- [x] **BILL-06**: `POST /billing/webhook` is a stub that validates `Stripe-Signature` header schema (rejects malformed) and returns `501 Not Implemented`
 - [x] **BILL-07**: System imports `stripe` package (15.1.0) but performs zero runtime API calls in v1.2
 
 ### Auth UI Pages (`UI-*`) — `/frontend-design` skill
@@ -255,8 +255,8 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | BILL-02 | Phase 13 | Complete |
 | BILL-03 | Phase 13 | Complete |
 | BILL-04 | Phase 13 | Complete |
-| BILL-05 | Phase 15 | Pending |
-| BILL-06 | Phase 15 | Pending |
+| BILL-05 | Phase 15 | Complete |
+| BILL-06 | Phase 15 | Complete |
 | BILL-07 | Phase 13 | Complete |
 | UI-01 | Phase 14 | Pending |
 | UI-02 | Phase 14 | Pending |

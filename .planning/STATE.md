@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: executing
+status: verifying
 stopped_at: Plan 13-09 complete — atomic backend cutover wired (DualAuth+CSRF/5 routers/6 handlers/locked CORS/W4 fallback); 2 commits (630170f, 1f2a721); MID-01/MID-05/ANTI-06 closed
-last_updated: "2026-04-29T12:04:02.124Z"
+last_updated: "2026-04-29T12:36:15.561Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 23
-  completed_plans: 22
-  percent: 96
+  completed_plans: 23
+  percent: 100
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 
 Phase: 13 (Atomic Backend Cutover) — EXECUTING
 Plan: 10 of 10
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-29
 
 ## Performance Metrics
@@ -73,6 +73,7 @@ Last activity: 2026-04-29
 | Phase 13 P08 | 20 min | 3 tasks | 15 files |
 | Phase 13 P08 | 20 min | 3 tasks | 15 files |
 | Phase 13 P09 | 10 min | 3 tasks | 3 files |
+| Phase 13 P10 | 26 min | 1 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -202,6 +203,9 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase 13]: [13-09]: app/core/auth.py recreated (was missing from disk; initial git status snapshot stale) — minimal legacy BearerAuthMiddleware + W4 DEPRECATED header; fail-CLOSED on unset API_BEARER_TOKEN
 - [Phase 13]: [13-09]: Atomic flip wiring — single is_auth_v2_enabled() check at app boot decides middleware stack (DualAuth+CSRF vs BearerAuth) AND router registration (5 Phase 13 routers gated); CORS locked to FRONTEND_URL with allow_credentials=True in BOTH branches
 - [Phase 13]: [13-09]: Production-safety boot guard refuses to start when ENVIRONMENT=production AND AUTH_V2_ENABLED=false (T-13-43); slowapi limiter mounted unconditionally on app.state for @limiter.limit decorators on auth routes; 6 typed exception handlers registered in BOTH branches
+- [Phase ?]: [13-10]: Subprocess-per-test e2e smoke gate (uvicorn + tmp SQLite + alembic upgrade head); 12/12 tests pass in 233s; gates Phase 13 atomic deploy with Phase 14 frontend
+- [Phase ?]: [13-10]: Rule 3 fix to app/docs.py — utf-8 explicit on save_openapi_json + write_markdown_to_file (Windows cp1252 was hanging subprocess lifespan on non-ASCII docstring chars)
+- [Phase ?]: [13-10]: V2_OFF fixture sets API_BEARER_TOKEN + sends bearer header so legacy middleware passes through; route NOT registered surfaces as 404 (must-have signal vs 401 auth-missing)
 
 ### Pending Todos
 
@@ -217,6 +221,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T12:04:02.119Z
+Last session: 2026-04-29T12:36:04.789Z
 Stopped at: Plan 13-09 complete — atomic backend cutover wired (DualAuth+CSRF/5 routers/6 handlers/locked CORS/W4 fallback); 2 commits (630170f, 1f2a721); MID-01/MID-05/ANTI-06 closed
 Resume file: None

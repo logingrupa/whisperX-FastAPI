@@ -21,7 +21,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - [x] **Phase 11: Auth Core Modules + Services + DI** — Pure logic modules (jwt_codec, api_key, password hasher, services, DI providers); HTTP-untouched
  (completed 2026-04-29)
 - [x] **Phase 12: Admin CLI + Task Backfill** — Typer CLI seeds admin user + backfills `tasks.user_id`; FK NOT NULL constraint applied last (completed 2026-04-29)
-- [ ] **Phase 13: Atomic Backend Cutover (ATOMIC PAIR with Phase 14)** — DualAuthMiddleware + auth/keys/account routes + per-user scoping + WS ticket + CSRF + CORS lockdown + rate-limit + free-tier gates + Stripe schema stubs
+- [x] **Phase 13: Atomic Backend Cutover (ATOMIC PAIR with Phase 14)** — DualAuthMiddleware + auth/keys/account routes + per-user scoping + WS ticket + CSRF + CORS lockdown + rate-limit + free-tier gates + Stripe schema stubs (completed 2026-04-29)
 - [ ] **Phase 14: Atomic Frontend Cutover + Test Infra (ATOMIC PAIR with Phase 13)** — Router shell + auth pages + dashboard (keys/usage) + apiClient wrapper + zustand store + BroadcastChannel + Vitest/RTL/MSW
 - [ ] **Phase 15: Account Dashboard Hardening + Billing Stubs** — Account page (delete + logout-all-devices + Pro upgrade CTA) + checkout/webhook 501 stubs
 - [ ] **Phase 16: Verification + Cross-User Matrix + E2E** — Cross-user tests + JWT attack tests + WS ticket reuse + CSRF mismatch + migration smoke against records.db
@@ -99,7 +99,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - [x] 13-07-PLAN.md — Per-user scoping (ITaskRepository.set_user_scope + get_scoped_task_repository + scope every existing endpoint) + cross-user 404 tests (Wave 3)
 - [x] 13-08-PLAN.md — FreeTierGate dependency + RateLimitService wiring + 429/Retry-After + 402/trial-expiry + 403/model-violation + UsageEventWriter on completion + integration tests (Wave 3)
 - [x] 13-09-PLAN.md — Wire DualAuthMiddleware + CSRF middleware into app/main.py (replace BearerAuthMiddleware) + CORS lockdown to FRONTEND_URL + register all 5 new routers + delete app/core/auth.py legacy file + exception handler registrations + production safety guard (Wave 4, has human-verify checkpoint)
-- [ ] 13-10-PLAN.md — Phase 13 e2e smoke tests (full register→login→create-key→use-key→logout flow + cross-user 404 + rate limit + free-tier reject + disposable email + CORS preflight + AUTH_V2_ENABLED feature-flag verification) (Wave 4)
+- [x] 13-10-PLAN.md — Phase 13 e2e smoke tests (full register→login→create-key→use-key→logout flow + cross-user 404 + rate limit + free-tier reject + disposable email + CORS preflight + AUTH_V2_ENABLED feature-flag verification) (Wave 4)
 
 ### Phase 14: Atomic Frontend Cutover + Test Infra — **ATOMIC PAIR with Phase 13**
 **Goal**: Browser users land on a working auth shell — login/register/dashboard/keys/usage flows all functional, existing transcription UI preserved at `/`, all network calls flow through the central client; Vitest+RTL+MSW infrastructure verifies critical flows.
@@ -169,7 +169,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | 10. Alembic Baseline + Auth Schema | v1.2 | 4/4 | Complete    | 2026-04-29 |
 | 11. Auth Core Modules + Services + DI | v1.2 | 5/5 | Complete    | 2026-04-29 |
 | 12. Admin CLI + Task Backfill | v1.2 | 4/4 | Complete    | 2026-04-29 |
-| 13. Atomic Backend Cutover | v1.2 | 9/10 | In Progress|  |
+| 13. Atomic Backend Cutover | v1.2 | 10/10 | Complete   | 2026-04-29 |
 | 14. Atomic Frontend Cutover + Test Infra | v1.2 | 0/TBD | Not started (atomic pair w/ 13) | - |
 | 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 0/TBD | Not started | - |
 | 16. Verification + Cross-User Matrix + E2E | v1.2 | 0/TBD | Not started | - |
