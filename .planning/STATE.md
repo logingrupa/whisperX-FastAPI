@@ -4,14 +4,14 @@ milestone: v1.2
 milestone_name: milestone
 status: executing
 stopped_at: Plan 13-05 complete — DELETE /api/account/data + Stripe stubs (POST /billing/checkout 501 + /billing/webhook 501 with Stripe-Signature schema check); 12 integration tests pass; PUBLIC_ALLOWLIST extended with /billing/webhook (Rule 3 deviation); 3 commits (db9a24d, 2afedb2, 9661697)
-last_updated: "2026-04-29T11:02:34.316Z"
+last_updated: "2026-04-29T11:16:54.373Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 23
-  completed_plans: 19
-  percent: 83
+  completed_plans: 20
+  percent: 87
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 13 (Atomic Backend Cutover) — EXECUTING
-Plan: 7 of 10
+Plan: 8 of 10
 Status: Ready to execute
 Last activity: 2026-04-29
 
@@ -69,6 +69,7 @@ Last activity: 2026-04-29
 | Phase 13 P04 | 4 min | - tasks | - files |
 | Phase 13 P05 | 10 min | 3 tasks | 8 files |
 | Phase 13 P06 | 25 min | 3 tasks | 10 files |
+| Phase 13 P07 | 10 min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -184,6 +185,12 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: WS ticket store: in-memory dict + threading.Lock; single-worker scope per CONTEXT §93. Multi-worker requires Redis (deferred).
 - [Phase ?]: Defence-in-depth MID-07: WS handler re-checks consumed_user_id == task.user_id after consume() — protects against future tasks.user_id drift.
 - [Phase ?]: Domain Task.user_id surfaced as int|None; ORM column nullable until full Phase 12 backfill verification (tightening to NOT NULL is Phase 12 remediation).
+- [Phase ?]: [13-07]: ITaskRepository.set_user_scope is request-bound state on the repo (Factory provider gives a fresh instance per request); _scoped_query() funnel powers get_by_id/get_all/update/delete (DRT)
+- [Phase ?]: [13-07]: Default _user_scope=None preserves Phase 12 CLI/admin backward compat; HTTP routes always go through get_scoped_task_repository which sets+clears scope per request (T-13-33 defence-in-depth)
+- [Phase ?]: [13-07]: Fail-loud add() refuses to persist task with no owner (ValueError when user_id is None|0 AND _user_scope is None) — closes T-13-34 silent orphan write
+- [Phase ?]: [13-07]: Cross-user 404 (not 403) — bytewise body parity with unknown-uuid 404 verified in test_cross_user_delete_returns_same_404_body_as_unknown_id (anti-enumeration)
+- [Phase ?]: [13-07]: ws_ticket_routes manual task.user_id != user.id check kept as defence-in-depth even though scoped repo already returns None for cross-user — catches future drift if a task's user_id mutates post-issue (MID-07)
+- [Phase ?]: [13-07]: get_scoped_task_management_service constructs TaskManagementService(scoped_repo) per request — task_api.py routes get scoping for free without any service-layer changes (SRP)
 
 ### Pending Todos
 
@@ -199,6 +206,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T11:02:34.310Z
+Last session: 2026-04-29T11:16:10.164Z
 Stopped at: Plan 13-05 complete — DELETE /api/account/data + Stripe stubs (POST /billing/checkout 501 + /billing/webhook 501 with Stripe-Signature schema check); 12 integration tests pass; PUBLIC_ALLOWLIST extended with /billing/webhook (Rule 3 deviation); 3 commits (db9a24d, 2afedb2, 9661697)
 Resume file: None

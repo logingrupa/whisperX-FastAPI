@@ -68,9 +68,9 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 ### Per-User Task Scoping (`SCOPE-*`)
 
 - [x] **SCOPE-01**: `tasks.user_id` is NOT NULL after backfill migration; existing rows assigned to the bootstrap admin user
-- [ ] **SCOPE-02**: `ITaskRepository` exposes `set_user_scope(user_id)` that pushes the filter into the SQL `WHERE` clause for all reads and writes
-- [ ] **SCOPE-03**: `GET /tasks` returns only tasks owned by the authenticated user (cross-user matrix tests prove this for every endpoint)
-- [ ] **SCOPE-04**: `GET /task/{id}`, `DELETE /task/{id}`, `POST /speech-to-text*`, TUS upload routes, callback routes are all user-scoped
+- [x] **SCOPE-02**: `ITaskRepository` exposes `set_user_scope(user_id)` that pushes the filter into the SQL `WHERE` clause for all reads and writes
+- [x] **SCOPE-03**: `GET /tasks` returns only tasks owned by the authenticated user (cross-user matrix tests prove this for every endpoint)
+- [x] **SCOPE-04**: `GET /task/{id}`, `DELETE /task/{id}`, `POST /speech-to-text*`, TUS upload routes, callback routes are all user-scoped
 - [x] **SCOPE-05**: User can call `DELETE /api/account/data` to delete all their tasks and uploaded files; user row is preserved
 - [ ] **SCOPE-06**: User can call `DELETE /api/account` to delete their account entirely (cascades to tasks, api_keys, subscriptions, usage_events); type-email confirmation required at UI
 
@@ -228,9 +228,9 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | MID-06 | Phase 13 | Complete |
 | MID-07 | Phase 13 | Complete |
 | SCOPE-01 | Phase 12 | Complete |
-| SCOPE-02 | Phase 13 | Pending |
-| SCOPE-03 | Phase 13 | Pending |
-| SCOPE-04 | Phase 13 | Pending |
+| SCOPE-02 | Phase 13 | Complete |
+| SCOPE-03 | Phase 13 | Complete |
+| SCOPE-04 | Phase 13 | Complete |
 | SCOPE-05 | Phase 13 | Complete |
 | SCOPE-06 | Phase 15 | Pending |
 | RATE-01 | Phase 13 | Pending |
