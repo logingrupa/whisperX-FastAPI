@@ -20,7 +20,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - [x] **Phase 10: Alembic Baseline + Auth Schema** — Replace `create_all()` with hand-written baseline + auth/billing/rate-limit tables; zero behavior change (completed 2026-04-29)
 - [x] **Phase 11: Auth Core Modules + Services + DI** — Pure logic modules (jwt_codec, api_key, password hasher, services, DI providers); HTTP-untouched
  (completed 2026-04-29)
-- [x] **Phase 12: Admin CLI + Task Backfill** — Typer CLI seeds admin user + backfills `tasks.user_id`; FK NOT NULL constraint applied last (completed 2026-04-29)
+- [x] **Phase 12: Admin CLI + Task Backfill** — Typer CLI seeds admin user + backfills `tasks.user_id`; FK NOT NULL constraint applied last (completed 2026-04-29)
 - [ ] **Phase 13: Atomic Backend Cutover (ATOMIC PAIR with Phase 14)** — DualAuthMiddleware + auth/keys/account routes + per-user scoping + WS ticket + CSRF + CORS lockdown + rate-limit + free-tier gates + Stripe schema stubs
 - [ ] **Phase 14: Atomic Frontend Cutover + Test Infra (ATOMIC PAIR with Phase 13)** — Router shell + auth pages + dashboard (keys/usage) + apiClient wrapper + zustand store + BroadcastChannel + Vitest/RTL/MSW
 - [ ] **Phase 15: Account Dashboard Hardening + Billing Stubs** — Account page (delete + logout-all-devices + Pro upgrade CTA) + checkout/webhook 501 stubs
@@ -89,7 +89,17 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
   3. Every request flows through `DualAuthMiddleware`: requests with `Authorization: Bearer whsk_*` set `request.state.auth_method='bearer'` and skip CSRF; cookie-authenticated state-mutating requests require matching `X-CSRF-Token` header (double-submit cookie); WebSocket connection requires a 60-second single-use ticket from `POST /api/ws/ticket` and rejects with HTTP 1008 when `ticket.user_id != task.user_id`; CORS is locked to explicit origin allowlist with `allow_credentials=true`
   4. User A authenticates and `GET /tasks`, `GET /task/{id}`, `DELETE /task/{id}`, `POST /speech-to-text*`, TUS upload, callback routes return only User A's data; User B is invisible across every endpoint; `DELETE /api/account/data` removes User A's tasks and uploaded files while preserving the user row
   5. Free-tier user hitting the 6th transcribe within an hour receives 429 with `Retry-After`; uploading >5min audio is rejected; only `tiny`/`small` models accept; trial countdown starts at first-key-creation; expired-trial transcribe returns 402; `POST /auth/register` from a single /24 returns 429 after 3/hr; `POST /auth/login` after 10/hr; disposable-email registrations are rejected; every completed transcription writes a `usage_events` row; user's `plan_tier` defaults to `trial` post-first-key, with nullable `stripe_customer_id` and `subscriptions` schema in place but unused at runtime
-**Plans**: TBD
+**Plans**: 10 plans (4 waves)
+- [ ] 13-01-PLAN.md — Deps (slowapi, stripe) + AuthSettings (V2_ENABLED, FRONTEND_URL, COOKIE_SECURE, TRUST_CF_HEADER, HCAPTCHA_*) + disposable-email blocklist + production-safety boot assertion (Wave 1)
+- [ ] 13-02-PLAN.md — DualAuthMiddleware + CsrfMiddleware + get_authenticated_user/get_csrf_service/get_key_service/get_auth_service/get_rate_limit_service dependencies (Wave 1)
+- [ ] 13-03-PLAN.md — Auth routes (register/login/logout) + slowapi rate limits (3/hr register, 10/hr login) + disposable-email check + integration tests (Wave 2)
+- [ ] 13-04-PLAN.md — Key routes (POST/GET/DELETE /api/keys) + show-once UX + AuthService.start_trial_if_first_key + integration tests (Wave 2)
+- [ ] 13-05-PLAN.md — Account routes (DELETE /api/account/data) + Billing stubs (POST /billing/checkout + POST /billing/webhook → 501) + stripe import (Wave 2)
+- [ ] 13-06-PLAN.md — WS ticket flow (POST /api/ws/ticket + WS endpoint validation + 1008 rejection on missing/expired/reused/cross-user) + integration tests (Wave 2)
+- [ ] 13-07-PLAN.md — Per-user scoping (ITaskRepository.set_user_scope + get_scoped_task_repository + scope every existing endpoint) + cross-user 404 tests (Wave 3)
+- [ ] 13-08-PLAN.md — FreeTierGate dependency + RateLimitService wiring + 429/Retry-After + 402/trial-expiry + 403/model-violation + UsageEventWriter on completion + integration tests (Wave 3)
+- [ ] 13-09-PLAN.md — Wire DualAuthMiddleware + CSRF middleware into app/main.py (replace BearerAuthMiddleware) + CORS lockdown to FRONTEND_URL + register all 5 new routers + delete app/core/auth.py legacy file + exception handler registrations + production safety guard (Wave 4, has human-verify checkpoint)
+- [ ] 13-10-PLAN.md — Phase 13 e2e smoke tests (full register→login→create-key→use-key→logout flow + cross-user 404 + rate limit + free-tier reject + disposable email + CORS preflight + AUTH_V2_ENABLED feature-flag verification) (Wave 4)
 
 ### Phase 14: Atomic Frontend Cutover + Test Infra — **ATOMIC PAIR with Phase 13**
 **Goal**: Browser users land on a working auth shell — login/register/dashboard/keys/usage flows all functional, existing transcription UI preserved at `/`, all network calls flow through the central client; Vitest+RTL+MSW infrastructure verifies critical flows.
@@ -159,7 +169,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | 10. Alembic Baseline + Auth Schema | v1.2 | 4/4 | Complete    | 2026-04-29 |
 | 11. Auth Core Modules + Services + DI | v1.2 | 5/5 | Complete    | 2026-04-29 |
 | 12. Admin CLI + Task Backfill | v1.2 | 4/4 | Complete    | 2026-04-29 |
-| 13. Atomic Backend Cutover | v1.2 | 0/TBD | Not started (atomic pair w/ 14) | - |
+| 13. Atomic Backend Cutover | v1.2 | 0/10 | Planned (atomic pair w/ 14) | - |
 | 14. Atomic Frontend Cutover + Test Infra | v1.2 | 0/TBD | Not started (atomic pair w/ 13) | - |
 | 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 0/TBD | Not started | - |
 | 16. Verification + Cross-User Matrix + E2E | v1.2 | 0/TBD | Not started | - |
@@ -173,3 +183,4 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 *Roadmap created: 2026-01-29 (v1.0)*
 *Updated: 2026-02-05 (v1.1 phase 9 plan)*
 *Updated: 2026-04-29 (v1.2 milestone — 9 phases numbered 10-18; phases 13+14 atomic pair)*
+*Updated: 2026-04-29 (Phase 13 plans finalized — 10 plans across 4 waves)*
