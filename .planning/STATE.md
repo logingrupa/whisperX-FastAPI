@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: verifying
-stopped_at: Plan 13-09 complete — atomic backend cutover wired (DualAuth+CSRF/5 routers/6 handlers/locked CORS/W4 fallback); 2 commits (630170f, 1f2a721); MID-01/MID-05/ANTI-06 closed
-last_updated: "2026-04-29T12:54:02.820Z"
+status: executing
+stopped_at: Plan 14-01 complete — Vitest+jsdom+RTL+MSW infra online; shadcn primitives + zustand/RHF/zod deps installed; sentinel 2/2; 2 commits (b0de895, dff607a)
+last_updated: "2026-04-29T13:22:09.868Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 4
-  total_plans: 23
-  completed_plans: 23
-  percent: 100
+  total_plans: 30
+  completed_plans: 24
+  percent: 80
 ---
 
 # Project State
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-29)
 
 **Core value:** Users can sign up, get API keys, and use WhisperX via browser or external API with free-tier limits and Stripe-ready billing
-**Current focus:** Phase 13 — Atomic Backend Cutover
+**Current focus:** Phase 14 — Atomic Frontend Cutover + Test Infra
 
 ## Current Position
 
-Phase: 14
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 14 (Atomic Frontend Cutover + Test Infra) — EXECUTING
+Plan: 2 of 7
+Status: Ready to execute
 Last activity: 2026-04-29
 
 ## Performance Metrics
@@ -75,6 +75,7 @@ Last activity: 2026-04-29
 | Phase 13 P08 | 20 min | 3 tasks | 15 files |
 | Phase 13 P09 | 10 min | 3 tasks | 3 files |
 | Phase 13 P10 | 26 min | 1 tasks | 5 files |
+| Phase 14 P01 | 3m 30s | 2 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -207,6 +208,11 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [13-10]: Subprocess-per-test e2e smoke gate (uvicorn + tmp SQLite + alembic upgrade head); 12/12 tests pass in 233s; gates Phase 13 atomic deploy with Phase 14 frontend
 - [Phase ?]: [13-10]: Rule 3 fix to app/docs.py — utf-8 explicit on save_openapi_json + write_markdown_to_file (Windows cp1252 was hanging subprocess lifespan on non-ASCII docstring chars)
 - [Phase ?]: [13-10]: V2_OFF fixture sets API_BEARER_TOKEN + sends bearer header so legacy middleware passes through; route NOT registered surfaces as 404 (must-have signal vs 401 auth-missing)
+- [Phase ?]: [14-01]: Vitest config split into vitest.config.ts (separate from vite.config.ts) — SRP; build vs test concerns isolated
+- [Phase ?]: [14-01]: BroadcastChannel polyfill rewritten as peer-instance registry — plan-prescribed boundListener single-field design was broken; per-channel Map<name,Set<instance>> + per-instance Set<listener> delivers correct cross-instance fan-out (Rule 1 deviation)
+- [Phase ?]: [14-01]: MSW handlers split per resource (auth.handlers/keys.handlers/ws.handlers) re-exported from handlers.ts barrel — DRY for Plans 14-02..07 imports
+- [Phase ?]: [14-01]: shadcn primitives (form/input/label/dialog/alert) written verbatim from new-york canonical source (no shadcn CLI invocation) — deterministic, no TTY dep; existing badge/button/card/collapsible/progress/scroll-area/select/sonner/tooltip preserved
+- [Phase ?]: [14-01]: bunx msw init public/ generated mockServiceWorker.js + added msw.workerDirectory pin to package.json — both kept (canonical practice)
 
 ### Pending Todos
 
@@ -222,6 +228,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T12:36:04.789Z
-Stopped at: Plan 13-09 complete — atomic backend cutover wired (DualAuth+CSRF/5 routers/6 handlers/locked CORS/W4 fallback); 2 commits (630170f, 1f2a721); MID-01/MID-05/ANTI-06 closed
+Last session: 2026-04-29T13:22:09.862Z
+Stopped at: Plan 14-01 complete — Vitest+jsdom+RTL+MSW infra online; shadcn primitives + zustand/RHF/zod deps installed; sentinel 2/2; 2 commits (b0de895, dff607a)
 Resume file: None

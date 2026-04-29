@@ -122,15 +122,15 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [ ] **UI-10**: Existing transcription page (`<UploadDropzone>`, `<FileQueueList>`, `<ConnectionStatus>`) is moved verbatim to `routes/TranscribePage.tsx` and rendered at `/`
 - [ ] **UI-11**: All API/WebSocket calls go through a single `frontend/src/lib/apiClient.ts` wrapper that auto-attaches credentials and `X-CSRF-Token`
 - [ ] **UI-12**: `BroadcastChannel('auth')` synchronizes login/logout state across browser tabs
-- [ ] **UI-13**: UI uses shadcn/ui + Tailwind v4 + Radix only — no custom components — and meets the "super pro modern" bar set via `/frontend-design` skill
+- [x] **UI-13**: UI uses shadcn/ui + Tailwind v4 + Radix only — no custom components — and meets the "super pro modern" bar set via `/frontend-design` skill
 
 ### Frontend Test Infrastructure (`TEST-*`)
 
-- [ ] **TEST-01**: Project has Vitest 3.2 + jsdom configured with a single `frontend/src/tests/setup.ts`
-- [ ] **TEST-02**: Project has `@testing-library/react` 16.1, `@testing-library/user-event` 14.6, `@testing-library/jest-dom` 6.6 installed
-- [ ] **TEST-03**: Project has MSW 2.13 with handlers in `frontend/src/tests/msw/handlers.ts` and worker init in `frontend/public/`
+- [x] **TEST-01**: Project has Vitest 3.2 + jsdom configured with a single `frontend/src/tests/setup.ts`
+- [x] **TEST-02**: Project has `@testing-library/react` 16.1, `@testing-library/user-event` 14.6, `@testing-library/jest-dom` 6.6 installed
+- [x] **TEST-03**: Project has MSW 2.13 with handlers in `frontend/src/tests/msw/handlers.ts` and worker init in `frontend/public/`
 - [ ] **TEST-04**: Tests cover `apiClient.ts` 401 redirect, login form validation + happy path, register form validation, API key creation flow (show-once + copy), authStore login/logout actions, BroadcastChannel cross-tab sync
-- [ ] **TEST-05**: All async UI tests use `await user.click()` / `findByRole` to avoid React 19 + RTL 16 `act()` warnings
+- [x] **TEST-05**: All async UI tests use `await user.click()` / `findByRole` to avoid React 19 + RTL 16 `act()` warnings
 - [ ] **TEST-06**: Existing functionality (upload, transcribe, progress, export) is regression-covered by smoke tests
 
 ### Operations and Tooling (`OPS-*`)
@@ -270,12 +270,12 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | UI-10 | Phase 14 | Pending |
 | UI-11 | Phase 14 | Pending |
 | UI-12 | Phase 14 | Pending |
-| UI-13 | Phase 14 | Pending |
-| TEST-01 | Phase 14 | Pending |
-| TEST-02 | Phase 14 | Pending |
-| TEST-03 | Phase 14 | Pending |
+| UI-13 | Phase 14 | Complete |
+| TEST-01 | Phase 14 | Complete |
+| TEST-02 | Phase 14 | Complete |
+| TEST-03 | Phase 14 | Complete |
 | TEST-04 | Phase 14 | Pending |
-| TEST-05 | Phase 14 | Pending |
+| TEST-05 | Phase 14 | Complete |
 | TEST-06 | Phase 14 | Pending |
 | OPS-01 | Phase 12 | Complete |
 | OPS-02 | Phase 12 | Complete |
