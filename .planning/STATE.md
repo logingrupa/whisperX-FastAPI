@@ -4,14 +4,14 @@ milestone: v1.2
 milestone_name: milestone
 status: executing
 stopped_at: Plan 10-02 complete — 6 ORM models + Task tz-aware factories + tasks.user_id FK; Base.metadata.tables=7
-last_updated: "2026-04-29T04:45:27.472Z"
+last_updated: "2026-04-29T04:50:49.752Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 0
   total_plans: 4
-  completed_plans: 2
-  percent: 50
+  completed_plans: 3
+  percent: 75
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 10 (Alembic Baseline + Auth Schema) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-04-29
 
@@ -50,6 +50,7 @@ Last activity: 2026-04-29
 *Reset on each plan completion in v1.2.*
 | Phase 10 P01 | 5min | 3 tasks | 6 files |
 | Phase 10 P02 | 3min | 2 tasks | 2 files |
+| Phase 10 P03 | 2min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -97,6 +98,9 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [10-02]: ORM-level tz-awareness for Task migrated proactively in Plan 02 (factory swap), not Plan 03 batch_alter_table — single source of truth, Plan 03 mirrors ORM mechanically
 - [Phase ?]: [10-02]: relationship() not imported anywhere (DRT — back-population deferred to Phase 11 repository layer; zero unused symbols)
 - [Phase ?]: [10-02]: DRY factory invocation table locked at 6 created_at + 3 updated_at = 9 — RateLimitBucket uses inline last_refill (semantic-different), Task gets factory swap to match new tz-aware DB shape
+- [Phase ?]: [10-03]: Single-line op.create_table opener form mandated by plan grep gates — same Plan-10-01-style fix applied
+- [Phase ?]: [10-03]: 14 named constraints in 0002_auth_schema (6 FK + 1 CK + 1 IX + 6 UQ); usage_events.task_id FK lacks ondelete=CASCADE (audit trail per CONTEXT §38)
+- [Phase ?]: [10-03]: Greenfield smoke verified end-to-end: alembic upgrade head creates 8 tables; ck_users_plan_tier rejects invalid; uq_usage_events_idempotency_key rejects duplicate; downgrade -1 returns to baseline shape
 
 ### Pending Todos
 
@@ -112,6 +116,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T04:45:19.423Z
+Last session: 2026-04-29T04:50:26.773Z
 Stopped at: Plan 10-02 complete — 6 ORM models + Task tz-aware factories + tasks.user_id FK; Base.metadata.tables=7
 Resume file: None
