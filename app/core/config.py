@@ -163,6 +163,40 @@ class AuthSettings(BaseSettings):
         description="CSRF double-submit token signing secret",
     )
 
+    # ----- Phase 13 atomic-cutover envs -----
+    V2_ENABLED: bool = Field(
+        default=False,
+        description="Phase 13 feature flag: false=legacy BearerAuthMiddleware, true=DualAuthMiddleware",
+    )
+    FRONTEND_URL: str = Field(
+        default="http://localhost:5173",
+        description="Single-origin allowlist for CORSMiddleware (ANTI-06)",
+    )
+    COOKIE_SECURE: bool = Field(
+        default=False,
+        description="Set Secure cookie attr (production must be true)",
+    )
+    COOKIE_DOMAIN: str = Field(
+        default="",
+        description="Cookie Domain attribute; empty = browser default (request host)",
+    )
+    TRUST_CF_HEADER: bool = Field(
+        default=False,
+        description="Trust CF-Connecting-IP for slowapi key_func (RATE-01)",
+    )
+    HCAPTCHA_ENABLED: bool = Field(
+        default=False,
+        description="Enable hCaptcha verify on register/login (ANTI-05; default off)",
+    )
+    HCAPTCHA_SITE_KEY: str = Field(
+        default="",
+        description="hCaptcha public site key (ANTI-05)",
+    )
+    HCAPTCHA_SECRET: SecretStr = Field(
+        default=SecretStr(""),
+        description="hCaptcha verify endpoint secret (ANTI-05)",
+    )
+
     @model_validator(mode="after")
     def _reject_dev_defaults_in_production(self) -> "AuthSettings":
         """Production safety: refuse to boot with the dev-only secret defaults.
@@ -179,6 +213,15 @@ class AuthSettings(BaseSettings):
             raise ValueError("AUTH__JWT_SECRET must be set in production")
         if self.CSRF_SECRET.get_secret_value() == dev_default:
             raise ValueError("AUTH__CSRF_SECRET must be set in production")
+        # Phase 13: V2 cutover requires real secrets in production
+        if self.V2_ENABLED and self.FRONTEND_URL == "http://localhost:5173":
+            raise ValueError(
+                "AUTH__FRONTEND_URL must be set when AUTH__V2_ENABLED=true in production"
+            )
+        if self.V2_ENABLED and not self.COOKIE_SECURE:
+            raise ValueError(
+                "AUTH__COOKIE_SECURE must be true when AUTH__V2_ENABLED=true in production"
+            )
         return self
 
 
