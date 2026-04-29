@@ -16,6 +16,30 @@ from app.infrastructure.ml import (
 from app.services.file_service import FileService
 from app.services.task_management_service import TaskManagementService
 
+# Phase 11 — auth repositories
+from app.infrastructure.database.repositories.sqlalchemy_api_key_repository import (
+    SQLAlchemyApiKeyRepository,
+)
+from app.infrastructure.database.repositories.sqlalchemy_device_fingerprint_repository import (
+    SQLAlchemyDeviceFingerprintRepository,
+)
+from app.infrastructure.database.repositories.sqlalchemy_rate_limit_repository import (
+    SQLAlchemyRateLimitRepository,
+)
+from app.infrastructure.database.repositories.sqlalchemy_user_repository import (
+    SQLAlchemyUserRepository,
+)
+
+# Phase 11 — auth services
+from app.services.auth import (
+    AuthService,
+    CsrfService,
+    KeyService,
+    PasswordService,
+    RateLimitService,
+    TokenService,
+)
+
 
 class Container(containers.DeclarativeContainer):
     """
@@ -65,6 +89,50 @@ class Container(containers.DeclarativeContainer):
     task_management_service = providers.Factory(
         TaskManagementService,
         repository=task_repository,
+    )
+
+    # ---------------------------------------------------------------
+    # Phase 11 — Auth repositories (Factory pattern, session injected)
+    # ---------------------------------------------------------------
+    user_repository = providers.Factory(
+        SQLAlchemyUserRepository,
+        session=db_session_factory,
+    )
+    api_key_repository = providers.Factory(
+        SQLAlchemyApiKeyRepository,
+        session=db_session_factory,
+    )
+    rate_limit_repository = providers.Factory(
+        SQLAlchemyRateLimitRepository,
+        session=db_session_factory,
+    )
+    device_fingerprint_repository = providers.Factory(
+        SQLAlchemyDeviceFingerprintRepository,
+        session=db_session_factory,
+    )
+
+    # ---------------------------------------------------------------
+    # Phase 11 — Auth services (Singletons for stateless, Factories for stateful)
+    # ---------------------------------------------------------------
+    password_service = providers.Singleton(PasswordService)
+    csrf_service = providers.Singleton(CsrfService)
+    token_service = providers.Singleton(
+        TokenService,
+        secret=config.provided.auth.JWT_SECRET.provided.get_secret_value.call(),
+    )
+    auth_service = providers.Factory(
+        AuthService,
+        user_repository=user_repository,
+        password_service=password_service,
+        token_service=token_service,
+    )
+    key_service = providers.Factory(
+        KeyService,
+        repository=api_key_repository,
+    )
+    rate_limit_service = providers.Factory(
+        RateLimitService,
+        repository=rate_limit_repository,
     )
 
     # ML Services - Singletons for model caching and reuse
