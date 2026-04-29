@@ -1,8 +1,18 @@
 /**
- * API client for transcription service
+ * API client for transcription service — refactored Phase 14 to use apiClient.
+ *
+ * apiClient handles credentials/CSRF/401-redirect/429-typed (UI-11).
+ * FormData body passed through unchanged — apiClient detects it and skips
+ * Content-Type so the browser sets multipart boundary correctly.
  */
 import type { LanguageCode, WhisperModel } from '@/types/upload';
 import type { TranscriptionResponse, ApiResult } from '@/types/api';
+import {
+  apiClient,
+  ApiClientError,
+  AuthRequiredError,
+  RateLimitError,
+} from '@/lib/apiClient';
 
 interface StartTranscriptionParams {
   /** File to transcribe */
@@ -14,7 +24,7 @@ interface StartTranscriptionParams {
 }
 
 /**
- * Start transcription for a file
+ * Start transcription for a file.
  *
  * Posts file to /speech-to-text endpoint and returns task ID.
  * This endpoint runs the full pipeline: transcription -> alignment -> diarization
@@ -25,48 +35,44 @@ interface StartTranscriptionParams {
  * @returns Task ID on success, error details on failure
  */
 export async function startTranscription(
-  params: StartTranscriptionParams
+  params: StartTranscriptionParams,
 ): Promise<ApiResult<TranscriptionResponse>> {
   const { file, language, model } = params;
 
-  // Build FormData with file
   const formData = new FormData();
   formData.append('file', file);
-
-  // Build query params for model settings
-  const queryParams = new URLSearchParams({
-    language,
-    model,
-  });
+  const queryParams = new URLSearchParams({ language, model });
 
   try {
-    const response = await fetch(`/speech-to-text?${queryParams}`, {
-      method: 'POST',
-      body: formData,
-      // Note: Don't set Content-Type header - browser sets it with boundary
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+    const data = await apiClient.post<TranscriptionResponse>(
+      `/speech-to-text?${queryParams.toString()}`,
+      formData,
+    );
+    return { success: true, data };
+  } catch (err) {
+    if (err instanceof AuthRequiredError) {
+      throw err;
+    }
+    if (err instanceof RateLimitError) {
       return {
         success: false,
         error: {
-          status: response.status,
-          detail: errorData.detail || `HTTP ${response.status}`,
+          status: 429,
+          detail: `Rate limited; retry in ${err.retryAfterSeconds}s`,
         },
       };
     }
-
-    const data: TranscriptionResponse = await response.json();
-    return { success: true, data };
-
-  } catch (error) {
-    // Network error or other failure
+    if (err instanceof ApiClientError) {
+      return {
+        success: false,
+        error: { status: err.status, detail: err.message },
+      };
+    }
     return {
       success: false,
       error: {
         status: 0,
-        detail: error instanceof Error ? error.message : 'Network error',
+        detail: err instanceof Error ? err.message : 'Network error',
       },
     };
   }
