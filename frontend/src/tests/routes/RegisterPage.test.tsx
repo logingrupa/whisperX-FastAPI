@@ -46,7 +46,9 @@ describe('RegisterPage', () => {
     await user.type(screen.getByLabelText('Password'), 'Password1!');
     await user.type(screen.getByLabelText(/confirm password/i), 'Password1!');
     await user.click(screen.getByRole('button', { name: /create account/i }));
-    expect(await screen.findByText(/accept the terms/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/must accept the terms/i),
+    ).toBeInTheDocument();
     expect(useAuthStore.getState().user).toBe(null);
   });
 

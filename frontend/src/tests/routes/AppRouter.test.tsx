@@ -28,8 +28,10 @@ describe('AppRouter — anonymous redirects (UI-04)', () => {
         <AppRouter />
       </MemoryRouter>,
     );
-    // RequireAuth Navigate replace -> LoginPage placeholder renders
-    expect(await screen.findByText(/LoginPage placeholder/i)).toBeInTheDocument();
+    // RequireAuth Navigate replace -> LoginPage renders ("Sign in" heading)
+    expect(
+      await screen.findByRole('heading', { name: /sign in/i, level: 1 }),
+    ).toBeInTheDocument();
   });
 
   it('preserves ?next= for nested dashboard URL', async () => {
@@ -38,7 +40,9 @@ describe('AppRouter — anonymous redirects (UI-04)', () => {
         <AppRouter />
       </MemoryRouter>,
     );
-    expect(await screen.findByText(/LoginPage placeholder/i)).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: /sign in/i, level: 1 }),
+    ).toBeInTheDocument();
     // We cannot read URL directly with MemoryRouter inside the same tree without
     // exposing it via a child; the redirect-to-LoginPage assertion is the
     // observable contract. ?next= encoding is unit-tested by TranscribePage smoke
@@ -51,7 +55,9 @@ describe('AppRouter — anonymous redirects (UI-04)', () => {
         <AppRouter />
       </MemoryRouter>,
     );
-    expect(await screen.findByText(/LoginPage placeholder/i)).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: /sign in/i, level: 1 }),
+    ).toBeInTheDocument();
   });
 
   it('renders /register without auth (public route)', async () => {
@@ -60,7 +66,9 @@ describe('AppRouter — anonymous redirects (UI-04)', () => {
         <AppRouter />
       </MemoryRouter>,
     );
-    expect(await screen.findByText(/RegisterPage placeholder/i)).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: /create account/i, level: 1 }),
+    ).toBeInTheDocument();
   });
 });
 
