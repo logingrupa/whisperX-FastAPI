@@ -430,7 +430,8 @@ def test_delete_account_cascade_full_universe(
     user_id = _register(client, "cascade@example.com")
     _seed_full_user_universe(session_factory, user_id=user_id)
 
-    response = client.delete(
+    response = client.request(
+        "DELETE",
         "/api/account",
         json={"email_confirm": "cascade@example.com"},
     )
@@ -472,7 +473,8 @@ def test_delete_account_email_mismatch_400(
     user_id = _register(client, "mismatch@example.com")
     _seed_full_user_universe(session_factory, user_id=user_id)
 
-    response = client.delete(
+    response = client.request(
+        "DELETE",
         "/api/account",
         json={"email_confirm": "different@example.com"},
     )
@@ -503,7 +505,8 @@ def test_delete_account_email_case_insensitive(
     user_id = _register(client, "case@example.com")
     _seed_full_user_universe(session_factory, user_id=user_id)
 
-    response = client.delete(
+    response = client.request(
+        "DELETE",
         "/api/account",
         json={"email_confirm": "CASE@Example.COM"},
     )
@@ -524,7 +527,8 @@ def test_delete_account_clears_cookies(
     """Successful DELETE clears session + csrf cookies (Max-Age=0, T-15-04)."""
     _register(client, "cookies@example.com")
 
-    response = client.delete(
+    response = client.request(
+        "DELETE",
         "/api/account",
         json={"email_confirm": "cookies@example.com"},
     )
@@ -545,7 +549,8 @@ def test_delete_account_requires_auth(
     app, _ = account_app
     anon = TestClient(app)
 
-    response = anon.delete(
+    response = anon.request(
+        "DELETE",
         "/api/account",
         json={"email_confirm": "noone@example.com"},
     )
@@ -571,7 +576,8 @@ def test_delete_account_preserves_other_user_data(
     bob_id = _register(bob_client, "bob-iso@example.com")
     _seed_full_user_universe(session_factory, user_id=bob_id)
 
-    response = alice_client.delete(
+    response = alice_client.request(
+        "DELETE",
         "/api/account",
         json={"email_confirm": "alice-iso@example.com"},
     )
