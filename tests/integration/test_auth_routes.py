@@ -15,6 +15,18 @@ Coverage (≥10 cases):
 11. logout idempotent — 204 with no prior session
 12. password reset hint exposed in OpenAPI description (AUTH-07)
 
+Phase 15-02 additions (AUTH-06 — /auth/logout-all):
+
+13. logout-all bumps users.token_version atomically (+1)
+14. logout-all clears session + csrf_token cookies (Set-Cookie max-age=0)
+15. logout-all invalidates the caller's existing JWT (token_version invariant)
+16. logout-all without auth returns 401 "Authentication required"
+
+The auth-required tests use a fuller fixture (``auth_full_app``) that mounts
+``DualAuthMiddleware`` so the auth gate fires; the existing slim ``auth_app``
+fixture stays untouched (it tests anonymous register/login + idempotent logout
+which would 401 under the middleware).
+
 Builds a slim FastAPI app per test (NOT app/main.py) — keeps tests
 isolated from BearerAuthMiddleware + Phase 13-09 routing wiring.
 """
@@ -29,7 +41,7 @@ from dependency_injector import providers
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from slowapi.errors import RateLimitExceeded
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from app.api import dependencies
@@ -39,6 +51,7 @@ from app.api.exception_handlers import (
     validation_error_handler,
 )
 from app.core.container import Container
+from app.core.dual_auth import DualAuthMiddleware
 from app.core.exceptions import InvalidCredentialsError, ValidationError
 from app.core.rate_limiter import limiter, rate_limit_handler
 from app.infrastructure.database.models import Base
@@ -101,6 +114,68 @@ def auth_app(tmp_db_url: str) -> Generator[FastAPI, None, None]:
 def client(auth_app: FastAPI) -> TestClient:
     """TestClient wrapping the slim auth app."""
     return TestClient(auth_app)
+
+
+@pytest.fixture
+def auth_full_session_factory(tmp_db_url: str):
+    """Sessionmaker for direct DB introspection in auth-required tests."""
+    engine = create_engine(tmp_db_url, connect_args={"check_same_thread": False})
+    return sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+@pytest.fixture
+def auth_full_app(
+    tmp_db_url: str, auth_full_session_factory
+) -> Generator[tuple[FastAPI, Container], None, None]:
+    """FastAPI app with auth_router + DualAuthMiddleware mounted.
+
+    Required for auth-gated routes (e.g. /auth/logout-all). The slim
+    ``auth_app`` fixture above is anonymous-only — public-allowlisted
+    /auth/register + /auth/login + idempotent /auth/logout work without a
+    middleware. /auth/logout-all needs ``request.state.user`` populated by
+    DualAuthMiddleware → 401 otherwise.
+    """
+    container = Container()
+    container.db_session_factory.override(
+        providers.Factory(auth_full_session_factory)
+    )
+    dependencies.set_container(container)
+
+    limiter.reset()
+
+    app = FastAPI()
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+    app.add_exception_handler(InvalidCredentialsError, invalid_credentials_handler)
+    app.add_exception_handler(ValidationError, validation_error_handler)
+    app.include_router(auth_router)
+    app.add_middleware(DualAuthMiddleware, container=container)
+
+    yield app, container
+
+    container.unwire()
+    container.db_session_factory.reset_override()
+    limiter.reset()
+
+
+@pytest.fixture
+def auth_full_client(
+    auth_full_app: tuple[FastAPI, Container],
+) -> TestClient:
+    """TestClient wrapping the auth_router + DualAuthMiddleware app."""
+    app, _ = auth_full_app
+    return TestClient(app)
+
+
+def _register(
+    client: TestClient, email: str, password: str = "supersecret123"
+) -> int:
+    """Register a user via /auth/register; return the user_id (cookies seated)."""
+    response = client.post(
+        "/auth/register", json={"email": email, "password": password}
+    )
+    assert response.status_code == 201, response.text
+    return int(response.json()["user_id"])
 
 
 # ---------------------------------------------------------------
@@ -300,3 +375,85 @@ def test_password_reset_hint_in_openapi(client: TestClient) -> None:
     assert "hey@logingrupa.lv" in register_op["description"]
     login_op = spec["paths"]["/auth/login"]["post"]
     assert "hey@logingrupa.lv" in login_op["description"]
+
+
+# ---------------------------------------------------------------
+# Phase 15-02 — POST /auth/logout-all (AUTH-06)
+# ---------------------------------------------------------------
+
+
+@pytest.mark.integration
+def test_logout_all_bumps_token_version(
+    auth_full_client: TestClient, auth_full_session_factory
+) -> None:
+    """POST /auth/logout-all bumps users.token_version by exactly +1."""
+    user_id = _register(auth_full_client, "logoutall-bump@example.com")
+    with auth_full_session_factory() as session:
+        version_before = session.execute(
+            text("SELECT token_version FROM users WHERE id = :uid"),
+            {"uid": user_id},
+        ).scalar_one()
+
+    response = auth_full_client.post("/auth/logout-all")
+
+    assert response.status_code == 204, response.text
+    with auth_full_session_factory() as session:
+        version_after = session.execute(
+            text("SELECT token_version FROM users WHERE id = :uid"),
+            {"uid": user_id},
+        ).scalar_one()
+    assert version_after == version_before + 1
+
+
+@pytest.mark.integration
+def test_logout_all_clears_cookies(auth_full_client: TestClient) -> None:
+    """POST /auth/logout-all returns 204 + clears session + csrf_token cookies."""
+    _register(auth_full_client, "logoutall-cookies@example.com")
+
+    response = auth_full_client.post("/auth/logout-all")
+
+    assert response.status_code == 204
+    set_cookie_headers = response.headers.get_list("set-cookie")
+    joined = "\n".join(set_cookie_headers).lower()
+    assert "session=" in joined
+    assert "csrf_token=" in joined
+    assert joined.count("max-age=0") == 2
+
+
+@pytest.mark.integration
+def test_logout_all_invalidates_existing_jwt(
+    auth_full_client: TestClient,
+) -> None:
+    """JWT issued before logout-all 401s on next call (token_version invariant).
+
+    The first logout-all clears the client-side cookie, so the next call would
+    not even carry a session. To exercise the token_version invariant
+    explicitly, snapshot the cookie BEFORE logout-all and re-attach it on the
+    follow-up request — server-side token_version is already N+1 so the stale
+    JWT (ver=N) must 401.
+    """
+    _register(auth_full_client, "logoutall-invalidate@example.com")
+    old_session_cookie = auth_full_client.cookies.get("session")
+    assert old_session_cookie is not None
+
+    first_response = auth_full_client.post("/auth/logout-all")
+    assert first_response.status_code == 204
+
+    # Re-attach the now-stale cookie (server expects ver=N+1, JWT carries N).
+    auth_full_client.cookies.set("session", old_session_cookie)
+    retry = auth_full_client.post("/auth/logout-all")
+    assert retry.status_code == 401
+
+
+@pytest.mark.integration
+def test_logout_all_requires_auth(
+    auth_full_app: tuple[FastAPI, Container],
+) -> None:
+    """Anonymous POST /auth/logout-all returns 401 'Authentication required'."""
+    app, _ = auth_full_app
+    anon = TestClient(app)
+
+    response = anon.post("/auth/logout-all")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Authentication required"
