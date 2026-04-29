@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: executing
-stopped_at: Plan 13-02 complete — DualAuthMiddleware + CsrfMiddleware (pure middleware, not yet wired); 5 auth dependencies appended; 29 unit tests pass; 4 commits (97672f4, 3ca7869, b893ddb, 9c512d0)
-last_updated: "2026-04-29T10:05:05.223Z"
+stopped_at: Plan 13-03 complete — auth routes (POST /auth/{register,login,logout}) + disposable-email loader + slowapi /24/64 limiter + invalid_credentials_handler; 12 integration tests pass; 3 commits (5a814ff, 0bad87c, b77962b)
+last_updated: "2026-04-29T13:25:00.000Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 23
-  completed_plans: 15
-  percent: 65
+  completed_plans: 16
+  percent: 70
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 13 (Atomic Backend Cutover) — EXECUTING
-Plan: 3 of 10
+Plan: 4 of 10
 Status: Ready to execute
 Last activity: 2026-04-29
 
@@ -65,6 +65,7 @@ Last activity: 2026-04-29
 | Phase 12 P04 | 90 min | 2 tasks tasks | 3 files files |
 | Phase 13 P01 | 3m 39s | 3 tasks | 4 files |
 | Phase 13 P02 | 6m | 2 tasks | 5 files |
+| Phase 13 P03 | ~17m | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -160,6 +161,14 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [13-02]: Single 401 detail string 'Authentication required' for ALL bearer/cookie/missing-auth failures (T-13-05); WWW-Authenticate Bearer realm header on 401
 - [Phase ?]: [13-02]: CsrfMiddleware uses getattr(request.state, auth_method, None) defensively — if mounted before DualAuthMiddleware (mis-order) the None fallback safely bypasses; STATE_MUTATING_METHODS=POST/PUT/PATCH/DELETE only
 - [Phase ?]: [13-02]: 5 new auth dependencies appended to app/api/dependencies.py — get_authenticated_user (defence-in-depth 401), get_current_user_id, get_csrf_service/key_service/auth_service/rate_limit_service; reused across all Phase 13 routes (DRT)
+- [Phase ?]: [13-03]: app/core/disposable_email.py loads data/disposable-emails.txt (5413 entries) into module-load frozenset[str]; is_disposable() lowercases domain for O(1) check; fail-soft on missing file
+- [Phase ?]: [13-03]: app/core/rate_limiter.py exposes singleton `limiter = Limiter(key_func=_client_subnet_key)`; key_func resolves CF-Connecting-IP/X-Forwarded-For (gated on AUTH__TRUST_CF_HEADER) then ipaddress.ip_network groups IPv4→/24 IPv6→/64; rate_limit_handler emits 429 + Retry-After (RATE-12)
+- [Phase ?]: [13-03]: auth_router defined with prefix="/auth"; register (3/hr/IP/24, ANTI-01), login (10/hr/IP/24, ANTI-02), logout (idempotent 204); _set_auth_cookies + _clear_auth_cookies DRY helpers; cookie attrs from settings.auth.{COOKIE_SECURE, COOKIE_DOMAIN, JWT_TTL_DAYS}; not yet mounted (plan 13-09 atomic flip)
+- [Phase ?]: [13-03]: Anti-enumeration: identical 422 body+code "Registration failed/REGISTRATION_FAILED" on disposable + duplicate registration legs (T-13-09); shared InvalidCredentialsError on wrong-email + wrong-password (T-13-10) — verified by integration tests comparing both leg shapes
+- [Phase ?]: [13-03]: /auth/logout returns a fresh Response with cookies cleared (NOT the injected Response param) — FastAPI ignores injected Response when handler returns explicit Response, dropping Set-Cookie deletions. Caught by test_logout_clears_cookies; fixed inline as Rule 1 bug
+- [Phase ?]: [13-03]: invalid_credentials_handler defined in app/api/exception_handlers.py (maps InvalidCredentialsError → 401); registration in plan 13-09 alongside RateLimitExceeded + ValidationError handlers
+- [Phase ?]: [13-03]: email-validator>=2.0.0 pinned in pyproject.toml — required by pydantic EmailStr at validation time (foreseen in plan body as fallback action)
+- [Phase ?]: [13-03]: Test isolation: per-test Container with providers.Factory(sessionmaker(bind=tmp_engine)) override + limiter.reset() in setup AND teardown; slim FastAPI app (no main.py legacy middleware) keeps tests independent of plan 13-09 wiring
 
 ### Pending Todos
 
@@ -175,6 +184,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T10:05:05.217Z
-Stopped at: Plan 13-02 complete — DualAuthMiddleware + CsrfMiddleware (pure middleware, not yet wired); 5 auth dependencies appended; 29 unit tests pass; 4 commits (97672f4, 3ca7869, b893ddb, 9c512d0)
+Last session: 2026-04-29T13:25:00.000Z
+Stopped at: Plan 13-03 complete — auth routes (POST /auth/{register,login,logout}) + disposable-email loader + slowapi /24/64 limiter + invalid_credentials_handler; 12 integration tests pass; 3 commits (5a814ff, 0bad87c, b77962b)
 Resume file: None

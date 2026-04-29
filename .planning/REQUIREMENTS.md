@@ -34,13 +34,13 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 
 ### Authentication Core (`AUTH-*`)
 
-- [ ] **AUTH-01**: User can register with email + password (single page, generic error messages — no enumeration)
+- [x] **AUTH-01**: User can register with email + password (single page, generic error messages — no enumeration)
 - [x] **AUTH-02**: System hashes passwords with Argon2id using OWASP parameters (`m=19456 KiB, t=2, p=1`)
-- [ ] **AUTH-03**: User can log in with email + password and receive an httpOnly + Secure + SameSite=Lax cookie session JWT (HS256)
+- [x] **AUTH-03**: User can log in with email + password and receive an httpOnly + Secure + SameSite=Lax cookie session JWT (HS256)
 - [x] **AUTH-04**: Session is 7-day sliding-refresh (every authenticated request extends expiry)
-- [ ] **AUTH-05**: User can log out, clearing session cookie
+- [x] **AUTH-05**: User can log out, clearing session cookie
 - [ ] **AUTH-06**: User can "logout all devices" via a `token_version` bump that invalidates every existing session
-- [ ] **AUTH-07**: User can request password reset by clicking a `mailto:hey@logingrupa.lv` link (no SMTP — manual operator response)
+- [x] **AUTH-07**: User can request password reset by clicking a `mailto:hey@logingrupa.lv` link (no SMTP — manual operator response)
 - [x] **AUTH-08**: All JWT decodes use `algorithms=["HS256"]` to prevent algorithm confusion (single decode site `app/core/jwt_codec.py`)
 - [x] **AUTH-09**: System never logs raw passwords, JWT secrets, or full API keys at any log level
 
@@ -91,8 +91,8 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 
 ### Anti-Spam and Anti-DDOS (`ANTI-*`)
 
-- [ ] **ANTI-01**: `POST /auth/register` is throttled to 3 requests per hour per IP /24
-- [ ] **ANTI-02**: `POST /auth/login` is throttled to 10 requests per hour per IP /24
+- [x] **ANTI-01**: `POST /auth/register` is throttled to 3 requests per hour per IP /24
+- [x] **ANTI-02**: `POST /auth/login` is throttled to 10 requests per hour per IP /24
 - [x] **ANTI-03**: System logs a `device_fingerprints` row at every login: cookie value hash, user-agent SHA-256, IP /24, `device_id` (UUID stored in browser localStorage)
 - [x] **ANTI-04**: System rejects registration with disposable email domains (bundled blocklist, refreshed at boot)
 - [x] **ANTI-05**: hCaptcha hook is scaffolded but feature-flagged off (`HCAPTCHA_ENABLED=false` default)
@@ -203,13 +203,13 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | SCHEMA-06 | Phase 10 | Complete |
 | SCHEMA-07 | Phase 10 | Complete |
 | SCHEMA-08 | Phase 10 | Complete |
-| AUTH-01 | Phase 13 | Pending |
+| AUTH-01 | Phase 13 | Complete |
 | AUTH-02 | Phase 11 | Complete |
-| AUTH-03 | Phase 13 | Pending |
+| AUTH-03 | Phase 13 | Complete |
 | AUTH-04 | Phase 13 | Complete |
-| AUTH-05 | Phase 13 | Pending |
+| AUTH-05 | Phase 13 | Complete |
 | AUTH-06 | Phase 15 | Pending |
-| AUTH-07 | Phase 13 | Pending |
+| AUTH-07 | Phase 13 | Complete |
 | AUTH-08 | Phase 11 | Complete |
 | AUTH-09 | Phase 11 | Complete |
 | KEY-01 | Phase 13 | Pending |
@@ -245,8 +245,8 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | RATE-10 | Phase 13 | Pending |
 | RATE-11 | Phase 13 | Pending |
 | RATE-12 | Phase 13 | Pending |
-| ANTI-01 | Phase 13 | Pending |
-| ANTI-02 | Phase 13 | Pending |
+| ANTI-01 | Phase 13 | Complete |
+| ANTI-02 | Phase 13 | Complete |
 | ANTI-03 | Phase 11 | Complete |
 | ANTI-04 | Phase 13 | Complete |
 | ANTI-05 | Phase 13 | Complete |
