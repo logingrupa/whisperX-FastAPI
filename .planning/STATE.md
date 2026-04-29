@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: verifying
-stopped_at: Plan 11-05 complete — Phase 11 closes (3 integration test files, 15 tests, p99=34.7ms; all 6 DI services resolve; RedactingFilter end-to-end verified)
-last_updated: "2026-04-29T06:43:18.805Z"
+status: executing
+stopped_at: Plan 12-01 complete — Typer CLI scaffold + DRY helpers + AuthService.register plan_tier kwarg (typer 0.20.0; 6/6 AuthService tests; df1e402)
+last_updated: "2026-04-29T07:07:16.954Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
   completed_phases: 2
-  total_plans: 9
-  completed_plans: 9
-  percent: 100
+  total_plans: 13
+  completed_plans: 10
+  percent: 77
 ---
 
 # Project State
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-29)
 
 **Core value:** Users can sign up, get API keys, and use WhisperX via browser or external API with free-tier limits and Stripe-ready billing
-**Current focus:** Phase 11 — Auth Core Modules + Services + DI
+**Current focus:** Phase 12 — Admin CLI + Task Backfill
 
 ## Current Position
 
-Phase: 12
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 12 (Admin CLI + Task Backfill) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
 Last activity: 2026-04-29
 
 ## Performance Metrics
@@ -58,6 +58,7 @@ Last activity: 2026-04-29
 | Phase 11 P03 | 5m | 2 tasks | 16 files |
 | Phase 11 P04 | 11m | 2 tasks | 15 files |
 | Phase 11 P05 | 5m | 1 tasks | 3 files |
+| Phase 12 P01 | 6 min | 1 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -131,6 +132,9 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [11-04]: DI Container lifecycle split — 3 Singletons (PasswordService, CsrfService, TokenService) + 3 Factories (AuthService, KeyService, RateLimitService) + 4 repo Factories binding session=db_session_factory
 - [Phase ?]: [11-04]: KeyService.create_key returns plaintext exactly once (KEY-02 show-once UX); plaintext never logged; service stores prefix + sha256 hash via repo.add
 - [Phase ?]: [11-05]: Phase 11 closes — 3 integration tests (15 cases): DI Container resolves all 6 auth services; Argon2 p99=34.7ms (88% headroom under 300ms budget); RedactingFilter scrubs sensitive structured fields end-to-end
+- [Phase ?]: [12-01]: Stub command modules register placeholder @app.command()s rather than docstring-only — Typer 0.20+ refuses --help on registry with zero commands; plans 12-02/03 fully rewrite stubs anyway
+- [Phase ?]: [12-01]: AuthService.register adds keyword-only plan_tier='trial' param — backward compat for 5 existing callers; admin bootstrap will pass plan_tier='pro' (verified by new unit test)
+- [Phase ?]: [12-01]: app/cli/_helpers.py owns DRY surface — _get_container() factory + _resolve_admin(email, *, container=None) tiger-style fail-loud lookup; container kwarg is test seam for 12-02/03/04
 
 ### Pending Todos
 
@@ -146,6 +150,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T06:35:24.582Z
-Stopped at: Plan 11-05 complete — Phase 11 closes (3 integration test files, 15 tests, p99=34.7ms; all 6 DI services resolve; RedactingFilter end-to-end verified)
+Last session: 2026-04-29T07:07:16.948Z
+Stopped at: Plan 12-01 complete — Typer CLI scaffold + DRY helpers + AuthService.register plan_tier kwarg (typer 0.20.0; 6/6 AuthService tests; df1e402)
 Resume file: None

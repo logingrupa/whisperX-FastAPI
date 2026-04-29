@@ -135,8 +135,8 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 
 ### Operations and Tooling (`OPS-*`)
 
-- [ ] **OPS-01**: `python -m app.cli create-admin --email <e>` creates an admin user with hashed password (prompted via `getpass`, never stdin) and `plan_tier=pro`
-- [ ] **OPS-02**: `python -m app.cli backfill-tasks --admin-email <e>` assigns all `tasks.user_id IS NULL` rows to the named admin
+- [x] **OPS-01**: `python -m app.cli create-admin --email <e>` creates an admin user with hashed password (prompted via `getpass`, never stdin) and `plan_tier=pro`
+- [x] **OPS-02**: `python -m app.cli backfill-tasks --admin-email <e>` assigns all `tasks.user_id IS NULL` rows to the named admin
 - [ ] **OPS-03**: Migration runbook documented in `docs/migration-v1.2.md` (backup → `alembic stamp head` → `alembic upgrade head` → verify)
 - [ ] **OPS-04**: `.env.example` lists every new env var with example values: `JWT_SECRET`, `CSRF_SECRET`, `COOKIE_SECURE`, `COOKIE_DOMAIN`, `RATE_LIMIT_*`, `ARGON2_*`, `TRUST_CF_HEADER`, `FRONTEND_URL`, `HCAPTCHA_ENABLED`, `HCAPTCHA_SITE_KEY`, `HCAPTCHA_SECRET`
 - [ ] **OPS-05**: README.md documents the auth flow, key management, free vs Pro tiers, and the manual password-reset path
@@ -277,8 +277,8 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | TEST-04 | Phase 14 | Pending |
 | TEST-05 | Phase 14 | Pending |
 | TEST-06 | Phase 14 | Pending |
-| OPS-01 | Phase 12 | Pending |
-| OPS-02 | Phase 12 | Pending |
+| OPS-01 | Phase 12 | Complete |
+| OPS-02 | Phase 12 | Complete |
 | OPS-03 | Phase 17 | Pending |
 | OPS-04 | Phase 17 | Pending |
 | OPS-05 | Phase 17 | Pending |
