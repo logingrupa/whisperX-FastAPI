@@ -95,3 +95,28 @@ class AuthService:
             raise InvalidCredentialsError()
         self.user_repository.update_token_version(user_id, user.token_version + 1)
         logger.info("Logout-all-devices id=%s", user_id)
+
+    def start_trial_if_first_key(
+        self, user_id: int, key_count_after_create: int
+    ) -> None:
+        """Idempotently start 7-day trial when user creates their FIRST key (RATE-08).
+
+        Called by POST /api/keys AFTER KeyService.create_key returns, when the
+        list of all keys for the user (including just-created) has exactly 1 entry.
+        Subsequent creations are no-ops (early returns).
+
+        Args:
+            user_id: Authenticated user id.
+            key_count_after_create: Total keys for this user including the new one.
+        """
+        if key_count_after_create != 1:
+            return
+        user = self.user_repository.get_by_id(user_id)
+        if user is None:
+            return
+        if user.trial_started_at is not None:
+            return
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        self.user_repository.update(user_id, {"trial_started_at": now})
+        logger.info("Trial started id=%s", user_id)
