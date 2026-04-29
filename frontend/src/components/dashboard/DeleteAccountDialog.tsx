@@ -24,8 +24,10 @@ import { useAuthStore } from '@/lib/stores/authStore';
  *   submit disabled until isMatched (forgiving case, type-exact otherwise).
  *
  * On success: cascade-deletes account server-side (Plan 15-04), clears
- * cookies, then calls authStore.logout() (broadcasts cross-tab — UI-12)
- * then redirects /login.
+ * cookies, then calls authStore.logoutLocal() — local-only state clear +
+ * cross-tab broadcast (UI-12). Avoids POSTing /auth/logout with a now-
+ * invalid cookie (would 401 and race redirectTo401() with our own
+ * navigate('/login') — WR-02).
  *
  * Error branches:
  *   - 429 RateLimitError    -> rate-limit copy
@@ -45,7 +47,7 @@ export function DeleteAccountDialog({
   userEmail: string;
 }) {
   const navigate = useNavigate();
-  const logout = useAuthStore((s) => s.logout);
+  const logoutLocal = useAuthStore((s) => s.logoutLocal);
   const [confirmEmail, setConfirmEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +79,10 @@ export function DeleteAccountDialog({
     setError(null);
     try {
       await deleteAccount(confirmEmail);
-      await logout();
+      // Server already cleared session + csrf cookies on 204; calling
+      // /auth/logout now would 401 and race redirectTo401(). Local-only
+      // clear keeps cross-tab broadcast intact (WR-02).
+      logoutLocal();
       navigate('/login', { replace: true });
     } catch (err) {
       // RateLimitError extends ApiClientError — handle subtype FIRST

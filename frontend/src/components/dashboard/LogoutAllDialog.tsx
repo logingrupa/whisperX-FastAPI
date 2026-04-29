@@ -19,8 +19,10 @@ import { useAuthStore } from '@/lib/stores/authStore';
  *
  * Single-confirm pattern (UI-SPEC §229-237) — mirrors RevokeKeyDialog.
  * On success: bumps users.token_version (server-side), clears cookies,
- * then calls authStore.logout() (broadcasts via BroadcastChannel('auth')
- * for cross-tab sync — T-15-09 mitigation), then redirects /login.
+ * then calls authStore.logoutLocal() — local state clear + cross-tab
+ * broadcast (T-15-09). The server already invalidated every JWT (cookie
+ * is dead) so POSTing /auth/logout would 401 and race redirectTo401()
+ * with our own navigate('/login') (WR-02).
  *
  * Rate-limit: RateLimitError caught BEFORE ApiClientError (subtype-first).
  */
@@ -32,7 +34,7 @@ export function LogoutAllDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const navigate = useNavigate();
-  const logout = useAuthStore((s) => s.logout);
+  const logoutLocal = useAuthStore((s) => s.logoutLocal);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +43,10 @@ export function LogoutAllDialog({
     setError(null);
     try {
       await logoutAllDevices();
-      await logout();
+      // Server bumped token_version + cleared cookies on 204; calling
+      // /auth/logout now would 401 and race redirectTo401(). Local-only
+      // clear keeps cross-tab broadcast intact (WR-02).
+      logoutLocal();
       navigate('/login', { replace: true });
     } catch (err) {
       // RateLimitError extends ApiClientError — handle subtype FIRST

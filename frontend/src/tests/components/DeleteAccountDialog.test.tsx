@@ -57,7 +57,7 @@ describe('DeleteAccountDialog', () => {
         tokenVersion: 0,
       },
       isHydrating: false,
-      logout: vi.fn().mockResolvedValue(undefined),
+      logoutLocal: vi.fn(),
     });
   });
 
@@ -79,9 +79,9 @@ describe('DeleteAccountDialog', () => {
     ).toBeEnabled();
   });
 
-  it('submit calls authStore.logout + navigates /login', async () => {
-    const logoutSpy = vi.fn().mockResolvedValue(undefined);
-    useAuthStore.setState({ logout: logoutSpy });
+  it('submit calls authStore.logoutLocal + navigates /login', async () => {
+    const logoutLocalSpy = vi.fn();
+    useAuthStore.setState({ logoutLocal: logoutLocalSpy });
     const user = userEvent.setup();
     renderDialog();
     const input = await screen.findByLabelText(/type your email to confirm/i);
@@ -90,7 +90,7 @@ describe('DeleteAccountDialog', () => {
       screen.getByRole('button', { name: /^delete account$/i }),
     );
     expect(await screen.findByText('login-marker')).toBeInTheDocument();
-    expect(logoutSpy).toHaveBeenCalled();
+    expect(logoutLocalSpy).toHaveBeenCalled();
   });
 
   it('400 from server shows mismatch copy', async () => {

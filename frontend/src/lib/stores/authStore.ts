@@ -7,6 +7,10 @@
  *   - login(): apiClient.post('/auth/login') -> set user -> broadcast 'login'
  *   - register(): apiClient.post('/auth/register') -> set user -> broadcast 'login'
  *   - logout(): apiClient.post('/auth/logout') -> clear user -> broadcast 'logout'
+ *   - logoutLocal(): clear user + broadcast 'logout' WITHOUT calling /auth/logout —
+ *     used after DELETE /api/account and POST /auth/logout-all where the server
+ *     already cleared cookies / invalidated the session. Hitting /auth/logout
+ *     again would 401 and trigger a redirect-to-/login race (WR-02).
  *   - refresh(): fetchAccountSummary() -> server-authoritative user; flips isHydrating false
  *
  * Hydration on reload: refresh() called once at module load from main.tsx.
@@ -51,6 +55,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  logoutLocal: () => void;
   refresh: () => Promise<void>;
 }
 
@@ -118,6 +123,22 @@ export const useAuthStore = create<AuthState>((set) => {
 
     logout: async () => {
       await apiClient.post('/auth/logout');
+      set({ user: null });
+      broadcast({ type: 'logout' });
+    },
+
+    /**
+     * Local-only sign-out — clear user + broadcast 'logout', skip the
+     * /auth/logout HTTP round-trip. Use AFTER a server call that already
+     * cleared the session cookie (DELETE /api/account on success, or
+     * POST /auth/logout-all which bumps token_version).
+     *
+     * Calling logout() in those flows POSTs to /auth/logout with a now-
+     * invalid cookie -> 401 -> apiClient.redirectTo401() races with the
+     * caller's navigate('/login'), and the cross-tab broadcast is dropped
+     * because set({user:null}) never executes (WR-02).
+     */
+    logoutLocal: () => {
       set({ user: null });
       broadcast({ type: 'logout' });
     },

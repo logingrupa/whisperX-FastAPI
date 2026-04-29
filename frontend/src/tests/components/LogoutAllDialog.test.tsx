@@ -44,20 +44,20 @@ describe('LogoutAllDialog', () => {
         tokenVersion: 0,
       },
       isHydrating: false,
-      logout: vi.fn().mockResolvedValue(undefined),
+      logoutLocal: vi.fn(),
     });
   });
 
-  it('confirm calls authStore.logout + navigates /login', async () => {
-    const logoutSpy = vi.fn().mockResolvedValue(undefined);
-    useAuthStore.setState({ logout: logoutSpy });
+  it('confirm calls authStore.logoutLocal + navigates /login', async () => {
+    const logoutLocalSpy = vi.fn();
+    useAuthStore.setState({ logoutLocal: logoutLocalSpy });
     const user = userEvent.setup();
     renderDialog();
     await user.click(
       await screen.findByRole('button', { name: /sign out everywhere/i }),
     );
     expect(await screen.findByText('login-marker')).toBeInTheDocument();
-    expect(logoutSpy).toHaveBeenCalled();
+    expect(logoutLocalSpy).toHaveBeenCalled();
   });
 
   it('429 shows rate-limit copy', async () => {
