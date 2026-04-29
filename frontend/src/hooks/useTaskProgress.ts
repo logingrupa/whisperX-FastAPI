@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import useWebSocket, { ReadyState } from 'react-use-websocket';
 import type { ProgressStage, WebSocketMessage, ProgressMessage, ErrorMessage } from '@/types/websocket';
+import { apiClient } from '@/lib/apiClient';
+import { buildTaskSocketUrl } from '@/lib/ws/wsClient';
 
 /** Maximum reconnection attempts before giving up */
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -67,8 +69,29 @@ export function useTaskProgress({
   const wasConnectedRef = useRef(false);
   const reconnectAttemptRef = useRef(0);
 
-  // Build WebSocket URL - null disables connection
-  const socketUrl = taskId ? `/ws/tasks/${taskId}` : null;
+  // Ticket-aware WS URL (MID-06). null until ticket is fetched
+  // OR taskId becomes null. Re-fetched on reconnect (single-use).
+  const [socketUrl, setSocketUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (taskId === null) {
+      setSocketUrl(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const url = await buildTaskSocketUrl(taskId);
+        if (!cancelled) setSocketUrl(url);
+      } catch (err) {
+        console.error('Failed to obtain WS ticket:', err);
+        if (!cancelled) setSocketUrl(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [taskId]);
 
   // Use refs for callbacks to avoid stale closure issues
   const onProgressRef = useRef(onProgress);
@@ -87,18 +110,19 @@ export function useTaskProgress({
    */
   const syncProgressFromPolling = useCallback(async (taskIdToSync: string) => {
     try {
-      const response = await fetch(`/tasks/${taskIdToSync}/progress`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.stage && data.percentage !== undefined) {
-          onProgressRef.current?.(taskIdToSync, {
-            percentage: data.percentage,
-            stage: data.stage,
-            message: data.message || null,
-          });
-          if (data.stage === 'complete') {
-            onCompleteRef.current?.(taskIdToSync);
-          }
+      const data = await apiClient.get<{
+        stage: string;
+        percentage: number;
+        message?: string;
+      }>(`/tasks/${taskIdToSync}/progress`);
+      if (data.stage && data.percentage !== undefined) {
+        onProgressRef.current?.(taskIdToSync, {
+          percentage: data.percentage,
+          stage: data.stage as ProgressStage,
+          message: data.message || null,
+        });
+        if (data.stage === 'complete') {
+          onCompleteRef.current?.(taskIdToSync);
         }
       }
     } catch (error) {
@@ -133,7 +157,11 @@ export function useTaskProgress({
         }
       },
       onClose: () => {
-        // Will trigger reconnection logic via shouldReconnect
+        // Re-issue WS ticket so the next auto-reconnect attempt has a
+        // fresh single-use token (MID-06: tickets are 60s TTL + single-use).
+        if (taskId !== null) {
+          buildTaskSocketUrl(taskId).then(setSocketUrl).catch(() => setSocketUrl(null));
+        }
       },
       onMessage: (event) => {
         try {
@@ -198,8 +226,12 @@ export function useTaskProgress({
     if (ws) {
       ws.close();
     }
-    // WebSocket will auto-reconnect since we reset the counter
-  }, [getWebSocket]);
+    // Re-issue ticket on manual reconnect (single-use); next URL change
+    // triggers react-use-websocket to open a fresh connection.
+    if (taskId !== null) {
+      buildTaskSocketUrl(taskId).then(setSocketUrl).catch(() => setSocketUrl(null));
+    }
+  }, [getWebSocket, taskId]);
 
   return {
     connectionState,
