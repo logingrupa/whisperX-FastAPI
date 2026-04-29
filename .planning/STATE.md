@@ -4,7 +4,7 @@ milestone: v1.2
 milestone_name: milestone
 status: verifying
 stopped_at: Plan 10-04 complete — Phase 10 schema-foundation milestone closed; PRAGMA listener + tests all green
-last_updated: "2026-04-29T05:05:06.566Z"
+last_updated: "2026-04-29T05:10:48.819Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 9
@@ -25,8 +25,8 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 
 ## Current Position
 
-Phase: 10 (Alembic Baseline + Auth Schema) — EXECUTING
-Plan: 4 of 4
+Phase: 11
+Plan: Not started
 Status: Phase complete — ready for verification
 Last activity: 2026-04-29
 
@@ -34,7 +34,7 @@ Last activity: 2026-04-29
 
 **Velocity (v1.1 final):**
 
-- Total plans completed: 8 (v1.1)
+- Total plans completed: 12 (v1.1)
 - Average duration: 2.9 min
 - Total execution time: 0.39 hours
 
@@ -45,7 +45,7 @@ Last activity: 2026-04-29
 | 7 | 3/3 | 10m | 3.3m |
 | 8 | 3/4 | 7m | 2.3m |
 | 9 | 2/3 | 7m | 3.5m |
-| 10 | 0/2 | (deferred to v1.3) | — |
+| 10 | 4 | - | - |
 
 *Reset on each plan completion in v1.2.*
 | Phase 10 P01 | 5min | 3 tasks | 6 files |

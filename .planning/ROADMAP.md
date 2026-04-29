@@ -146,7 +146,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 10. Alembic Baseline + Auth Schema | v1.2 | 4/4 | Complete   | 2026-04-29 |
+| 10. Alembic Baseline + Auth Schema | v1.2 | 4/4 | Complete    | 2026-04-29 |
 | 11. Auth Core Modules + Services + DI | v1.2 | 0/TBD | Not started | - |
 | 12. Admin CLI + Task Backfill | v1.2 | 0/TBD | Not started | - |
 | 13. Atomic Backend Cutover | v1.2 | 0/TBD | Not started (atomic pair w/ 14) | - |
