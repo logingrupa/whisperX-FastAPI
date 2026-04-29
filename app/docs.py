@@ -22,11 +22,12 @@ def save_openapi_json(app: FastAPI, path: str = DOCS_PATH) -> None:
     """
     os.makedirs(path, exist_ok=True)
     openapi_data = app.openapi()
-    # Change "openapi.json" to desired filename
-    with open(f"{path}/openapi.json", "w") as file:
-        json.dump(openapi_data, file, indent=2)
-    with open(f"{path}/openapi.yaml", "w") as f:
-        yaml.dump(openapi_data, f, sort_keys=False)
+    # Change "openapi.json" to desired filename. UTF-8 explicit so non-ASCII
+    # docstring chars (e.g. `→` in route summaries) survive on Windows cp1252.
+    with open(f"{path}/openapi.json", "w", encoding="utf-8") as file:
+        json.dump(openapi_data, file, indent=2, ensure_ascii=False)
+    with open(f"{path}/openapi.yaml", "w", encoding="utf-8") as f:
+        yaml.dump(openapi_data, f, sort_keys=False, allow_unicode=True)
 
 
 def generate_markdown_table(model: Table) -> str:
@@ -72,7 +73,9 @@ def write_markdown_to_file(markdown_tables: str, path: str = DOCS_PATH) -> None:
         path: The directory path where the markdown file will be saved. Defaults to DOCS_PATH.
     """
     os.makedirs(path, exist_ok=True)
-    with open(f"{path}/db_schema.md", "w") as file:
+    # UTF-8 explicit so non-ASCII column comments (e.g. `→`) survive on
+    # Windows cp1252 default encoding.
+    with open(f"{path}/db_schema.md", "w", encoding="utf-8") as file:
         file.write(markdown_tables)
 
 

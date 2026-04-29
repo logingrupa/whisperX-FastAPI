@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "whisperX REST service",
-    "description": "\n    # whisperX RESTful API\n\n    Welcome to the whisperX RESTful API! This API provides a suite of audio processing services to enhance and analyze your audio content.\n\n    ## Documentation:\n\n    For detailed information on request and response formats, consult the [WhisperX Documentation](https://github.com/m-bain/whisperX).\n\n    ## Services:\n\n    Speech-2-Text provides a suite of audio processing services to enhance and analyze your audio content. The following services are available:\n\n    1. Transcribe: Transcribe an audio/video  file into text.\n    2. Align: Align the transcript to the audio/video file.\n    3. Diarize: Diarize an audio/video file into speakers.\n    4. Combine Transcript and Diarization: Combine the transcript and diarization results.\n\n    ## Supported file extensions:\n    AUDIO_EXTENSIONS = {'.wav', '.aac', '.oga', '.wma', '.awb', '.m4a', '.mp3', '.ogg', '.amr'}\n\n    VIDEO_EXTENSIONS = {'.mov', '.mkv', '.wmv', '.mp4', '.avi'}\n\n    ## Language-Specific Model Overrides:\n\n    Some languages have fine-tuned models that are automatically used when that language is selected.\n    The server-side `LANGUAGE_MODEL_OVERRIDES` configuration maps language codes to optimized CTranslate2\n    model paths. When an override is configured, the `model` parameter is ignored for that language and\n    the fine-tuned model is loaded instead.\n\n    Currently configured overrides:\n    - **`lv` (Latvian)**: Uses `AiLab-IMCS-UL/whisper-large-v3-lv-late-cv19` (CTranslate2 int8) \u2014\n      a fine-tuned Whisper Large V3 with ~3.2% WER vs ~19.2% WER for stock Whisper on Latvian.\n\n    ",
+    "description": "\n    # whisperX RESTful API\n\n    Welcome to the whisperX RESTful API! This API provides a suite of audio processing services to enhance and analyze your audio content.\n\n    ## Documentation:\n\n    For detailed information on request and response formats, consult the [WhisperX Documentation](https://github.com/m-bain/whisperX).\n\n    ## Services:\n\n    Speech-2-Text provides a suite of audio processing services to enhance and analyze your audio content. The following services are available:\n\n    1. Transcribe: Transcribe an audio/video  file into text.\n    2. Align: Align the transcript to the audio/video file.\n    3. Diarize: Diarize an audio/video file into speakers.\n    4. Combine Transcript and Diarization: Combine the transcript and diarization results.\n\n    ## Supported file extensions:\n    AUDIO_EXTENSIONS = {'.mp3', '.amr', '.oga', '.aac', '.m4a', '.ogg', '.wma', '.awb', '.wav'}\n\n    VIDEO_EXTENSIONS = {'.mov', '.mkv', '.avi', '.mp4', '.wmv'}\n\n    ## Language-Specific Model Overrides:\n\n    Some languages have fine-tuned models that are automatically used when that language is selected.\n    The server-side `LANGUAGE_MODEL_OVERRIDES` configuration maps language codes to optimized CTranslate2\n    model paths. When an override is configured, the `model` parameter is ignored for that language and\n    the fine-tuned model is loaded instead.\n\n    Currently configured overrides:\n    - **`lv` (Latvian)**: Uses `AiLab-IMCS-UL/whisper-large-v3-lv-late-cv19` (CTranslate2 int8) —\n      a fine-tuned Whisper Large V3 with ~3.2% WER vs ~19.2% WER for stock Whisper on Latvian.\n\n    ",
     "version": "0.0.1"
   },
   "paths": {
@@ -1737,7 +1737,7 @@
             "schema": {
               "$ref": "#/components/schemas/Device",
               "description": "Device to use for PyTorch inference",
-              "default": "cuda"
+              "default": "cpu"
             },
             "description": "Device to use for PyTorch inference"
           },
@@ -1833,7 +1833,7 @@
             "schema": {
               "$ref": "#/components/schemas/Device",
               "description": "Device to use for PyTorch inference",
-              "default": "cuda"
+              "default": "cpu"
             },
             "description": "Device to use for PyTorch inference"
           },
@@ -2353,6 +2353,359 @@
         }
       }
     },
+    "/auth/register": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Register",
+        "description": "Register a new user. Password reset is manual — please email hey@logingrupa.lv (AUTH-07).",
+        "operationId": "register_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests — see Retry-After header"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Login",
+        "description": "Log in. Password reset is manual — please email hey@logingrupa.lv (AUTH-07).",
+        "operationId": "login_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests — see Retry-After header"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Logout",
+        "description": "Clear session + CSRF cookies. Idempotent — no-op if no session.\n\nReturns a brand-new Response (not the injected one) so the Set-Cookie\ndeletions are emitted on the wire. Using the injected ``Response``\nparameter combined with ``return Response(...)`` discards the deletion\nheaders (FastAPI ignores the injected response when an explicit one is\nreturned).",
+        "operationId": "logout_auth_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "429": {
+            "description": "Too many requests — see Retry-After header"
+          }
+        }
+      }
+    },
+    "/api/keys": {
+      "get": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "List Keys",
+        "description": "List all keys (active + revoked) for the authenticated user.",
+        "operationId": "list_keys_api_keys_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ListKeyItem"
+                  },
+                  "type": "array",
+                  "title": "Response List Keys Api Keys Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Create Key",
+        "description": "Create a new API key. Plaintext shown ONCE.",
+        "operationId": "create_key_api_keys_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateKeyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateKeyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keys/{key_id}": {
+      "delete": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Revoke Key",
+        "description": "Soft-delete (revoke) an API key. Cross-user requests return 404 opaque.",
+        "operationId": "revoke_key_api_keys__key_id__delete",
+        "parameters": [
+          {
+            "name": "key_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Key Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/data": {
+      "delete": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Delete User Data",
+        "description": "Delete the caller's tasks + uploaded files. User row preserved.",
+        "operationId": "delete_user_data_api_account_data_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/billing/checkout": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Checkout Stub",
+        "description": "Return 501 stub — actual Stripe Checkout in v1.3.",
+        "operationId": "checkout_stub_billing_checkout_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "501": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StubResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/billing/webhook": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Webhook Stub",
+        "description": "Validate Stripe-Signature header schema (rejects malformed); return 501.\n\nWebhook stub does NOT require auth (Stripe calls it server-to-server).\nReal HMAC signature verification arrives in v1.3.",
+        "operationId": "webhook_stub_billing_webhook_post",
+        "parameters": [
+          {
+            "name": "Stripe-Signature",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Stripe-Signature"
+            }
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StubResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ws/ticket": {
+      "post": {
+        "tags": [
+          "WebSocket"
+        ],
+        "summary": "Issue Ticket",
+        "description": "Issue a single-use 60-second WS ticket for the caller's own task.\n\nCross-user task ids return ``404`` with the same opaque body as\n\"task not found\" — no enumeration of foreign tasks (T-13-24, MID-07).\n\nPlan 13-07: repository is now ``get_scoped_task_repository`` — the\nscoped query already returns None for cross-user task ids, so the\nfirst ``task is None`` guard catches the cross-user path. The manual\n``task.user_id != user.id`` check below remains as defence-in-depth\n(catches drift if a task's user_id is mutated post-issue, MID-07).",
+        "operationId": "issue_ticket_api_ws_ticket_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TicketRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -2416,6 +2769,25 @@
   },
   "components": {
     "schemas": {
+      "AuthResponse": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "plan_tier": {
+            "type": "string",
+            "title": "Plan Tier"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "plan_tier"
+        ],
+        "title": "AuthResponse",
+        "description": "Body returned by both register and login (cookies carry the session)."
+      },
       "Body_1__Transcribe_service_transcribe_post": {
         "properties": {
           "file": {
@@ -2514,6 +2886,21 @@
         ],
         "title": "Body_speech_to_text_url_speech_to_text_url_post"
       },
+      "CheckoutRequest": {
+        "properties": {
+          "plan": {
+            "type": "string",
+            "title": "Plan",
+            "description": "Pro tier identifier (currently 'pro')"
+          }
+        },
+        "type": "object",
+        "required": [
+          "plan"
+        ],
+        "title": "CheckoutRequest",
+        "description": "POST /billing/checkout body (placeholder fields for v1.2)."
+      },
       "ComputeType": {
         "type": "string",
         "enum": [
@@ -2523,6 +2910,63 @@
         ],
         "title": "ComputeType",
         "description": "Enum for compute types."
+      },
+      "CreateKeyRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name",
+            "description": "User-supplied label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CreateKeyRequest"
+      },
+      "CreateKeyResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "prefix": {
+            "type": "string",
+            "title": "Prefix"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "Plaintext API key (whsk_*) — shown ONCE"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "key",
+          "created_at"
+        ],
+        "title": "CreateKeyResponse",
+        "description": "Response on POST /api/keys — `key` field is plaintext shown ONCE.\n\nAfter this response is delivered, the plaintext is unrecoverable. Server\nstores only prefix + sha256 hash. To rotate: POST a new key + DELETE old."
       },
       "Device": {
         "type": "string",
@@ -2555,6 +2999,77 @@
         ],
         "title": "InterpolateMethod",
         "description": "Enum for interpolation methods."
+      },
+      "ListKeyItem": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "prefix": {
+            "type": "string",
+            "title": "Prefix"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "created_at",
+          "status"
+        ],
+        "title": "ListKeyItem",
+        "description": "Item in GET /api/keys — no plaintext (plaintext is unrecoverable)."
+      },
+      "LoginRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email",
+            "description": "User email"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password",
+            "description": "Plain password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginRequest",
+        "description": "POST /auth/login body."
       },
       "Metadata": {
         "properties": {
@@ -2678,6 +3193,30 @@
         "title": "Metadata",
         "description": "Metadata model for task information."
       },
+      "RegisterRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email",
+            "description": "User email (unique identifier)"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Password",
+            "description": "Plain password (Argon2id-hashed server-side)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "RegisterRequest",
+        "description": "POST /auth/register body."
+      },
       "Response": {
         "properties": {
           "identifier": {
@@ -2730,6 +3269,28 @@
         ],
         "title": "Result",
         "description": "Model for a result with status, result data, metadata, and optional error."
+      },
+      "StubResponse": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "default": "Not Implemented"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "stub"
+          },
+          "hint": {
+            "type": "string",
+            "title": "Hint",
+            "default": "Stripe integration arrives in v1.3"
+          }
+        },
+        "type": "object",
+        "title": "StubResponse",
+        "description": "Generic 501 stub body (BILL-05/06)."
       },
       "TaskEnum": {
         "type": "string",
@@ -2943,6 +3504,44 @@
         ],
         "title": "TaskSummaryResponse",
         "description": "DTO for returning task summary in list operations.\n\nUsed for GET /task/all endpoint to provide a lighter response."
+      },
+      "TicketRequest": {
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Task Id",
+            "description": "UUID of the task the WebSocket will subscribe to."
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_id"
+        ],
+        "title": "TicketRequest",
+        "description": "Request body for ``POST /api/ws/ticket``."
+      },
+      "TicketResponse": {
+        "properties": {
+          "ticket": {
+            "type": "string",
+            "title": "Ticket",
+            "description": "Single-use 32-char ticket — pass as ?ticket=<token>."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At",
+            "description": "Token expiry (UTC, tz-aware). 60 seconds after issue."
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticket",
+          "expires_at"
+        ],
+        "title": "TicketResponse",
+        "description": "Response body for ``POST /api/ws/ticket`` (201)."
       },
       "ValidationError": {
         "properties": {
