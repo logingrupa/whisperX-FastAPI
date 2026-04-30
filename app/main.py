@@ -214,7 +214,7 @@ cors_origins = [origin.strip() for origin in settings.auth.FRONTEND_URL.split(",
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     allow_credentials=True,
     expose_headers=TUS_HEADERS,
