@@ -18,6 +18,9 @@ export const transcribeHandlers = [
   http.get('/tasks/:id/progress', () =>
     HttpResponse.json({ stage: 'complete', percentage: 100, message: 'Done' }),
   ),
+  // /task/all MUST come BEFORE /task/:id — MSW matches handlers in order
+  // and ':id' would otherwise capture 'all' as a path param.
+  http.get('/task/all', () => HttpResponse.json({ tasks: [] })),
   http.get('/task/:id', () =>
     HttpResponse.json({
       identifier: 'task-uuid-1',
