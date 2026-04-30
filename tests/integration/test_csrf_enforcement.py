@@ -135,3 +135,81 @@ def _issue_api_key(client: TestClient) -> str:
     )
     assert response.status_code == 201, response.text
     return response.json()["key"]
+
+
+# ---------------------------------------------------------------------------
+# VERIFY-06 — 4 cases
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+def test_csrf_missing_header_returns_403(
+    auth_full_app: tuple[FastAPI, Container],
+) -> None:
+    """Cookie-auth POST without X-CSRF-Token -> 403 'CSRF token missing'."""
+    app, _ = auth_full_app
+    client = TestClient(app)
+    _issue_csrf_pair(client, "csrf-missing@phase16.example.com")
+    # Cookies attached automatically; X-CSRF-Token deliberately absent.
+    response = client.post(_csrf_target_endpoint())
+    assert response.status_code == 403, response.text
+    assert response.json()["detail"] == "CSRF token missing", response.text
+
+
+@pytest.mark.integration
+def test_csrf_mismatched_header_returns_403(
+    auth_full_app: tuple[FastAPI, Container],
+) -> None:
+    """X-CSRF-Token != csrf_token cookie -> 403 'CSRF token mismatch'."""
+    app, _ = auth_full_app
+    client = TestClient(app)
+    _issue_csrf_pair(client, "csrf-mismatch@phase16.example.com")
+    response = client.post(
+        _csrf_target_endpoint(),
+        headers={"X-CSRF-Token": "deadbeef-not-the-real-cookie-value-12345"},
+    )
+    assert response.status_code == 403, response.text
+    assert response.json()["detail"] == "CSRF token mismatch", response.text
+
+
+@pytest.mark.integration
+def test_csrf_matching_header_succeeds(
+    auth_full_app: tuple[FastAPI, Container],
+) -> None:
+    """Matching X-CSRF-Token -> request passes through (204)."""
+    app, _ = auth_full_app
+    client = TestClient(app)
+    _, csrf_cookie_value = _issue_csrf_pair(
+        client, "csrf-match@phase16.example.com"
+    )
+    response = client.post(
+        _csrf_target_endpoint(),
+        headers={"X-CSRF-Token": csrf_cookie_value},
+    )
+    assert response.status_code == 204, response.text
+
+
+@pytest.mark.integration
+def test_bearer_auth_bypasses_csrf(
+    auth_full_app: tuple[FastAPI, Container],
+) -> None:
+    """Bearer-auth state-mutating POST WITHOUT X-CSRF-Token still succeeds (MID-04).
+
+    DualAuthMiddleware sets request.state.auth_method='bearer' on the
+    Authorization: Bearer leg; CsrfMiddleware then short-circuits its check
+    (cookie + header double-submit only fires when auth_method=='cookie').
+    """
+    app, _ = auth_full_app
+    client = TestClient(app)
+    _issue_csrf_pair(client, "csrf-bearer-bypass@phase16.example.com")
+    plaintext_key = _issue_api_key(client)  # cookie-auth path issues key
+
+    # Drop ALL cookies so ONLY the bearer path is exercised — bearer wins on
+    # mixed presentation (Phase 13-02), but unambiguous test signal demands
+    # zero cookie noise.
+    client.cookies.clear()
+    response = client.post(
+        _csrf_target_endpoint(),
+        headers={"Authorization": f"Bearer {plaintext_key}"},
+    )
+    assert response.status_code == 204, response.text
