@@ -169,3 +169,171 @@ def _seed_resources(
     task_uuid = _insert_task(session_factory, user_id=user_a_id)
     key_id = _create_key(client_a)
     return client_a, client_b, {"task_uuid": task_uuid, "key_id": str(key_id)}
+
+
+# ---------------------------------------------------------------------------
+# Request shaping helpers — flat conditionals, no nested-if.
+# ---------------------------------------------------------------------------
+
+
+def _request(
+    client: TestClient,
+    method: str,
+    url: str,
+    *,
+    requires_csrf: bool,
+    body: dict | None = None,
+):
+    """Issue a request via TestClient with optional X-CSRF-Token header.
+
+    Single flat conditional on requires_csrf — header attached only when
+    the catalog row marks the endpoint state-mutating + cookie-auth.
+    """
+    headers: dict[str, str] = {}
+    if requires_csrf:
+        headers["X-CSRF-Token"] = client.cookies.get("csrf_token") or ""
+    return client.request(method, url, json=body, headers=headers)
+
+
+def _format_url(template: str, resources: dict[str, str]) -> str:
+    """Substitute {task_uuid}/{key_id} placeholders from the resource dict."""
+    return template.format(**resources)
+
+
+def _ws_ticket_body(path_tmpl: str, resources: dict[str, str]) -> dict | None:
+    """POST /api/ws/ticket needs JSON body; every other route is None.
+
+    Single flat ternary; no nested-if.
+    """
+    return {"task_id": resources["task_uuid"]} if path_tmpl == "/api/ws/ticket" else None
+
+
+# ---------------------------------------------------------------------------
+# Self-leg expected status codes — flat dict lookup, no nested-if.
+# Verified against @router decorators (status_code= attribute):
+#   GET  /task/all                       -> default 200
+#   GET  /task/{identifier}              -> default 200
+#   DELETE /task/{identifier}/delete     -> default 200 (returns Response model)
+#   GET  /tasks/{identifier}/progress    -> default 200
+#   POST /api/ws/ticket                  -> 201 (status.HTTP_201_CREATED)
+#   DELETE /api/keys/{key_id}            -> 204 (status.HTTP_204_NO_CONTENT)
+#   DELETE /api/account/data             -> 204 (status.HTTP_204_NO_CONTENT)
+#   GET  /api/account/me                 -> default 200
+# ---------------------------------------------------------------------------
+
+_SELF_STATUS: dict[tuple[str, str], int] = {
+    ("GET", "/task/all"): 200,
+    ("GET", "/task/{task_uuid}"): 200,
+    ("DELETE", "/task/{task_uuid}/delete"): 200,
+    ("GET", "/tasks/{task_uuid}/progress"): 200,
+    ("POST", "/api/ws/ticket"): 201,
+    ("DELETE", "/api/keys/{key_id}"): 204,
+    ("DELETE", "/api/account/data"): 204,
+    ("GET", "/api/account/me"): 200,
+}
+assert len(_SELF_STATUS) == len(ENDPOINT_CATALOG), "self-status table drift"
+
+
+# ---------------------------------------------------------------------------
+# Foreign-leg matrix: User B's request against User A's resources.
+# 8 catalog rows -> 8 parametrized cases. Foreign expectations encoded in
+# ENDPOINT_CATALOG (404 for resource-scoped, 200/204 for caller-scoped).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "method,path_tmpl,expected_foreign_status,requires_csrf",
+    ENDPOINT_CATALOG,
+)
+@pytest.mark.integration
+def test_foreign_user_blocked(
+    method: str,
+    path_tmpl: str,
+    expected_foreign_status: int,
+    requires_csrf: bool,
+    full_app: tuple[FastAPI, Container],
+    session_factory,
+) -> None:
+    """User B requesting User A's resource -> catalog-encoded status.
+
+    Resource-scoped routes (anti-enumeration) must produce 404 — never 403,
+    never 200, never the resource itself. Caller-scoped routes (e.g.
+    /task/all, /api/account/me, DELETE /api/account/data) produce
+    200/204 against B's own (empty) namespace — also no leak.
+    """
+    app, _ = full_app
+    _client_a, client_b, resources = _seed_resources(app, session_factory)
+    body = _ws_ticket_body(path_tmpl, resources)
+    url = _format_url(path_tmpl, resources)
+
+    response = _request(
+        client_b, method, url, requires_csrf=requires_csrf, body=body
+    )
+
+    assert response.status_code == expected_foreign_status, (
+        f"foreign-leg {method} {url}: expected {expected_foreign_status}, "
+        f"got {response.status_code}: {response.text}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Self-leg matrix: User A's request against User A's own resources.
+# Positive control — proves the foreign-leg failures are NOT route-broken.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "method,path_tmpl,_foreign,requires_csrf",
+    ENDPOINT_CATALOG,
+)
+@pytest.mark.integration
+def test_self_user_succeeds(
+    method: str,
+    path_tmpl: str,
+    _foreign: int,
+    requires_csrf: bool,
+    full_app: tuple[FastAPI, Container],
+    session_factory,
+) -> None:
+    """User A accesses their own resource -> success status from _SELF_STATUS."""
+    app, _ = full_app
+    client_a, _client_b, resources = _seed_resources(app, session_factory)
+    body = _ws_ticket_body(path_tmpl, resources)
+    url = _format_url(path_tmpl, resources)
+    expected_self_status = _SELF_STATUS[(method, path_tmpl)]
+
+    response = _request(
+        client_a, method, url, requires_csrf=requires_csrf, body=body
+    )
+
+    assert response.status_code == expected_self_status, (
+        f"self-leg {method} {url}: expected {expected_self_status}, "
+        f"got {response.status_code}: {response.text}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Anti-enumeration parity: foreign-id 404 body == unknown-id 404 body.
+# Locks T-13-24 invariant for /task/{id}; extends naturally to other
+# 404 paths via the shared _task_not_found_handler.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+def test_anti_enum_body_parity_unknown_vs_foreign_task(
+    full_app: tuple[FastAPI, Container],
+    session_factory,
+) -> None:
+    """Foreign-id 404 body is bytewise-identical to unknown-id 404 body."""
+    app, _ = full_app
+    _client_a, client_b, resources = _seed_resources(app, session_factory)
+
+    foreign_response = client_b.get(f"/task/{resources['task_uuid']}")
+    unknown_response = client_b.get("/task/uuid-does-not-exist-xyz-12345")
+
+    assert foreign_response.status_code == 404, foreign_response.text
+    assert unknown_response.status_code == 404, unknown_response.text
+    assert foreign_response.json() == unknown_response.json(), (
+        "anti-enumeration: foreign-id and unknown-id 404 bodies must be identical "
+        f"(foreign={foreign_response.json()!r}, unknown={unknown_response.json()!r})"
+    )
