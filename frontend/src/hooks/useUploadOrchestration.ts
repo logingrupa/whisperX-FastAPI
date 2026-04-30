@@ -36,6 +36,12 @@ interface UseUploadOrchestrationReturn extends UseFileQueueReturn {
   connectionState: ConnectionState;
   /** Manual reconnection trigger */
   reconnect: () => void;
+  /**
+   * Resume WS subscription for a historic item already in 'processing' state.
+   * Sets the orchestrator's current refs so useTaskProgress connects to the
+   * existing taskId (single-task-at-a-time invariant preserved).
+   */
+  resumeProcessingTask: (fileId: string, taskId: string) => void;
 }
 
 /**
@@ -120,8 +126,16 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
   /**
    * Process a large file via TUS chunked upload.
    * TaskId is pre-generated and sent as metadata so WebSocket can subscribe immediately on success.
+   *
+   * Precondition (tiger-style boundary): item.file !== null. Caller is
+   * processFile, which short-circuits historic items via isFileReady.
    */
   const processViaTus = useCallback((item: FileQueueItem) => {
+    if (item.file === null) {
+      console.warn('processViaTus called on historic item — ignoring:', item.id);
+      return;
+    }
+    const liveFile = item.file;
     currentFileIdRef.current = item.id;
     updateFileStatus(item.id, 'uploading');
     updateFileProgress(item.id, 0, 'uploading');
@@ -130,13 +144,13 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
     const taskId = crypto.randomUUID();
 
     const metadata: Record<string, string> = {
-      filename: item.file.name,
-      filetype: item.file.type || 'application/octet-stream',
+      filename: liveFile.name,
+      filetype: liveFile.type || 'application/octet-stream',
       language: item.selectedLanguage || 'auto',
       taskId: taskId,
     };
 
-    const { abort } = startTusUpload(item.file, metadata, {
+    const { abort } = startTusUpload(liveFile, metadata, {
       onProgress: (percentage, speed, eta) => {
         setRetryingFileId(null);
         updateFileProgress(item.id, percentage, 'uploading');
@@ -165,16 +179,25 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
 
   /**
    * Process a single file: upload -> get task ID -> start WebSocket
+   *
+   * Tiger-style: isFileReady already excludes historic items (kind !== 'live'),
+   * but defense-in-depth — narrow item.file to non-null before downstream
+   * calls touch File-only properties (size, type, blob streaming).
    */
   const processFile = useCallback(async (item: FileQueueItem) => {
-    // Validate file is ready
+    // Validate file is ready (excludes historic items via kind check)
     if (!isFileReady(item)) {
       console.warn('File not ready:', item.id);
       return;
     }
+    if (item.file === null) {
+      console.warn('processFile called on item with null File — ignoring:', item.id);
+      return;
+    }
+    const liveFile = item.file;
 
     // Route: large files via TUS, small files via direct upload
-    if (item.file.size >= SIZE_THRESHOLD && isTusSupported()) {
+    if (liveFile.size >= SIZE_THRESHOLD && isTusSupported()) {
       processViaTus(item);
       return;
     }
@@ -189,7 +212,7 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
 
     // Call transcription API
     const result = await startTranscription({
-      file: item.file,
+      file: liveFile,
       language: item.selectedLanguage as Exclude<typeof item.selectedLanguage, ''>,
       model: item.selectedModel,
     });
@@ -288,6 +311,18 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
     }, 0);
   }, [queue, updateFileStatus, processFile]);
 
+  /**
+   * Resume WS subscription for a historic item that was already 'processing'
+   * when the user refreshed. Single-task-at-a-time invariant: only the FIRST
+   * resume call wins; subsequent calls while a task is active are no-ops.
+   */
+  const resumeProcessingTask = useCallback((fileId: string, taskId: string) => {
+    if (currentFileIdRef.current !== null) return;
+    if (!fileId || !taskId) return;
+    currentFileIdRef.current = fileId;
+    currentTaskIdRef.current = taskId;
+  }, []);
+
   // Auto-process next ready file when current completes
   useEffect(() => {
     // Only trigger when we're not currently processing
@@ -321,5 +356,6 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
     retryingFileId,
     connectionState,
     reconnect,
+    resumeProcessingTask,
   };
 }

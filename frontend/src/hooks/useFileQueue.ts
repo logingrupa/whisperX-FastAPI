@@ -24,7 +24,10 @@ export function useFileQueue() {
       const detectedLanguage = detectLanguageFromFilename(file.name);
       return {
         id: crypto.randomUUID(),
+        kind: 'live' as const,
         file,
+        fileName: file.name,
+        fileSize: file.size,
         detectedLanguage,
         // Pre-fill selectedLanguage if detected, empty string otherwise
         selectedLanguage: detectedLanguage ?? '',
@@ -34,6 +37,27 @@ export function useFileQueue() {
     });
 
     setQueue(previousQueue => [...previousQueue, ...newItems]);
+  }, []);
+
+  /**
+   * Append historic items (seeded from GET /task/all on mount).
+   *
+   * SRP: this hook owns queue state — it does NOT fetch. The caller
+   * (useTaskHistory) handles HTTP and produces ready-to-insert items.
+   *
+   * De-dup: items already in the queue (matched by taskId) are skipped
+   * so a re-mount or accidental double-call cannot duplicate rows.
+   */
+  const addHistoricTasks = useCallback((historicItems: FileQueueItem[]) => {
+    if (historicItems.length === 0) return;
+    setQueue(previousQueue => {
+      const existingTaskIds = new Set(
+        previousQueue.map(item => item.taskId).filter((id): id is string => Boolean(id)),
+      );
+      const fresh = historicItems.filter(item => !item.taskId || !existingTaskIds.has(item.taskId));
+      if (fresh.length === 0) return previousQueue;
+      return [...fresh, ...previousQueue];
+    });
   }, []);
 
   /**
@@ -163,9 +187,14 @@ export function useFileQueue() {
   }, []);
 
   /**
-   * Check if a file is ready to process (has language selected)
+   * Check if a file is ready to process (has language selected).
+   *
+   * Tiger-style: historic items (kind === 'historic', file === null)
+   * can NEVER be ready — uploading requires a File object. Early-return
+   * keeps this branch flat (no nested-if).
    */
   const isFileReady = useCallback((item: FileQueueItem): boolean => {
+    if (item.kind !== 'live') return false;
     return item.status === 'pending' && item.selectedLanguage !== '';
   }, []);
 
@@ -189,6 +218,7 @@ export function useFileQueue() {
   return {
     queue,
     addFiles,
+    addHistoricTasks,
     removeFile,
     clearPendingFiles,
     updateFileSettings,
