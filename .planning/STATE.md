@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: executing
-stopped_at: Completed 16-04-csrf-enforcement-PLAN.md
-last_updated: "2026-04-30T12:49:10.885Z"
-last_activity: 2026-04-30 -- 16-01 helpers complete
+stopped_at: Completed 16-06-migration-smoke-PLAN.md
+last_updated: "2026-04-30T12:50:16.296Z"
+last_activity: 2026-04-30 -- 16-06 alembic brownfield migration smoke green
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 42
-  completed_plans: 38
-  percent: 90
+  completed_plans: 39
+  percent: 93
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 16
-Plan: 16-01 complete (Wave 0 helpers)
-Status: Ready to execute 16-02 (Wave 1 starts)
-Last activity: 2026-04-30 -- 16-01 helpers complete
+Plan: 16-06 complete (Wave 1 — VERIFY-08 migration smoke)
+Status: Ready to verify Phase 16 (16-02..06 all complete, run 16-VERIFICATION)
+Last activity: 2026-04-30 -- 16-06 alembic brownfield migration smoke green
 
 ## Performance Metrics
 
@@ -91,6 +91,7 @@ Last activity: 2026-04-30 -- 16-01 helpers complete
 | Phase 15 P06 | 7 min | 2 tasks | 8 files |
 | Phase 16 P01 | 3 min | 2 tasks | 1 files |
 | Phase Phase 16 PP04 | 3 min | 2 tasks | 1 files |
+| Phase 16 P06 | 5 min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -281,6 +282,10 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase 16]: [16-01]: Lazy ORMTask import inside _insert_task — module-level import would require DB engine bound at import time; lazy keeps module loadable for plans needing only _forge_jwt or _run_alembic
 - [Phase 16]: [16-01]: _seed_two_users(client_a, client_b) → tuple[int, int] interface (per plan <interfaces> block) — caller owns TestClient construction so each test shapes its own jar isolation; PATTERNS.md alternative (app, session_factory) signature rejected in favor of plan-specified contract
 - [Phase Phase 16]: [16-04]: VERIFY-06 4 CSRF cases land on /auth/logout-all (single CSRF target via _csrf_target_endpoint helper); ASGI order locked CsrfMiddleware-first DualAuth-last so dispatch is DualAuth->Csrf->route; bearer-bypass test uses cookie-auth path to issue API key then client.cookies.clear() before bearer POST for unambiguous test signal — DRY single source for path + tiger-style detail-string asserts on 403 cases + nested-if grep == 0
+- [Phase 16]: [16-06]: VERIFY-08 brownfield migration smoke uses 4-step sequence (build legacy → stamp 0001 → upgrade 0002_auth_schema → seed admin + UPDATE tasks.user_id → upgrade head) — 0003 NOT NULL pre-flight requires ALL tasks.user_id non-null BEFORE upgrade head, otherwise RuntimeError. Mirrors Phase 17 OPS-03 operator runbook exactly.
+- [Phase 16]: [16-06]: Rule 1 fix — plan PROMPT specified `hashed_password` column but actual schema (0002_auth_schema.py:42 + models.py:177) uses `password_hash`. INSERT corrected before write; tracked as plan/code drift bug.
+- [Phase 16]: [16-06]: Fresh-engine FK-enforcement test must enable PRAGMA foreign_keys=ON manually — production engine listener (Phase 10-04) attaches to global engine only; tmp_path engines created via local create_engine() get default OFF. Inline pragma + comment documents the divergence.
+- [Phase 16]: [16-06]: DRY: _run_alembic + REPO_ROOT imported from tests/integration/_phase16_helpers (Plan 10-04 venv-portable subprocess pattern); test file is 206 lines with ZERO copy-paste of alembic CLI plumbing
 
 ### Pending Todos
 
@@ -296,6 +301,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-30T12:49:10.878Z
-Stopped at: Completed 16-04-csrf-enforcement-PLAN.md
+Last session: 2026-04-30T12:50:00Z
+Stopped at: Completed 16-06-migration-smoke-PLAN.md
 Resume file: None
