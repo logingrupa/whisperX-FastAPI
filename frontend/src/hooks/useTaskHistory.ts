@@ -18,7 +18,7 @@
  * log + swallow so a flaky GET never blocks fresh uploads. AuthRequired
  * is propagated implicitly — apiClient already redirects.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { fetchAllTasks, type TaskListItem, type BackendTaskStatus } from '@/lib/api/taskApi';
 import { DEFAULT_MODEL } from '@/lib/whisperModels';
 import type {
@@ -92,50 +92,88 @@ export function seedQueueFromTasks(tasks: TaskListItem[]): FileQueueItem[] {
 }
 
 /**
+ * Module-level inflight cache for the /task/all fetch.
+ *
+ * Why module-level (not useRef): React StrictMode mounts each effect twice
+ * in dev — mount #1 runs, then unmounts, then mount #2 runs on the SAME
+ * fiber. Refs persist across that cycle, so a `hasRunRef` set during mount
+ * #1 would block mount #2 from ever seeing the result; mount #1's own
+ * `cancelled` cleanup then suppresses its own callback. Net: queue stays
+ * empty.
+ *
+ * A module-level promise sidesteps the lifecycle entirely: both mounts
+ * await the SAME promise, only the survivor (mount #2) calls the
+ * caller-supplied setters. Dedupe at the queue layer (addHistoricTasks
+ * tracks taskIds in a Set) makes a redundant call harmless either way.
+ *
+ * Reset hooks (resetTaskHistoryCache) live in the test export below — see
+ * the regression test that wraps the hook in <StrictMode>.
+ */
+let inflightFetch: Promise<TaskListItem[] | null> | null = null;
+
+async function getOrStartFetch(): Promise<TaskListItem[] | null> {
+  if (inflightFetch !== null) return inflightFetch;
+  const promise = (async (): Promise<TaskListItem[] | null> => {
+    try {
+      const result = await fetchAllTasks();
+      if (!result.success) {
+        // Non-401 errors are already typed; AuthRequired never reaches here
+        // because apiClient throws + redirects. Log + continue (queue empty).
+        console.warn('useTaskHistory: failed to fetch /task/all:', result.error.detail);
+        return null;
+      }
+      return result.data;
+    } catch (err) {
+      // AuthRequiredError already redirected via apiClient. Anything else
+      // we swallow + log — uploads must keep working.
+      console.warn('useTaskHistory: unexpected error fetching /task/all:', err);
+      return null;
+    }
+  })();
+  inflightFetch = promise;
+  // Clear cache on failure so a later remount can retry.
+  void promise.then(value => {
+    if (value === null) inflightFetch = null;
+  });
+  return promise;
+}
+
+/** Test-only cache reset. Not exported as part of the public hook API. */
+export function __resetTaskHistoryCacheForTests(): void {
+  inflightFetch = null;
+}
+
+/**
  * Hook: on mount, fetch /task/all and seed the queue.
  *
  * Returns void — caller composes side-effect via injected setters.
- * Idempotent: a `hasRunRef` guards against React StrictMode double-mount
- * in development from issuing two seeds.
+ * StrictMode-safe: the fetch is shared via a module-level inflight promise
+ * so both dev double-mounts await the same result. Per-mount `cancelled`
+ * flag prevents the unmounted instance from calling stale setters; the
+ * survivor seeds normally. Queue-layer dedupe (taskId Set in
+ * addHistoricTasks) handles any redundant call.
  */
 export function useTaskHistory({
   addHistoricTasks,
   resumeProcessingTask,
 }: UseTaskHistoryOptions): void {
-  const hasRunRef = useRef(false);
-
   useEffect(() => {
-    if (hasRunRef.current) return;
-    hasRunRef.current = true;
-
     let cancelled = false;
-    (async () => {
-      try {
-        const result = await fetchAllTasks();
-        if (cancelled) return;
-        if (!result.success) {
-          // Non-401 errors are already typed; AuthRequired never reaches here
-          // because apiClient throws + redirects. Log + continue (queue empty).
-          console.warn('useTaskHistory: failed to fetch /task/all:', result.error.detail);
-          return;
-        }
-        const historicItems = seedQueueFromTasks(result.data);
-        if (historicItems.length === 0) return;
-        addHistoricTasks(historicItems);
+    void (async () => {
+      const tasks = await getOrStartFetch();
+      if (cancelled) return;
+      if (tasks === null) return;
+      const historicItems = seedQueueFromTasks(tasks);
+      if (historicItems.length === 0) return;
+      addHistoricTasks(historicItems);
 
-        // Re-bind WS for the first historic item still in 'processing'.
-        // Single-task-at-a-time invariant matches existing orchestration.
-        const firstProcessing = historicItems.find(item => item.status === 'processing');
-        if (!firstProcessing) return;
-        if (!firstProcessing.taskId) return;
-        resumeProcessingTask(firstProcessing.id, firstProcessing.taskId);
-      } catch (err) {
-        // AuthRequiredError already redirected via apiClient. Anything else
-        // we swallow + log — uploads must keep working.
-        console.warn('useTaskHistory: unexpected error fetching /task/all:', err);
-      }
+      // Re-bind WS for the first historic item still in 'processing'.
+      // Single-task-at-a-time invariant matches existing orchestration.
+      const firstProcessing = historicItems.find(item => item.status === 'processing');
+      if (!firstProcessing) return;
+      if (!firstProcessing.taskId) return;
+      resumeProcessingTask(firstProcessing.id, firstProcessing.taskId);
     })();
-
     return () => {
       cancelled = true;
     };

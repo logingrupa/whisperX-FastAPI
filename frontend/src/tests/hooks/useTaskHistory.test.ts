@@ -14,13 +14,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
+import { StrictMode, createElement, type ReactNode } from 'react';
 import { server } from '@/tests/setup';
 import {
   useTaskHistory,
   taskToQueueItem,
   seedQueueFromTasks,
+  __resetTaskHistoryCacheForTests,
 } from '@/hooks/useTaskHistory';
 import type { TaskListItem } from '@/lib/api/taskApi';
+
+const StrictWrapper = ({ children }: { children: ReactNode }) =>
+  createElement(StrictMode, null, children);
 
 function makeTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
   return {
@@ -99,6 +104,7 @@ describe('seedQueueFromTasks — filters + ordering', () => {
 describe('useTaskHistory — mount-time seed', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    __resetTaskHistoryCacheForTests();
   });
 
   it('fetches /task/all on mount and seeds historic items', async () => {
@@ -227,6 +233,44 @@ describe('useTaskHistory — mount-time seed', () => {
     rerender();
     // Still only one seed despite multiple renders
     expect(addHistoricTasks).toHaveBeenCalledTimes(1);
+  });
+
+  // Regression test for the bug where StrictMode's mount→unmount→remount
+  // cycle interacted destructively with a `hasRunRef` guard + per-mount
+  // `cancelled` flag, causing addHistoricTasks to NEVER be called in dev.
+  // Wrapping the hook in <StrictMode> simulates the real dev environment
+  // (main.tsx wraps the app in <StrictMode>) and was missing from the
+  // original idempotency check (rerender() does not exercise lifecycle).
+  it('seeds the queue under StrictMode (regression: empty queue on /ui/)', async () => {
+    server.use(
+      http.get('/task/all', () =>
+        HttpResponse.json({
+          tasks: [
+            makeTask({ identifier: 'strict-1', status: 'completed' }),
+            makeTask({ identifier: 'strict-2', status: 'processing' }),
+          ],
+        }),
+      ),
+    );
+
+    const addHistoricTasks = vi.fn();
+    const resumeProcessingTask = vi.fn();
+
+    renderHook(
+      () => useTaskHistory({ addHistoricTasks, resumeProcessingTask }),
+      { wrapper: StrictWrapper },
+    );
+
+    await waitFor(() => expect(addHistoricTasks).toHaveBeenCalledTimes(1));
+    const seeded = addHistoricTasks.mock.calls[0][0];
+    expect(seeded).toHaveLength(2);
+    expect(seeded[0].taskId).toBe('strict-1');
+    expect(seeded[1].taskId).toBe('strict-2');
+    // Re-bind WS still fires for the in-flight task
+    await waitFor(() =>
+      expect(resumeProcessingTask).toHaveBeenCalledTimes(1),
+    );
+    expect(resumeProcessingTask.mock.calls[0][1]).toBe('strict-2');
   });
 
   it('skips seeding entirely when /task/all returns malformed payload', async () => {
