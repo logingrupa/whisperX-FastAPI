@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: Ready for 15-06
+status: executing
 stopped_at: Completed 15-06-PLAN.md (Task 3 human-verify pending)
-last_updated: "2026-04-29T19:46:13.184Z"
-last_activity: 2026-04-29 -- Plan 15-05 (frontend session hydration wired, UI-07 closed)
+last_updated: "2026-04-30T12:39:50Z"
+last_activity: 2026-04-30 -- 16-01 helpers complete
 progress:
   total_phases: 9
   completed_phases: 6
-  total_plans: 36
-  completed_plans: 36
-  percent: 100
+  total_plans: 42
+  completed_plans: 38
+  percent: 90
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-29)
 
 **Core value:** Users can sign up, get API keys, and use WhisperX via browser or external API with free-tier limits and Stripe-ready billing
-**Current focus:** Phase 14 — Atomic Frontend Cutover + Test Infra
+**Current focus:** Phase 16 — Verification + Cross-User Matrix + E2E
 
 ## Current Position
 
-Phase: 15
-Plan: 15-05 complete
-Status: Ready for 15-06
-Last activity: 2026-04-29 -- Plan 15-05 (frontend session hydration wired, UI-07 closed)
+Phase: 16
+Plan: 16-01 complete (Wave 0 helpers)
+Status: Ready to execute 16-02 (Wave 1 starts)
+Last activity: 2026-04-30 -- 16-01 helpers complete
 
 ## Performance Metrics
 
@@ -89,6 +89,7 @@ Last activity: 2026-04-29 -- Plan 15-05 (frontend session hydration wired, UI-07
 | Phase 15 P04 | 9 min | 3 tasks | 3 files |
 | Phase 15 P05 | 9 min | 2 tasks (TDD) tasks | 7 files files |
 | Phase 15 P06 | 7 min | 2 tasks | 8 files |
+| Phase 16 P01 | 3 min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -274,6 +275,10 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [15-05]: 3 sibling test files (AppRouter, KeysDashboardPage, smoke) updated to seed full AuthUser shape (Rule 3 deviation — TS strict compile gate); AppRouter helper migrated to import AuthUser type (DRY single source)
 - [Phase 15]: [15-06]: AccountPage three-card layout (Profile/Plan/Danger Zone) with PLAN_BADGE_VARIANT + PLAN_COPY narrowed Record<plan_tier,...> + 'Plan details unavailable.' fallback for unknown values (T-15-10 mitigation); inline-styled native textarea in UpgradeInterestDialog (no shadcn primitive vendored); isMatched gate adds && userEmail.length > 0 defence-in-depth — Locked design contract executed verbatim per UI-SPEC §116-160; tiger-style boundary defence; matches sibling KeysDashboardPage pattern.
 - [Phase 15]: [15-06]: setTimeout-spy assertion pattern for auto-close timer test (UpgradeInterestDialog) — fake timers deadlock against MSW response promises in this codebase; spy + invoke-callback-directly + act() is more precise than wall-clock and side-steps the deadlock — Discovered during Task 2 — 5000ms timeout on findByText after vi.useFakeTimers() with MSW pending. Pattern saves ~2s per test run vs real-timer wait.
+- [Phase 16]: [16-01]: ENDPOINT_CATALOG hardcoded as module-level constant (not env-driven) — DRT single source for VERIFY-01 cross-user matrix and VERIFY-06 CSRF surface; status semantics 200 (caller-scoped own namespace) / 204 (write on caller's empty namespace) / 404 (anti-enumeration opaque)
+- [Phase 16]: [16-01]: _forge_jwt three deterministic branches via flat early-returns (no nested-if): alg=none bypasses PyJWT (refuses on encode), HS256+expired uses real signing with iat/exp shifted to past, HS256+tamper flips last sig char post-jwt.encode
+- [Phase 16]: [16-01]: Lazy ORMTask import inside _insert_task — module-level import would require DB engine bound at import time; lazy keeps module loadable for plans needing only _forge_jwt or _run_alembic
+- [Phase 16]: [16-01]: _seed_two_users(client_a, client_b) → tuple[int, int] interface (per plan <interfaces> block) — caller owns TestClient construction so each test shapes its own jar isolation; PATTERNS.md alternative (app, session_factory) signature rejected in favor of plan-specified contract
 
 ### Pending Todos
 
@@ -289,6 +294,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-29T19:45:46.256Z
-Stopped at: Completed 15-06-PLAN.md (Task 3 human-verify pending)
+Last session: 2026-04-30T12:39:50Z
+Stopped at: Completed 16-01-helpers-PLAN.md
 Resume file: None
