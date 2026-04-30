@@ -154,7 +154,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - [x] 16-01-helpers-PLAN.md — _phase16_helpers.py shared module (ENDPOINT_CATALOG, _seed_two_users, _forge_jwt, _issue_csrf_pair, _run_alembic, WS_POLICY_VIOLATION) (Wave 0, completed 2026-04-30)
 - [ ] 16-02-security-matrix-PLAN.md — VERIFY-01 cross-user matrix (8 endpoints x {self, foreign} parametrized; anti-enum body parity) (Wave 1)
 - [ ] 16-03-jwt-attacks-PLAN.md — VERIFY-02/03/04 (alg=none / tampered / expired x bearer/cookie transports) (Wave 1)
-- [ ] 16-04-csrf-enforcement-PLAN.md — VERIFY-06 (missing/mismatch/matching X-CSRF-Token + bearer-bypass) (Wave 1)
+- [x] 16-04-csrf-enforcement-PLAN.md — VERIFY-06 (missing/mismatch/matching X-CSRF-Token + bearer-bypass) (Wave 1)
 - [ ] 16-05-ws-ticket-safety-PLAN.md — VERIFY-07 (reuse / expired / cross-user drift; gold copy) (Wave 1)
 - [ ] 16-06-migration-smoke-PLAN.md — VERIFY-08 (synthetic v1.1 baseline -> head; row count + NOT NULL + FK enforce) (Wave 1)
 
@@ -191,7 +191,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | 13. Atomic Backend Cutover | v1.2 | 10/10 | Complete    | 2026-04-29 |
 | 14. Atomic Frontend Cutover + Test Infra | v1.2 | 7/7 | Complete    | 2026-04-29 |
 | 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 6/6 | Complete   | 2026-04-29 |
-| 16. Verification + Cross-User Matrix + E2E | v1.2 | 1/6 | In Progress | - |
+| 16. Verification + Cross-User Matrix + E2E | v1.2 | 2/6 | In Progress|  |
 | 17. Docs + Migration Runbook + Operator Guide | v1.2 | 0/TBD | Not started | - |
 | 18. Stretch (Optional) | v1.2 | 0/TBD | Optional | - |
 
