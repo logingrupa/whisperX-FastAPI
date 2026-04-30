@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: executing
+status: verifying
 stopped_at: Completed 16-06-migration-smoke-PLAN.md
-last_updated: "2026-04-30T12:50:16.296Z"
+last_updated: "2026-04-30T12:52:37.878Z"
 last_activity: 2026-04-30 -- 16-06 alembic brownfield migration smoke green
 progress:
   total_phases: 9
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 42
-  completed_plans: 39
-  percent: 93
+  completed_plans: 42
+  percent: 100
 ---
 
 # Project State
@@ -92,6 +92,7 @@ Last activity: 2026-04-30 -- 16-06 alembic brownfield migration smoke green
 | Phase 16 P01 | 3 min | 2 tasks | 1 files |
 | Phase Phase 16 PP04 | 3 min | 2 tasks | 1 files |
 | Phase 16 P06 | 5 min | 2 tasks | 1 files |
+| Phase 16 P05 | 7min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -286,6 +287,8 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase 16]: [16-06]: Rule 1 fix — plan PROMPT specified `hashed_password` column but actual schema (0002_auth_schema.py:42 + models.py:177) uses `password_hash`. INSERT corrected before write; tracked as plan/code drift bug.
 - [Phase 16]: [16-06]: Fresh-engine FK-enforcement test must enable PRAGMA foreign_keys=ON manually — production engine listener (Phase 10-04) attaches to global engine only; tmp_path engines created via local create_engine() get default OFF. Inline pragma + comment documents the divergence.
 - [Phase 16]: [16-06]: DRY: _run_alembic + REPO_ROOT imported from tests/integration/_phase16_helpers (Plan 10-04 venv-portable subprocess pattern); test file is 206 lines with ZERO copy-paste of alembic CLI plumbing
+- [Phase 16]: Cross-user drift target must be FK-valid (PRAGMA foreign_keys=ON from 10-04 forbids non-existent ids); test registers User B and drifts to user_id_b not 9999 — FK constraint failure was Rule 1 bug found mid-execution; deviation lock for future drift-style tests
+- [Phase 16]: monkeypatch.setattr(...) MUST stay on a single line for verifier grep gate compliance — line-wrap dropped grep -c count from 1 to 0 — verifier greps are per-line literal matches; multi-line Python style breaks them
 
 ### Pending Todos
 
@@ -301,6 +304,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-30T12:50:00Z
+Last session: 2026-04-30T12:52:22.539Z
 Stopped at: Completed 16-06-migration-smoke-PLAN.md
 Resume file: None

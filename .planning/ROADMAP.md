@@ -24,7 +24,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - [x] **Phase 13: Atomic Backend Cutover (ATOMIC PAIR with Phase 14)** — DualAuthMiddleware + auth/keys/account routes + per-user scoping + WS ticket + CSRF + CORS lockdown + rate-limit + free-tier gates + Stripe schema stubs (completed 2026-04-29)
 - [x] **Phase 14: Atomic Frontend Cutover + Test Infra (ATOMIC PAIR with Phase 13)** — Router shell + auth pages + dashboard (keys/usage) + apiClient wrapper + zustand store + BroadcastChannel + Vitest/RTL/MSW (completed 2026-04-29)
 - [x] **Phase 15: Account Dashboard Hardening + Billing Stubs** — Account page (delete + logout-all-devices + Pro upgrade CTA) + checkout/webhook 501 stubs (completed 2026-04-29)
-- [ ] **Phase 16: Verification + Cross-User Matrix + E2E** — Cross-user tests + JWT attack tests + WS ticket reuse + CSRF mismatch + migration smoke against records.db
+- [x] **Phase 16: Verification + Cross-User Matrix + E2E** — Cross-user tests + JWT attack tests + WS ticket reuse + CSRF mismatch + migration smoke against records.db (completed 2026-04-30)
 - [ ] **Phase 17: Docs + Migration Runbook + Operator Guide** — `.env.example`, README auth flow, migration runbook, OpenAPI updates
 - [ ] **Phase 18: Stretch (Optional)** — hCaptcha enable, HaveIBeenPwned check, per-key scopes UI, per-key expiration
 
@@ -155,7 +155,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - [x] 16-02-security-matrix-PLAN.md — VERIFY-01 cross-user matrix (8 endpoints x {self, foreign} parametrized; anti-enum body parity) (Wave 1)
 - [x] 16-03-jwt-attacks-PLAN.md — VERIFY-02/03/04 (alg=none / tampered / expired x bearer/cookie transports) (Wave 1)
 - [x] 16-04-csrf-enforcement-PLAN.md — VERIFY-06 (missing/mismatch/matching X-CSRF-Token + bearer-bypass) (Wave 1)
-- [ ] 16-05-ws-ticket-safety-PLAN.md — VERIFY-07 (reuse / expired / cross-user drift; gold copy) (Wave 1)
+- [x] 16-05-ws-ticket-safety-PLAN.md — VERIFY-07 (reuse / expired / cross-user drift; gold copy) (Wave 1)
 - [x] 16-06-migration-smoke-PLAN.md — VERIFY-08 (synthetic v1.1 baseline -> head; row count + NOT NULL + FK enforce) (Wave 1)
 
 ### Phase 17: Docs + Migration Runbook + Operator Guide
@@ -191,7 +191,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | 13. Atomic Backend Cutover | v1.2 | 10/10 | Complete    | 2026-04-29 |
 | 14. Atomic Frontend Cutover + Test Infra | v1.2 | 7/7 | Complete    | 2026-04-29 |
 | 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 6/6 | Complete   | 2026-04-29 |
-| 16. Verification + Cross-User Matrix + E2E | v1.2 | 5/6 | In Progress|  |
+| 16. Verification + Cross-User Matrix + E2E | v1.2 | 6/6 | Complete   | 2026-04-30 |
 | 17. Docs + Migration Runbook + Operator Guide | v1.2 | 0/TBD | Not started | - |
 | 18. Stretch (Optional) | v1.2 | 0/TBD | Optional | - |
 
