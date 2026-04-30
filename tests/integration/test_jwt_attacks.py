@@ -138,3 +138,98 @@ def _register_user(
     ``client.cookies.clear()`` before attaching forged tokens (Pitfall 2).
     """
     return _register(client, email)
+
+
+def _send_with(client: TestClient, transport: str, token: str):
+    """Dispatch ``POST /auth/logout-all`` with ``token`` over ``transport``.
+
+    Two flat early-return guards keep nested-if at zero. Forged tokens
+    travel either as ``Authorization: Bearer ...`` OR via the ``session``
+    cookie — both paths must collapse to 401 in DualAuthMiddleware.
+    """
+    if transport == "bearer":
+        return client.post(
+            "/auth/logout-all",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    if transport == "cookie":
+        client.cookies.set("session", token)
+        return client.post("/auth/logout-all")
+    raise ValueError(f"unknown transport: {transport}")
+
+
+# ---------------------------------------------------------------------------
+# Tests — 3 forgeries × 2 transports = 6 cases.
+# Every test clears cookies before attaching the forged token (Pitfall 2)
+# so the only credential reaching the middleware is the forgery under test.
+# ---------------------------------------------------------------------------
+
+
+_TRANSPORTS = [
+    pytest.param("bearer", id="bearer"),
+    pytest.param("cookie", id="cookie"),
+]
+
+
+@pytest.mark.parametrize("transport", _TRANSPORTS)
+@pytest.mark.integration
+def test_alg_none_jwt_returns_401(
+    transport: str, auth_full_app: tuple[FastAPI, Container]
+) -> None:
+    """VERIFY-02 — alg=none token rejected on every transport.
+
+    PyJWT decodes with ``algorithms=["HS256"]`` so an alg=none header
+    surfaces ``InvalidAlgorithmError`` → ``JwtAlgorithmError`` → 401.
+    """
+    app, _ = auth_full_app
+    client = TestClient(app)
+    user_id = _register_user(client, f"alg-none-{transport}@phase16.example.com")
+    forged_token = _forge_jwt(alg=JWT_ALG_NONE, user_id=user_id)
+
+    client.cookies.clear()
+    response = _send_with(client, transport, forged_token)
+
+    assert response.status_code == 401, response.text
+
+
+@pytest.mark.parametrize("transport", _TRANSPORTS)
+@pytest.mark.integration
+def test_tampered_jwt_returns_401(
+    transport: str, auth_full_app: tuple[FastAPI, Container]
+) -> None:
+    """VERIFY-03 — HS256 token with flipped last sig char rejected.
+
+    HMAC verify fails → ``InvalidSignatureError`` → ``JwtTamperedError``
+    → 401. Real signing key is required so the forgery exercises the
+    signature-verification code path (not the algorithm allow-list).
+    """
+    app, container = auth_full_app
+    client = TestClient(app)
+    user_id = _register_user(client, f"tampered-{transport}@phase16.example.com")
+    forged_token = _forge_jwt(alg=JWT_HS256, user_id=user_id, secret=_jwt_secret(container), tamper=True)
+
+    client.cookies.clear()
+    response = _send_with(client, transport, forged_token)
+
+    assert response.status_code == 401, response.text
+
+
+@pytest.mark.parametrize("transport", _TRANSPORTS)
+@pytest.mark.integration
+def test_expired_jwt_returns_401(
+    transport: str, auth_full_app: tuple[FastAPI, Container]
+) -> None:
+    """VERIFY-04 — HS256 token with exp in the past rejected.
+
+    Real signing key + iat/exp shifted to the past so PyJWT raises
+    ``ExpiredSignatureError`` → ``JwtExpiredError`` → 401.
+    """
+    app, container = auth_full_app
+    client = TestClient(app)
+    user_id = _register_user(client, f"expired-{transport}@phase16.example.com")
+    forged_token = _forge_jwt(alg=JWT_HS256, user_id=user_id, secret=_jwt_secret(container), expired=True)
+
+    client.cookies.clear()
+    response = _send_with(client, transport, forged_token)
+
+    assert response.status_code == 401, response.text
