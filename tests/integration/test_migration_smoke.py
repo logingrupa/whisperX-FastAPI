@@ -98,9 +98,9 @@ def _seed_admin_user_and_assign_tasks(db_path: Path) -> int:
         admin_id = conn.exec_driver_sql(
             "SELECT id FROM users WHERE email = 'admin@phase16.example.com'"
         ).scalar()
+        assert admin_id is not None, "admin user insert returned no id"
         conn.exec_driver_sql("UPDATE tasks SET user_id = ?", (admin_id,))
     engine.dispose()
-    assert admin_id is not None, "admin user insert returned no id"
     return int(admin_id)
 
 
