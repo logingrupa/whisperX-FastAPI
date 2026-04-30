@@ -28,7 +28,7 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+import uuid
 from pathlib import Path
 
 import jwt
@@ -133,9 +133,7 @@ def _insert_task(
     """
     from app.infrastructure.database.models import Task as ORMTask
 
-    task_uuid = (
-        f"uuid-u{user_id}-{datetime.now(timezone.utc).timestamp()}"
-    )
+    task_uuid = str(uuid.uuid4())
     with session_factory() as session:
         session.add(
             ORMTask(
