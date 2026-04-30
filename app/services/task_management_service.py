@@ -70,6 +70,53 @@ class TaskManagementService:
         logger.info("Retrieved %d tasks", len(tasks))
         return tasks
 
+    def list_tasks_paginated(
+        self,
+        *,
+        q: str | None,
+        status: str | None,
+        page: int,
+        page_size: int,
+    ) -> tuple[list[Task], int]:
+        """List tasks with server-side filter + pagination (Plan 15-ux).
+
+        SRP: route stays HTTP glue; the service slices/counts and the repo
+        pushes filters into SQL. Caller gets ``(page_slice, total_count)``
+        in a single round-trip per concern (one SELECT + one COUNT).
+
+        Tiger-style: assert page/page_size at the boundary even though the
+        route's Pydantic ``Field(ge=, le=)`` already returns 422 for bad
+        input — defence-in-depth for non-HTTP callers (CLI, internal jobs).
+
+        Args:
+            q: Case-insensitive substring match against file_name (or None).
+            status: Exact-match status filter (or None).
+            page: 1-indexed page number (>= 1).
+            page_size: Items per page (1..200).
+
+        Returns:
+            (tasks, total) where ``tasks`` is the current page slice and
+            ``total`` is the un-paginated count under the same filters.
+        """
+        assert page >= 1, f"page must be >= 1, got {page}"
+        assert 1 <= page_size <= 200, (
+            f"page_size must be in [1, 200], got {page_size}"
+        )
+
+        offset = (page - 1) * page_size
+        tasks = self.repository.list_paginated(
+            q=q, status=status, offset=offset, limit=page_size
+        )
+        total = self.repository.count(q=q, status=status)
+        logger.info(
+            "Paginated tasks: page=%d size=%d returned=%d total=%d",
+            page,
+            page_size,
+            len(tasks),
+            total,
+        )
+        return tasks, total
+
     def delete_task(self, identifier: str) -> bool:
         """
         Delete a task by its identifier.

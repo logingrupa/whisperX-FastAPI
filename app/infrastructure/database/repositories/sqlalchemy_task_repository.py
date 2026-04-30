@@ -19,6 +19,7 @@ internal services) keep working unchanged.
 from typing import Any
 from uuid import uuid4
 
+from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, Session
 
@@ -175,6 +176,84 @@ class SQLAlchemyTaskRepository:
         except SQLAlchemyError as e:
             logger.error(f"Failed to get all tasks: {str(e)}")
             return []
+
+    def _apply_filters(
+        self, query: Query, *, q: str | None, status: str | None
+    ) -> Query:
+        """Apply q/status filters to a scoped query (DRT funnel — Plan 15-ux).
+
+        Single source of truth for the search/filter predicates so
+        ``list_paginated`` and ``count`` cannot drift. ``q`` becomes a
+        case-insensitive ``LIKE %q%`` against file_name; ``status`` is
+        exact match. Both are no-ops when None — list/count behave like
+        the un-filtered scoped query.
+        """
+        if q is not None and len(q) > 0:
+            pattern = f"%{q}%"
+            query = query.filter(func.lower(ORMTask.file_name).like(pattern.lower()))
+        if status is not None and len(status) > 0:
+            query = query.filter(ORMTask.status == status)
+        return query
+
+    def list_paginated(
+        self,
+        *,
+        q: str | None,
+        status: str | None,
+        offset: int,
+        limit: int,
+    ) -> list[DomainTask]:
+        """Return a paginated, filtered slice (Plan 15-ux).
+
+        Pushes the user-scope filter AND q/status predicates into SQL via
+        ``_scoped_query`` + ``_apply_filters``. Ordered ``created_at DESC``
+        so newest tasks render first in the queue. Single SELECT — no N+1.
+
+        Args:
+            q: Case-insensitive substring filter on file_name (or None).
+            status: Exact-match status filter (or None).
+            offset: Rows to skip; service computes ``(page - 1) * page_size``.
+            limit: Maximum rows to return.
+
+        Returns:
+            list[DomainTask]: The page slice (may be empty).
+        """
+        try:
+            query = self._apply_filters(
+                self._scoped_query(), q=q, status=status
+            )
+            orm_tasks = (
+                query.order_by(ORMTask.created_at.desc())
+                .offset(offset)
+                .limit(limit)
+                .all()
+            )
+            domain_tasks = [to_domain(orm_task) for orm_task in orm_tasks]
+            logger.debug(
+                "list_paginated returned %d tasks (offset=%d limit=%d)",
+                len(domain_tasks),
+                offset,
+                limit,
+            )
+            return domain_tasks
+        except SQLAlchemyError as e:
+            logger.error(f"Failed to list paginated tasks: {str(e)}")
+            return []
+
+    def count(self, *, q: str | None, status: str | None) -> int:
+        """Return scoped + filtered count (Plan 15-ux).
+
+        Mirrors ``list_paginated`` predicates so totals match the slice.
+        Single SELECT COUNT(*) — no row materialisation.
+        """
+        try:
+            query = self._apply_filters(
+                self._scoped_query(), q=q, status=status
+            )
+            return int(query.count())
+        except SQLAlchemyError as e:
+            logger.error(f"Failed to count tasks: {str(e)}")
+            return 0
 
     def update(self, identifier: str, update_data: dict[str, Any]) -> None:
         """
