@@ -9,8 +9,8 @@ Imported by:
 
 Single source for endpoint catalog, user seeding, JWT forging, CSRF cookie
 capture, and alembic subprocess invocation. NO test logic, NO fixtures, NO
-``@pytest.mark.*`` here — just shared building blocks so plans 16-02..06 stay
-file-disjoint and parallel-safe.
+test-framework decorators here — just shared building blocks so plans
+16-02..06 stay file-disjoint and parallel-safe.
 
 Code-quality invariants (verifier-checked):
     DRY  — single shared module; ENDPOINT_CATALOG hardcoded once.
@@ -148,3 +148,122 @@ def _insert_task(
         )
         session.commit()
     return task_uuid
+
+
+# ---------------------------------------------------------------------------
+# JWT forging — kwargs-only; three deterministic branches:
+#   alg=none → bypass PyJWT (which refuses alg=none on encode)
+#   HS256 + tamper → real signature with last byte flipped
+#   HS256 + expired → real signature, ``iat``/``exp`` shifted to the past
+# Every branch is a flat early-return guard. No nested-if.
+# ---------------------------------------------------------------------------
+
+
+def _b64url(raw: dict | bytes) -> str:
+    """Base64url-encode (no padding) JSON-serialised dicts or raw bytes.
+
+    JWT segments are base64url with padding stripped per RFC 7515 §2.
+    """
+    payload_bytes = (
+        raw if isinstance(raw, bytes)
+        else json.dumps(raw, separators=(",", ":")).encode()
+    )
+    return base64.urlsafe_b64encode(payload_bytes).rstrip(b"=").decode("ascii")
+
+
+def _forge_jwt(
+    *,
+    alg: str,
+    user_id: int,
+    token_version: int = 0,
+    secret: str | None = None,
+    expired: bool = False,
+    tamper: bool = False,
+) -> str:
+    """Forge a JWT for security tests.
+
+    Branches (mutually-exclusive, flat early-returns):
+        alg == JWT_ALG_NONE   → header={"alg":"none"}, empty signature segment.
+        alg == JWT_HS256      → real HS256 sign with ``secret``;
+                                ``expired=True`` shifts iat/exp into the past;
+                                ``tamper=True`` flips the last char of the sig.
+
+    Args:
+        alg:           ``JWT_ALG_NONE`` or ``JWT_HS256``.
+        user_id:       Subject claim (serialized as str per RFC 7519 §4.1.2).
+        token_version: Goes into the ``ver`` claim.
+        secret:        REQUIRED for HS256 branches; ignored for alg=none.
+        expired:       HS256 only — shift iat to now-86400, exp to now-3600.
+        tamper:        HS256 only — flip last char of the signature.
+
+    Returns:
+        Compact JWT string ``header.payload.signature``.
+    """
+    now = int(time.time())
+    payload = {
+        "sub": str(user_id),
+        "iat": now - 86400 if expired else now,
+        "exp": now - 3600 if expired else now + 86400,
+        "ver": token_version,
+        "method": "session",
+    }
+    if alg == JWT_ALG_NONE:
+        header = {"alg": "none", "typ": "JWT"}
+        return f"{_b64url(header)}.{_b64url(payload)}."
+    assert secret is not None, "HS256 forge requires secret"
+    token = jwt.encode(payload, secret, algorithm=JWT_HS256)
+    if not tamper:
+        return token
+    head, body, sig = token.split(".")
+    flipped_char = "A" if sig[-1] != "A" else "B"
+    return f"{head}.{body}.{sig[:-1]}{flipped_char}"
+
+
+# ---------------------------------------------------------------------------
+# CSRF cookie capture — single register + jar-read.
+# ---------------------------------------------------------------------------
+
+
+def _issue_csrf_pair(client: TestClient, email: str) -> tuple[str, str]:
+    """Register ``email`` on ``client`` and return ``(session, csrf_token)``.
+
+    auth_routes.register stamps both cookies on the 201 response, which the
+    httpx jar inside TestClient captures automatically. Tiger-style: assert
+    both cookies are present so missing-cookie regressions fail loud.
+    """
+    _register(client, email)
+    session = client.cookies.get("session")
+    csrf = client.cookies.get("csrf_token")
+    assert session is not None, "session cookie missing after register"
+    assert csrf is not None, "csrf_token cookie missing after register"
+    return (session, csrf)
+
+
+# ---------------------------------------------------------------------------
+# Alembic subprocess wrapper — venv-portable per Plan 10-04 lesson.
+# Mirrors test_alembic_migration.py:34-53 verbatim.
+# ---------------------------------------------------------------------------
+
+
+def _run_alembic(
+    args: list[str], db_url: str
+) -> subprocess.CompletedProcess[str]:
+    """Invoke the alembic CLI with ``DB_URL`` pointed at ``db_url``.
+
+    Args:
+        args:    Alembic subcommand args (e.g. ``["upgrade", "head"]``).
+        db_url:  SQLAlchemy URL string for the target DB.
+
+    Returns:
+        The completed process; raises ``CalledProcessError`` on non-zero exit.
+    """
+    env = os.environ.copy()
+    env["DB_URL"] = db_url
+    return subprocess.run(
+        [sys.executable, "-m", "alembic", *args],
+        cwd=REPO_ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
