@@ -190,6 +190,9 @@ def test_alg_none_jwt_returns_401(
     response = _send_with(client, transport, forged_token)
 
     assert response.status_code == 401, response.text
+    assert response.json()["detail"] == "Authentication required", (
+        f"T-13-05 anti-leak body mismatch: {response.text}"
+    )
 
 
 @pytest.mark.parametrize("transport", _TRANSPORTS)
@@ -212,6 +215,9 @@ def test_tampered_jwt_returns_401(
     response = _send_with(client, transport, forged_token)
 
     assert response.status_code == 401, response.text
+    assert response.json()["detail"] == "Authentication required", (
+        f"T-13-05 anti-leak body mismatch: {response.text}"
+    )
 
 
 @pytest.mark.parametrize("transport", _TRANSPORTS)
@@ -233,3 +239,6 @@ def test_expired_jwt_returns_401(
     response = _send_with(client, transport, forged_token)
 
     assert response.status_code == 401, response.text
+    assert response.json()["detail"] == "Authentication required", (
+        f"T-13-05 anti-leak body mismatch: {response.text}"
+    )
