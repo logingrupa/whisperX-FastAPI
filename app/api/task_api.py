@@ -1,6 +1,6 @@
 """This module contains the task management routes for the FastAPI application."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import get_scoped_task_management_service
 from app.api.mappers.task_mapper import TaskMapper
@@ -15,24 +15,54 @@ task_router = APIRouter()
 
 @task_router.get("/task/all", tags=["Tasks Management"])
 async def get_all_tasks_status(
+    q: str | None = Query(
+        None,
+        description="Substring match against file_name (case-insensitive)",
+        max_length=200,
+    ),
+    status: str | None = Query(
+        None,
+        description="Filter by task status (processing|completed|failed)",
+        max_length=32,
+    ),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(
+        50, ge=1, le=200, description="Items per page (1..200)"
+    ),
     service: TaskManagementService = Depends(get_scoped_task_management_service),
 ) -> TaskListResponse:
     """
-    Retrieve the status of all tasks.
+    Retrieve a paginated, optionally filtered list of tasks (Plan 15-ux).
+
+    Pagination + search is server-side so the queue can scale beyond a few
+    hundred rows without dragging the whole table to the browser. The
+    user-scope filter (Phase 13-07) still applies — callers see only their
+    own tasks.
 
     Args:
-        service: Task management service dependency.
+        q: Case-insensitive substring match against file_name.
+        status: Exact-match status filter (processing|completed|failed).
+        page: 1-indexed page number; Pydantic ``ge=1`` rejects 0/negatives.
+        page_size: Items per page, 1..200; out-of-range -> 422.
+        service: Task management service dependency (scoped to caller).
 
     Returns:
-        TaskListResponse: The status of all tasks.
+        TaskListResponse: ``{tasks, total, page, page_size}``.
     """
-    logger.info("Retrieving status of all tasks")
-    tasks = service.get_all_tasks()
-
-    # Convert domain tasks to API DTOs using mapper
+    logger.info(
+        "Retrieving tasks: q=%s status=%s page=%d page_size=%d",
+        q,
+        status,
+        page,
+        page_size,
+    )
+    tasks, total = service.list_tasks_paginated(
+        q=q, status=status, page=page, page_size=page_size
+    )
     task_summaries = [TaskMapper.to_summary(task) for task in tasks]
-
-    return TaskListResponse(tasks=task_summaries)
+    return TaskListResponse(
+        tasks=task_summaries, total=total, page=page, page_size=page_size
+    )
 
 
 @task_router.get("/task/{identifier}", tags=["Tasks Management"])

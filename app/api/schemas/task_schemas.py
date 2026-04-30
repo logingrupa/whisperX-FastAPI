@@ -78,6 +78,23 @@ class TaskSummaryResponse(BaseModel):
 
 
 class TaskListResponse(BaseModel):
-    """DTO for returning a list of task summaries."""
+    """DTO for returning a paginated list of task summaries.
 
-    tasks: list[TaskSummaryResponse] = Field(..., description="List of task summaries")
+    Plan 15-ux pagination: ``tasks`` is the current page slice; ``total``
+    is the un-paginated count after q/status filters apply (for
+    "Page N of M" UI). Backwards-compatible — existing clients that only
+    read ``tasks`` keep working.
+    """
+
+    tasks: list[TaskSummaryResponse] = Field(
+        ..., description="List of task summaries (current page slice)"
+    )
+    total: int = Field(
+        0,
+        ge=0,
+        description="Total task count across all pages after filters apply",
+    )
+    page: int = Field(1, ge=1, description="Current page (1-indexed)")
+    page_size: int = Field(
+        50, ge=1, le=200, description="Items per page (1..200)"
+    )
