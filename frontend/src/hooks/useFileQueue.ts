@@ -61,6 +61,20 @@ export function useFileQueue() {
   }, []);
 
   /**
+   * Replace the historic portion of the queue with a fresh snapshot
+   * (Plan 15-ux pagination — page N's slice fully replaces page N-1's).
+   *
+   * Live items (kind === 'live') are preserved untouched so an in-flight
+   * upload mid-page-flip is never destroyed; only historic rows turn over.
+   */
+  const setHistoricTasks = useCallback((historicItems: FileQueueItem[]) => {
+    setQueue(previousQueue => {
+      const liveItems = previousQueue.filter(item => item.kind === 'live');
+      return [...historicItems, ...liveItems];
+    });
+  }, []);
+
+  /**
    * Remove a file from the queue (only if pending)
    * Per CONTEXT.md: "Files can only be removed before processing starts"
    */
@@ -219,6 +233,7 @@ export function useFileQueue() {
     queue,
     addFiles,
     addHistoricTasks,
+    setHistoricTasks,
     removeFile,
     clearPendingFiles,
     updateFileSettings,

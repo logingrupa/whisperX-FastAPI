@@ -18,8 +18,13 @@
  * log + swallow so a flaky GET never blocks fresh uploads. AuthRequired
  * is propagated implicitly — apiClient already redirects.
  */
-import { useEffect } from 'react';
-import { fetchAllTasks, type TaskListItem, type BackendTaskStatus } from '@/lib/api/taskApi';
+import { useEffect, useState } from 'react';
+import {
+  fetchAllTasks,
+  type FetchAllTasksOptions,
+  type TaskListItem,
+  type BackendTaskStatus,
+} from '@/lib/api/taskApi';
 import { DEFAULT_MODEL } from '@/lib/whisperModels';
 import type {
   FileQueueItem,
@@ -32,6 +37,24 @@ interface UseTaskHistoryOptions {
   addHistoricTasks: (items: FileQueueItem[]) => void;
   /** Re-bind WS for an item already mid-processing on the server. */
   resumeProcessingTask: (fileId: string, taskId: string) => void;
+  /** Optional q/status/page filters (Plan 15-ux pagination). */
+  query?: FetchAllTasksOptions;
+  /**
+   * Replace queue contents on every fetch instead of appending.
+   * Used by paginated callers — without it, switching pages would
+   * pile every slice on top of the previous one.
+   */
+  replaceOnFetch?: boolean;
+  /** Inject a fresh queue snapshot (replaces all rows, no de-dup). */
+  setHistoricTasks?: (items: FileQueueItem[]) => void;
+}
+
+/** Pagination metadata surfaced back to the caller (Plan 15-ux). */
+export interface TaskHistoryMeta {
+  total: number;
+  page: number;
+  pageSize: number;
+  loading: boolean;
 }
 
 /**
@@ -109,20 +132,48 @@ export function seedQueueFromTasks(tasks: TaskListItem[]): FileQueueItem[] {
  * Reset hooks (resetTaskHistoryCache) live in the test export below — see
  * the regression test that wraps the hook in <StrictMode>.
  */
-let inflightFetch: Promise<TaskListItem[] | null> | null = null;
+/** Successful fetch payload — tasks slice + pagination meta (Plan 15-ux). */
+interface FetchedHistory {
+  tasks: TaskListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
 
-async function getOrStartFetch(): Promise<TaskListItem[] | null> {
-  if (inflightFetch !== null) return inflightFetch;
-  const promise = (async (): Promise<TaskListItem[] | null> => {
+let inflightFetch: Promise<FetchedHistory | null> | null = null;
+let inflightKey: string | null = null;
+
+/** Stable key for the inflight cache — same query reuses the promise. */
+function queryKey(opts: FetchAllTasksOptions | undefined): string {
+  if (!opts) return ':default';
+  return [
+    opts.q ?? '',
+    opts.status ?? '',
+    opts.page ?? '',
+    opts.pageSize ?? '',
+  ].join(':');
+}
+
+async function getOrStartFetch(
+  opts: FetchAllTasksOptions | undefined,
+): Promise<FetchedHistory | null> {
+  const key = queryKey(opts);
+  if (inflightFetch !== null && inflightKey === key) return inflightFetch;
+  const promise = (async (): Promise<FetchedHistory | null> => {
     try {
-      const result = await fetchAllTasks();
+      const result = await fetchAllTasks(opts);
       if (!result.success) {
         // Non-401 errors are already typed; AuthRequired never reaches here
         // because apiClient throws + redirects. Log + continue (queue empty).
         console.warn('useTaskHistory: failed to fetch /task/all:', result.error.detail);
         return null;
       }
-      return result.data;
+      return {
+        tasks: result.data.tasks,
+        total: result.data.total,
+        page: result.data.page,
+        pageSize: result.data.page_size,
+      };
     } catch (err) {
       // AuthRequiredError already redirected via apiClient. Anything else
       // we swallow + log — uploads must keep working.
@@ -131,9 +182,13 @@ async function getOrStartFetch(): Promise<TaskListItem[] | null> {
     }
   })();
   inflightFetch = promise;
+  inflightKey = key;
   // Clear cache on failure so a later remount can retry.
   void promise.then(value => {
-    if (value === null) inflightFetch = null;
+    if (value === null && inflightKey === key) {
+      inflightFetch = null;
+      inflightKey = null;
+    }
   });
   return promise;
 }
@@ -141,31 +196,78 @@ async function getOrStartFetch(): Promise<TaskListItem[] | null> {
 /** Test-only cache reset. Not exported as part of the public hook API. */
 export function __resetTaskHistoryCacheForTests(): void {
   inflightFetch = null;
+  inflightKey = null;
 }
 
 /**
- * Hook: on mount, fetch /task/all and seed the queue.
+ * Hook: fetch /task/all and seed the queue, re-fetching whenever the
+ * supplied query changes (Plan 15-ux pagination).
  *
- * Returns void — caller composes side-effect via injected setters.
+ * SRP: this hook owns the fetch + query state caching; the component
+ * (QueueFilterBar / TranscribePage) owns the input UI.
+ *
  * StrictMode-safe: the fetch is shared via a module-level inflight promise
- * so both dev double-mounts await the same result. Per-mount `cancelled`
- * flag prevents the unmounted instance from calling stale setters; the
- * survivor seeds normally. Queue-layer dedupe (taskId Set in
- * addHistoricTasks) handles any redundant call.
+ * keyed by the current query so both dev double-mounts await the same
+ * result. Per-mount `cancelled` flag prevents the unmounted instance from
+ * calling stale setters; the survivor seeds normally. Queue-layer dedupe
+ * (taskId Set in addHistoricTasks) handles any redundant call.
+ *
+ * When ``replaceOnFetch`` is true (paginated mode) the previous slice is
+ * cleared via ``setHistoricTasks`` before injecting the new one — flipping
+ * to page 2 must REPLACE the visible queue rather than append.
  */
 export function useTaskHistory({
   addHistoricTasks,
   resumeProcessingTask,
-}: UseTaskHistoryOptions): void {
+  query,
+  replaceOnFetch,
+  setHistoricTasks,
+}: UseTaskHistoryOptions): TaskHistoryMeta {
+  const [meta, setMeta] = useState<TaskHistoryMeta>({
+    total: 0,
+    page: query?.page ?? 1,
+    pageSize: query?.pageSize ?? 50,
+    loading: true,
+  });
+
+  // Stable serialised key for effect deps — primitives only, no new object
+  // identity per render (avoids ESLint exhaustive-deps treating `query` as
+  // a fresh dep on every parent re-render).
+  const querySerialised = queryKey(query);
+
   useEffect(() => {
     let cancelled = false;
+    setMeta(previous => ({ ...previous, loading: true }));
+    // Each query mounts a fresh module-level fetch — invalidate the prior
+    // cache so a new key forces a real round-trip rather than serving the
+    // previous slice. The inflight promise itself dedupes concurrent
+    // mounts of the SAME query (StrictMode safety).
+    if (inflightKey !== querySerialised) {
+      inflightFetch = null;
+      inflightKey = null;
+    }
     void (async () => {
-      const tasks = await getOrStartFetch();
+      const fetched = await getOrStartFetch(query);
       if (cancelled) return;
-      if (tasks === null) return;
-      const historicItems = seedQueueFromTasks(tasks);
-      if (historicItems.length === 0) return;
-      addHistoricTasks(historicItems);
+      if (fetched === null) {
+        setMeta(previous => ({ ...previous, loading: false }));
+        return;
+      }
+      setMeta({
+        total: fetched.total,
+        page: fetched.page,
+        pageSize: fetched.pageSize,
+        loading: false,
+      });
+      const historicItems = seedQueueFromTasks(fetched.tasks);
+
+      // Replace mode: clear queue first, then inject. Append mode (default)
+      // delegates to addHistoricTasks which de-dups by taskId.
+      if (replaceOnFetch === true && setHistoricTasks !== undefined) {
+        setHistoricTasks(historicItems);
+      } else if (historicItems.length > 0) {
+        addHistoricTasks(historicItems);
+      }
 
       // Re-bind WS for the first historic item still in 'processing'.
       // Single-task-at-a-time invariant matches existing orchestration.
@@ -177,5 +279,17 @@ export function useTaskHistory({
     return () => {
       cancelled = true;
     };
-  }, [addHistoricTasks, resumeProcessingTask]);
+    // querySerialised covers all query-shape changes; addHistoricTasks /
+    // resumeProcessingTask / setHistoricTasks are stable callbacks from
+    // the parent (useCallback in useFileQueue / useUploadOrchestration).
+  }, [
+    addHistoricTasks,
+    resumeProcessingTask,
+    setHistoricTasks,
+    replaceOnFetch,
+    querySerialised,
+    query,
+  ]);
+
+  return meta;
 }
