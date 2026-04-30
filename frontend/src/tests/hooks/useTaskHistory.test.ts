@@ -289,3 +289,236 @@ describe('useTaskHistory — mount-time seed', () => {
     expect(addHistoricTasks).not.toHaveBeenCalled();
   });
 });
+
+describe('useTaskHistory — query state + re-fetch (Plan 15-ux)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    __resetTaskHistoryCacheForTests();
+  });
+
+  it('forwards q/status/page/pageSize to /task/all', async () => {
+    const observedUrls: string[] = [];
+    server.use(
+      http.get('/task/all', ({ request }) => {
+        observedUrls.push(request.url);
+        return HttpResponse.json({
+          tasks: [],
+          total: 0,
+          page: 2,
+          page_size: 50,
+        });
+      }),
+    );
+
+    const setHistoricTasks = vi.fn();
+    renderHook(() =>
+      useTaskHistory({
+        addHistoricTasks: vi.fn(),
+        resumeProcessingTask: vi.fn(),
+        setHistoricTasks,
+        replaceOnFetch: true,
+        query: { q: 'meeting', status: 'completed', page: 2, pageSize: 50 },
+      }),
+    );
+
+    await waitFor(() => expect(observedUrls.length).toBeGreaterThan(0));
+    const url = new URL(observedUrls[0]);
+    expect(url.searchParams.get('q')).toBe('meeting');
+    expect(url.searchParams.get('status')).toBe('completed');
+    expect(url.searchParams.get('page')).toBe('2');
+    expect(url.searchParams.get('page_size')).toBe('50');
+  });
+
+  it('re-fetches when query.q changes', async () => {
+    let callCount = 0;
+    server.use(
+      http.get('/task/all', () => {
+        callCount += 1;
+        return HttpResponse.json({
+          tasks: [],
+          total: 0,
+          page: 1,
+          page_size: 50,
+        });
+      }),
+    );
+
+    const setHistoricTasks = vi.fn();
+    const { rerender } = renderHook(
+      ({ q }: { q: string }) =>
+        useTaskHistory({
+          addHistoricTasks: vi.fn(),
+          resumeProcessingTask: vi.fn(),
+          setHistoricTasks,
+          replaceOnFetch: true,
+          query: { q, page: 1, pageSize: 50 },
+        }),
+      { initialProps: { q: 'first' } },
+    );
+
+    await waitFor(() => expect(callCount).toBe(1));
+    rerender({ q: 'second' });
+    await waitFor(() => expect(callCount).toBe(2));
+  });
+
+  it('re-fetches when query.page changes', async () => {
+    const pageHits: string[] = [];
+    server.use(
+      http.get('/task/all', ({ request }) => {
+        pageHits.push(new URL(request.url).searchParams.get('page') ?? '');
+        return HttpResponse.json({
+          tasks: [],
+          total: 0,
+          page: 1,
+          page_size: 50,
+        });
+      }),
+    );
+
+    const setHistoricTasks = vi.fn();
+    const { rerender } = renderHook(
+      ({ page }: { page: number }) =>
+        useTaskHistory({
+          addHistoricTasks: vi.fn(),
+          resumeProcessingTask: vi.fn(),
+          setHistoricTasks,
+          replaceOnFetch: true,
+          query: { page, pageSize: 50 },
+        }),
+      { initialProps: { page: 1 } },
+    );
+
+    await waitFor(() => expect(pageHits.length).toBe(1));
+    rerender({ page: 2 });
+    await waitFor(() => expect(pageHits.length).toBe(2));
+    expect(pageHits).toEqual(['1', '2']);
+  });
+
+  it('re-fetches when query.status changes', async () => {
+    const statusHits: (string | null)[] = [];
+    server.use(
+      http.get('/task/all', ({ request }) => {
+        statusHits.push(new URL(request.url).searchParams.get('status'));
+        return HttpResponse.json({
+          tasks: [],
+          total: 0,
+          page: 1,
+          page_size: 50,
+        });
+      }),
+    );
+
+    const setHistoricTasks = vi.fn();
+    const { rerender } = renderHook(
+      ({ status }: { status?: string }) =>
+        useTaskHistory({
+          addHistoricTasks: vi.fn(),
+          resumeProcessingTask: vi.fn(),
+          setHistoricTasks,
+          replaceOnFetch: true,
+          query: { status, page: 1, pageSize: 50 },
+        }),
+      { initialProps: { status: undefined as string | undefined } },
+    );
+
+    await waitFor(() => expect(statusHits.length).toBe(1));
+    rerender({ status: 'failed' });
+    await waitFor(() => expect(statusHits.length).toBe(2));
+    expect(statusHits[1]).toBe('failed');
+  });
+
+  it('returns meta with total/page/pageSize from envelope', async () => {
+    server.use(
+      http.get('/task/all', () =>
+        HttpResponse.json({
+          tasks: [],
+          total: 461,
+          page: 1,
+          page_size: 50,
+        }),
+      ),
+    );
+
+    const { result } = renderHook(() =>
+      useTaskHistory({
+        addHistoricTasks: vi.fn(),
+        resumeProcessingTask: vi.fn(),
+        setHistoricTasks: vi.fn(),
+        replaceOnFetch: true,
+        query: { page: 1, pageSize: 50 },
+      }),
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.total).toBe(461);
+    expect(result.current.page).toBe(1);
+    expect(result.current.pageSize).toBe(50);
+  });
+
+  it('replaces historic queue on each fetch when replaceOnFetch=true', async () => {
+    server.use(
+      http.get('/task/all', ({ request }) => {
+        const page = new URL(request.url).searchParams.get('page');
+        const tasks =
+          page === '2'
+            ? [{
+                identifier: 'page2-1',
+                status: 'completed',
+                task_type: 'transcribe',
+                file_name: 'p2.mp3',
+                url: null,
+                audio_duration: null,
+                language: null,
+                error: null,
+                duration: null,
+                start_time: null,
+                end_time: null,
+              }]
+            : [{
+                identifier: 'page1-1',
+                status: 'completed',
+                task_type: 'transcribe',
+                file_name: 'p1.mp3',
+                url: null,
+                audio_duration: null,
+                language: null,
+                error: null,
+                duration: null,
+                start_time: null,
+                end_time: null,
+              }];
+        return HttpResponse.json({
+          tasks,
+          total: 2,
+          page: page === '2' ? 2 : 1,
+          page_size: 1,
+        });
+      }),
+    );
+
+    const setHistoricTasks = vi.fn();
+    const { rerender } = renderHook(
+      ({ page }: { page: number }) =>
+        useTaskHistory({
+          addHistoricTasks: vi.fn(),
+          resumeProcessingTask: vi.fn(),
+          setHistoricTasks,
+          replaceOnFetch: true,
+          query: { page, pageSize: 1 },
+        }),
+      { initialProps: { page: 1 } },
+    );
+
+    await waitFor(() => expect(setHistoricTasks).toHaveBeenCalledTimes(1));
+    rerender({ page: 2 });
+    await waitFor(() => expect(setHistoricTasks).toHaveBeenCalledTimes(2));
+    const firstCallTaskIds = setHistoricTasks.mock.calls[0][0].map(
+      (item: { taskId?: string }) => item.taskId,
+    );
+    const secondCallTaskIds = setHistoricTasks.mock.calls[1][0].map(
+      (item: { taskId?: string }) => item.taskId,
+    );
+    expect(firstCallTaskIds).toEqual(['page1-1']);
+    expect(secondCallTaskIds).toEqual(['page2-1']);
+  });
+});

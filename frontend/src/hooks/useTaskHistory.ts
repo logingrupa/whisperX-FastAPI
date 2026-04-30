@@ -18,7 +18,7 @@
  * log + swallow so a flaky GET never blocks fresh uploads. AuthRequired
  * is propagated implicitly — apiClient already redirects.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   fetchAllTasks,
   type FetchAllTasksOptions,
@@ -230,9 +230,23 @@ export function useTaskHistory({
     loading: true,
   });
 
+  // Refs hold the latest query + replace mode + setters so the effect can
+  // read them without subscribing — dependency on the serialised key is
+  // the ONLY thing that triggers re-fetch. Otherwise React's "new object
+  // identity per render" would loop the effect → fetch → setMeta → render.
+  const queryRef = useRef<FetchAllTasksOptions | undefined>(query);
+  queryRef.current = query;
+  const replaceOnFetchRef = useRef<boolean | undefined>(replaceOnFetch);
+  replaceOnFetchRef.current = replaceOnFetch;
+  const setHistoricTasksRef = useRef<typeof setHistoricTasks>(setHistoricTasks);
+  setHistoricTasksRef.current = setHistoricTasks;
+  const addHistoricTasksRef = useRef(addHistoricTasks);
+  addHistoricTasksRef.current = addHistoricTasks;
+  const resumeProcessingTaskRef = useRef(resumeProcessingTask);
+  resumeProcessingTaskRef.current = resumeProcessingTask;
+
   // Stable serialised key for effect deps — primitives only, no new object
-  // identity per render (avoids ESLint exhaustive-deps treating `query` as
-  // a fresh dep on every parent re-render).
+  // identity per render. This is the SOLE re-fetch trigger.
   const querySerialised = queryKey(query);
 
   useEffect(() => {
@@ -247,7 +261,7 @@ export function useTaskHistory({
       inflightKey = null;
     }
     void (async () => {
-      const fetched = await getOrStartFetch(query);
+      const fetched = await getOrStartFetch(queryRef.current);
       if (cancelled) return;
       if (fetched === null) {
         setMeta(previous => ({ ...previous, loading: false }));
@@ -263,10 +277,13 @@ export function useTaskHistory({
 
       // Replace mode: clear queue first, then inject. Append mode (default)
       // delegates to addHistoricTasks which de-dups by taskId.
-      if (replaceOnFetch === true && setHistoricTasks !== undefined) {
-        setHistoricTasks(historicItems);
+      const useReplace =
+        replaceOnFetchRef.current === true &&
+        setHistoricTasksRef.current !== undefined;
+      if (useReplace) {
+        setHistoricTasksRef.current?.(historicItems);
       } else if (historicItems.length > 0) {
-        addHistoricTasks(historicItems);
+        addHistoricTasksRef.current(historicItems);
       }
 
       // Re-bind WS for the first historic item still in 'processing'.
@@ -274,22 +291,15 @@ export function useTaskHistory({
       const firstProcessing = historicItems.find(item => item.status === 'processing');
       if (!firstProcessing) return;
       if (!firstProcessing.taskId) return;
-      resumeProcessingTask(firstProcessing.id, firstProcessing.taskId);
+      resumeProcessingTaskRef.current(firstProcessing.id, firstProcessing.taskId);
     })();
     return () => {
       cancelled = true;
     };
-    // querySerialised covers all query-shape changes; addHistoricTasks /
-    // resumeProcessingTask / setHistoricTasks are stable callbacks from
-    // the parent (useCallback in useFileQueue / useUploadOrchestration).
-  }, [
-    addHistoricTasks,
-    resumeProcessingTask,
-    setHistoricTasks,
-    replaceOnFetch,
-    querySerialised,
-    query,
-  ]);
+    // querySerialised is the SOLE re-fetch trigger; refs absorb identity
+    // churn from the parent so callbacks/replace-mode/setters can change
+    // without firing a redundant fetch.
+  }, [querySerialised]);
 
   return meta;
 }
