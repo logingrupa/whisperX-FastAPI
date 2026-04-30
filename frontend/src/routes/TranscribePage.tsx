@@ -1,20 +1,27 @@
+import { useMemo, useState } from 'react';
 import { UploadDropzone } from '@/components/upload/UploadDropzone';
 import { FileQueueList } from '@/components/upload/FileQueueList';
 import { ConnectionStatus } from '@/components/upload/ConnectionStatus';
+import {
+  ALL_STATUSES,
+  QueueFilterBar,
+  type StatusFilter,
+} from '@/components/upload/QueueFilterBar';
 import { useUploadOrchestration } from '@/hooks/useUploadOrchestration';
 import { useTaskHistory } from '@/hooks/useTaskHistory';
 import { TopNav } from '@/components/layout/TopNav';
+import type { FetchAllTasksOptions } from '@/lib/api/taskApi';
+
+const PAGE_SIZE = 50;
 
 /**
  * Transcription page — UI-10.
  *
- * Moved verbatim from App.tsx during Phase 14 router cutover.
- * Existing UploadDropzone + FileQueueList + ConnectionStatus integration is
- * preserved 1:1 — no logic change, no styling change, no regression risk.
- *
- * Plan 15-ux: composes useTaskHistory once at mount so a refresh during
- * processing does not lose state — the in-flight task is re-seeded into
- * the queue and re-subscribes to WebSocket progress automatically.
+ * Owns the query state (Plan 15-ux pagination): searchQuery / statusFilter
+ * / currentPage. The QueueFilterBar receives them as props (SRP — page is
+ * the orchestrator, bar is dumb input UI), and useTaskHistory consumes
+ * them as a single ``query`` object so re-fetch fires only when the
+ * serialised key changes.
  *
  * <TopNav> renders as a SIBLING above the dropzone (not wrapped in AppShell)
  * so the dropzone stays full-bleed per Plan 14-04 lock. Same nav as
@@ -25,6 +32,7 @@ export function TranscribePage() {
     queue,
     addFiles,
     addHistoricTasks,
+    setHistoricTasks,
     removeFile,
     clearPendingFiles,
     updateFileSettings,
@@ -40,8 +48,41 @@ export function TranscribePage() {
     resumeProcessingTask,
   } = useUploadOrchestration();
 
-  // Mount-time DB-driven history seed (Plan 15-ux).
-  useTaskHistory({ addHistoricTasks, resumeProcessingTask });
+  // Single source of truth for queue query state (Plan 15-ux).
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(ALL_STATUSES);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // Reset to page 1 whenever filters change so an empty page-2 query
+  // does not show "no results" when results exist on page 1.
+  function applySearchQuery(value: string): void {
+    setSearchQuery(value);
+    setCurrentPage(1);
+  }
+  function applyStatusFilter(value: StatusFilter): void {
+    setStatusFilter(value);
+    setCurrentPage(1);
+  }
+
+  const query = useMemo<FetchAllTasksOptions>(() => {
+    const opts: FetchAllTasksOptions = {
+      page: currentPage,
+      pageSize: PAGE_SIZE,
+    };
+    if (searchQuery.length > 0) opts.q = searchQuery;
+    if (statusFilter !== ALL_STATUSES) opts.status = statusFilter;
+    return opts;
+  }, [searchQuery, statusFilter, currentPage]);
+
+  const meta = useTaskHistory({
+    addHistoricTasks,
+    resumeProcessingTask,
+    query,
+    replaceOnFetch: true,
+    setHistoricTasks,
+  });
+
+  const totalPages = Math.max(1, Math.ceil(meta.total / PAGE_SIZE));
 
   return (
     <>
@@ -50,6 +91,15 @@ export function TranscribePage() {
         <ConnectionStatus
           connectionState={connectionState}
           onReconnect={reconnect}
+        />
+        <QueueFilterBar
+          searchQuery={searchQuery}
+          onSearchQueryChange={applySearchQuery}
+          statusFilter={statusFilter}
+          onStatusFilterChange={applyStatusFilter}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
         />
         {queue.length > 0 && (
           <FileQueueList
