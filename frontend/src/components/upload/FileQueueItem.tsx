@@ -136,8 +136,8 @@ export function FileQueueItem({
             {/* File info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <p className="font-medium truncate" title={item.file.name}>
-                  {item.file.name}
+                <p className="font-medium truncate" title={item.fileName}>
+                  {item.fileName}
                 </p>
                 {/* Detected language badge (only when pending) */}
                 {item.detectedLanguage && isPending && (
@@ -177,7 +177,9 @@ export function FileQueueItem({
                 )}
               </div>
               <p className="text-sm text-muted-foreground">
-                {formatFileSize(item.file.size)}
+                {item.kind === 'historic' && item.fileSize === 0
+                  ? '—'
+                  : formatFileSize(item.fileSize)}
                 {/* Error message with "Show details" link */}
                 {isError && item.errorMessage && (
                   <>
@@ -316,7 +318,7 @@ export function FileQueueItem({
                 {transcriptSegments && (
                   <DownloadButtons
                     segments={transcriptSegments}
-                    filename={item.file.name.replace(/\.[^/.]+$/, '')}
+                    filename={item.fileName.replace(/\.[^/.]+$/, '')}
                     metadata={transcriptMetadata ?? undefined}
                   />
                 )}
