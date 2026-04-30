@@ -9,6 +9,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { AppRouter } from '@/routes/AppRouter';
 import { useAuthStore, type AuthUser } from '@/lib/stores/authStore';
@@ -84,6 +85,7 @@ describe('AppRouter — authenticated routing', () => {
   });
 
   it('renders AccountPage at /dashboard/account behind AppShell', async () => {
+    const user = userEvent.setup();
     render(
       <MemoryRouter initialEntries={['/dashboard/account']}>
         <AppRouter />
@@ -93,10 +95,14 @@ describe('AppRouter — authenticated routing', () => {
     expect(
       await screen.findByRole('heading', { name: /^account$/i, level: 1 }),
     ).toBeInTheDocument();
-    // AppShell nav links
-    expect(screen.getByText('API Keys')).toBeInTheDocument();
-    expect(screen.getByText('Usage')).toBeInTheDocument();
-    // user email Badge in AppShell header
+    // TopNav user-menu trigger renders email inline (>=md) + opens nav links
     expect(screen.getByText('user@example.com')).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: /open user menu/i }),
+    );
+    expect(
+      await screen.findByRole('menuitem', { name: /api keys/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /usage/i })).toBeInTheDocument();
   });
 });
