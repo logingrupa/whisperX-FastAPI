@@ -1,5 +1,4 @@
 import { Download } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { useTranscriptDownload, type ExportFormat } from '@/hooks/useTranscriptDownload';
 import type { TranscriptSegment, TaskMetadata } from '@/types/transcript';
 
@@ -61,16 +60,15 @@ export function DownloadButtons({
   return (
     <div className="queue-export-actions">
       {EXPORT_FORMATS.map(({ format, label }) => (
-        <Button
+        <button
           key={format}
-          variant="outline"
-          size="sm"
+          type="button"
           onClick={() => handleDownload(format)}
           className="queue-export-button"
         >
-          <Download className="queue-export-icon" />
+          <Download aria-hidden="true" />
           {label}
-        </Button>
+        </button>
       ))}
     </div>
   );
