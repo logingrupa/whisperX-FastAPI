@@ -11,8 +11,8 @@ info:
     \ Align the transcript to the audio/video file.\n    3. Diarize: Diarize an audio/video\
     \ file into speakers.\n    4. Combine Transcript and Diarization: Combine the\
     \ transcript and diarization results.\n\n    ## Supported file extensions:\n \
-    \   AUDIO_EXTENSIONS = {'.mp3', '.amr', '.oga', '.aac', '.m4a', '.ogg', '.wma',\
-    \ '.awb', '.wav'}\n\n    VIDEO_EXTENSIONS = {'.mov', '.mkv', '.avi', '.mp4', '.wmv'}\n\
+    \   AUDIO_EXTENSIONS = {'.m4a', '.wma', '.amr', '.mp3', '.aac', '.oga', '.wav',\
+    \ '.ogg', '.awb'}\n\n    VIDEO_EXTENSIONS = {'.wmv', '.mov', '.mp4', '.avi', '.mkv'}\n\
     \n    ## Language-Specific Model Overrides:\n\n    Some languages have fine-tuned\
     \ models that are automatically used when that language is selected.\n    The\
     \ server-side `LANGUAGE_MODEL_OVERRIDES` configuration maps language codes to\
@@ -931,10 +931,61 @@ paths:
       tags:
       - Tasks Management
       summary: Get All Tasks Status
-      description: "Retrieve the status of all tasks.\n\nArgs:\n    service: Task\
-        \ management service dependency.\n\nReturns:\n    TaskListResponse: The status\
-        \ of all tasks."
+      description: "Retrieve a paginated, optionally filtered list of tasks (Plan\
+        \ 15-ux).\n\nPagination + search is server-side so the queue can scale beyond\
+        \ a few\nhundred rows without dragging the whole table to the browser. The\n\
+        user-scope filter (Phase 13-07) still applies — callers see only their\nown\
+        \ tasks.\n\nArgs:\n    q: Case-insensitive substring match against file_name.\n\
+        \    status: Exact-match status filter (processing|completed|failed).\n  \
+        \  page: 1-indexed page number; Pydantic ``ge=1`` rejects 0/negatives.\n \
+        \   page_size: Items per page, 1..200; out-of-range -> 422.\n    service:\
+        \ Task management service dependency (scoped to caller).\n\nReturns:\n   \
+        \ TaskListResponse: ``{tasks, total, page, page_size}``."
       operationId: get_all_tasks_status_task_all_get
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          description: Substring match against file_name (case-insensitive)
+          title: Q
+        description: Substring match against file_name (case-insensitive)
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          description: Filter by task status (processing|completed|failed)
+          title: Status
+        description: Filter by task status (processing|completed|failed)
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          description: Page number (1-indexed)
+          default: 1
+          title: Page
+        description: Page number (1-indexed)
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          description: Items per page (1..200)
+          default: 50
+          title: Page Size
+        description: Items per page (1..200)
       responses:
         '200':
           description: Successful Response
@@ -942,6 +993,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TaskListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /task/{identifier}:
     get:
       tags:
@@ -1427,7 +1484,7 @@ paths:
         schema:
           $ref: '#/components/schemas/Device'
           description: Device to use for PyTorch inference
-          default: cpu
+          default: cuda
         description: Device to use for PyTorch inference
       - name: align_model
         in: query
@@ -1498,7 +1555,7 @@ paths:
         schema:
           $ref: '#/components/schemas/Device'
           description: Device to use for PyTorch inference
-          default: cpu
+          default: cuda
         description: Device to use for PyTorch inference
       - name: min_speakers
         in: query
@@ -1918,6 +1975,29 @@ paths:
           description: Successful Response
         '429':
           description: Too many requests — see Retry-After header
+  /auth/logout-all:
+    post:
+      tags:
+      - Authentication
+      summary: Logout All
+      description: 'POST /auth/logout-all — bump token_version + clear cookies. AUTH-06.
+
+
+        Invalidates every JWT issued for this user (including the caller''s own
+
+        cookie) by bumping ``users.token_version``. The next middleware ver-check
+
+        401s any outstanding session (T-15-03). Cookie clearing is for client UX
+
+        — the JWTs are already dead server-side. Mirrors /auth/logout''s
+
+        fresh-Response pattern (T-15-04 — see logout above for rationale).'
+      operationId: logout_all_auth_logout_all_post
+      responses:
+        '204':
+          description: Successful Response
+        '429':
+          description: Too many requests — see Retry-After header
   /api/keys:
     get:
       tags:
@@ -1994,6 +2074,90 @@ paths:
       responses:
         '204':
           description: Successful Response
+  /api/account/me:
+    get:
+      tags:
+      - Account
+      summary: Get Account Me
+      description: 'GET /api/account/me — return account summary for client hydration
+        (UI-07).
+
+
+        Anti-enumeration design (WR-03 — deliberate, NOT a missing 404):
+
+        AccountService.get_account_summary raises InvalidCredentialsError
+
+        when the users row is gone (race-condition self-delete or admin
+
+        purge). The global exception handler maps this to HTTP 401, which
+
+        is intentionally indistinguishable from session-expired from the
+
+        client''s perspective.
+
+
+        Frontend contract: ``fetchAccountSummary`` sets ``suppress401Redirect``,
+
+        so apiClient throws AuthRequiredError; ``authStore.refresh()`` catches
+
+        it and silently clears the user. Effect: a stale-session client sees
+
+        a sign-out instead of a "your row vanished" error — uniform with
+
+        every other 401 surface (T-15-05). Future maintainers: do NOT
+
+        "improve" this to 404, you would re-introduce the enumeration leak.'
+      operationId: get_account_me_api_account_me_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountSummaryResponse'
+  /api/account:
+    delete:
+      tags:
+      - Account
+      summary: Delete Account
+      description: 'DELETE /api/account — cascade delete + clear cookies. SCOPE-06.
+
+
+        Body: ``{email_confirm: EmailStr}`` — case-insensitive match against
+
+        ``request.state.user.email`` enforced by AccountService.delete_account.
+
+
+        Mismatched email → 400 EMAIL_CONFIRM_MISMATCH (locked contract per
+
+        CONTEXT D-RES). Service-layer ValidationError is re-raised as 400 here
+
+        rather than letting it surface as the global handler default of 422 —
+
+        route-local translation keeps other ValidationError sites unaffected.
+
+
+        Cookie-clearing pattern (T-15-04): build a NEW Response(204) and call
+
+        ``clear_auth_cookies`` on it; never reuse a Depends-injected Response,
+
+        or FastAPI drops the Set-Cookie deletions.'
+      operationId: delete_account_api_account_delete
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteAccountRequest'
+        required: true
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /billing/checkout:
     post:
       tags:
@@ -2152,6 +2316,42 @@ paths:
               schema: {}
 components:
   schemas:
+    AccountSummaryResponse:
+      properties:
+        user_id:
+          type: integer
+          title: User Id
+        email:
+          type: string
+          format: email
+          title: Email
+        plan_tier:
+          type: string
+          title: Plan Tier
+          description: One of free|trial|pro|team
+        trial_started_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Trial Started At
+        token_version:
+          type: integer
+          title: Token Version
+          description: For cross-tab refresh debounce
+      type: object
+      required:
+      - user_id
+      - email
+      - plan_tier
+      - token_version
+      title: AccountSummaryResponse
+      description: 'GET /api/account/me — server-side hydration source of truth.
+
+
+        Field allowlist enforces T-15-11: only safe-to-render fields cross
+
+        the wire (no password_hash, no token, no csrf).'
     AuthResponse:
       properties:
         user_id:
@@ -2306,6 +2506,25 @@ components:
         After this response is delivered, the plaintext is unrecoverable. Server
 
         stores only prefix + sha256 hash. To rotate: POST a new key + DELETE old.'
+    DeleteAccountRequest:
+      properties:
+        email_confirm:
+          type: string
+          format: email
+          title: Email Confirm
+          description: Must equal request.state.user.email (case-insensitive)
+      type: object
+      required:
+      - email_confirm
+      title: DeleteAccountRequest
+      description: 'DELETE /api/account body.
+
+
+        ``email_confirm`` validated against ``request.state.user.email``
+
+        (case-insensitive) at the service boundary; parse-time enforces
+
+        well-formed email shape only.'
     Device:
       type: string
       enum:
@@ -2543,12 +2762,40 @@ components:
             $ref: '#/components/schemas/TaskSummaryResponse'
           type: array
           title: Tasks
-          description: List of task summaries
+          description: List of task summaries (current page slice)
+        total:
+          type: integer
+          minimum: 0.0
+          title: Total
+          description: Total task count across all pages after filters apply
+          default: 0
+        page:
+          type: integer
+          minimum: 1.0
+          title: Page
+          description: Current page (1-indexed)
+          default: 1
+        page_size:
+          type: integer
+          maximum: 200.0
+          minimum: 1.0
+          title: Page Size
+          description: Items per page (1..200)
+          default: 50
       type: object
       required:
       - tasks
       title: TaskListResponse
-      description: DTO for returning a list of task summaries.
+      description: 'DTO for returning a paginated list of task summaries.
+
+
+        Plan 15-ux pagination: ``tasks`` is the current page slice; ``total``
+
+        is the un-paginated count after q/status filters apply (for
+
+        "Page N of M" UI). Backwards-compatible — existing clients that only
+
+        read ``tasks`` keep working.'
     TaskProgress:
       properties:
         identifier:
