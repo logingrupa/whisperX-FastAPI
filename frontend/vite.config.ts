@@ -85,7 +85,16 @@ export default defineConfig(({ mode }) => {
 
   // SPA routes (React Router) that should redirect to `/ui/<path>` when
   // typed bare. Mirrors public routes in src/routes/AppRouter.tsx.
-  const bareSpaRoutes = ['/register', '/login'] as const
+  // Every public SPA route in src/routes/AppRouter.tsx — bare visits 302 to
+  // /ui/<path>. Keep in sync with AppRouter route table.
+  const bareSpaRoutes = [
+    '/',
+    '/login',
+    '/register',
+    '/dashboard/keys',
+    '/dashboard/usage',
+    '/dashboard/account',
+  ] as const
 
   return {
     // Base path for production - matches FastAPI mount point
