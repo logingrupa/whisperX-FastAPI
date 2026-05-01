@@ -25,7 +25,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - [x] **Phase 14: Atomic Frontend Cutover + Test Infra (ATOMIC PAIR with Phase 13)** — Router shell + auth pages + dashboard (keys/usage) + apiClient wrapper + zustand store + BroadcastChannel + Vitest/RTL/MSW (completed 2026-04-29)
 - [x] **Phase 15: Account Dashboard Hardening + Billing Stubs** — Account page (delete + logout-all-devices + Pro upgrade CTA) + checkout/webhook 501 stubs (completed 2026-04-29)
 - [x] **Phase 16: Verification + Cross-User Matrix + E2E** — Cross-user tests + JWT attack tests + WS ticket reuse + CSRF mismatch + migration smoke against records.db (completed 2026-04-30)
-- [ ] **Phase 17: Docs + Migration Runbook + Operator Guide** — `.env.example`, README auth flow, migration runbook, OpenAPI updates
+- [x] **Phase 17: Docs + Migration Runbook + Operator Guide** — `.env.example`, README auth flow, migration runbook, OpenAPI updates (completed 2026-05-01)
 - [ ] **Phase 18: Stretch (Optional)** — hCaptcha enable, HaveIBeenPwned check, per-key scopes UI, per-key expiration
 
 ## Phase Details
@@ -169,7 +169,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 **Plans**: 3 plans (3 waves)
 - [x] 17-01-PLAN.md — docs/migration-v1.2.md operator runbook (9 sections, OPS-03) (Wave 1)
 - [x] 17-02-PLAN.md — .env.example Auth (v1.2) block (5 subsections, 15 vars, OPS-04) (Wave 2)
-- [ ] 17-03-PLAN.md — README.md Authentication & API Keys section (5 subheadings, OPS-05) (Wave 3)
+- [x] 17-03-PLAN.md — README.md Authentication & API Keys section (5 subheadings, OPS-05) (Wave 3)
 
 ### Phase 18: Stretch (Optional)
 **Goal**: Optional additions that harden the auth surface without blocking the milestone — flip on if abuse observed during v1.2 soak.
@@ -195,7 +195,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | 14. Atomic Frontend Cutover + Test Infra | v1.2 | 7/7 | Complete    | 2026-04-29 |
 | 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 6/6 | Complete   | 2026-04-29 |
 | 16. Verification + Cross-User Matrix + E2E | v1.2 | 6/6 | Complete   | 2026-04-30 |
-| 17. Docs + Migration Runbook + Operator Guide | v1.2 | 2/3 | In Progress|  |
+| 17. Docs + Migration Runbook + Operator Guide | v1.2 | 3/3 | Complete   | 2026-05-01 |
 | 18. Stretch (Optional) | v1.2 | 0/TBD | Optional | - |
 
 **Total Plans:** TBD (refined during plan-phase per phase)

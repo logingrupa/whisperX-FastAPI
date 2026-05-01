@@ -139,7 +139,7 @@ Requirements for multi-tenant SaaS auth retrofit. Numbering continues fresh per 
 - [x] **OPS-02**: `python -m app.cli backfill-tasks --admin-email <e>` assigns all `tasks.user_id IS NULL` rows to the named admin
 - [x] **OPS-03**: Migration runbook documented in `docs/migration-v1.2.md` (backup → `alembic stamp head` → `alembic upgrade head` → verify)
 - [x] **OPS-04**: `.env.example` lists every new env var with example values: `JWT_SECRET`, `CSRF_SECRET`, `COOKIE_SECURE`, `COOKIE_DOMAIN`, `RATE_LIMIT_*`, `ARGON2_*`, `TRUST_CF_HEADER`, `FRONTEND_URL`, `HCAPTCHA_ENABLED`, `HCAPTCHA_SITE_KEY`, `HCAPTCHA_SECRET`
-- [ ] **OPS-05**: README.md documents the auth flow, key management, free vs Pro tiers, and the manual password-reset path
+- [x] **OPS-05**: README.md documents the auth flow, key management, free vs Pro tiers, and the manual password-reset path
 
 ### Verification (`VERIFY-*`)
 
@@ -281,7 +281,7 @@ Phase mapping established by `/gsd-roadmap` 2026-04-29. Every v1.2 requirement m
 | OPS-02 | Phase 12 | Complete |
 | OPS-03 | Phase 17 | Complete |
 | OPS-04 | Phase 17 | Complete |
-| OPS-05 | Phase 17 | Pending |
+| OPS-05 | Phase 17 | Complete |
 | VERIFY-01 | Phase 16 | Complete |
 | VERIFY-02 | Phase 16 | Complete |
 | VERIFY-03 | Phase 16 | Complete |
