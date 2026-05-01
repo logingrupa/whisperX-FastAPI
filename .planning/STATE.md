@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 16-06-migration-smoke-PLAN.md
-last_updated: "2026-04-30T12:52:37.878Z"
-last_activity: 2026-04-30 -- 16-06 alembic brownfield migration smoke green
+status: executing
+stopped_at: Completed 17-01-PLAN.md
+last_updated: "2026-05-01T16:31:06.120Z"
+last_activity: 2026-05-01
 progress:
   total_phases: 9
   completed_phases: 7
-  total_plans: 42
-  completed_plans: 42
-  percent: 100
+  total_plans: 45
+  completed_plans: 43
+  percent: 96
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-29)
 
 **Core value:** Users can sign up, get API keys, and use WhisperX via browser or external API with free-tier limits and Stripe-ready billing
-**Current focus:** Phase 16 — Verification + Cross-User Matrix + E2E
+**Current focus:** Phase 17 — Docs + Migration Runbook + Operator Guide
 
 ## Current Position
 
-Phase: 16
-Plan: 16-06 complete (Wave 1 — VERIFY-08 migration smoke)
-Status: Ready to verify Phase 16 (16-02..06 all complete, run 16-VERIFICATION)
-Last activity: 2026-04-30 -- 16-06 alembic brownfield migration smoke green
+Phase: 17 (Docs + Migration Runbook + Operator Guide) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-05-01
 
 ## Performance Metrics
 
@@ -93,6 +93,7 @@ Last activity: 2026-04-30 -- 16-06 alembic brownfield migration smoke green
 | Phase Phase 16 PP04 | 3 min | 2 tasks | 1 files |
 | Phase 16 P06 | 5 min | 2 tasks | 1 files |
 | Phase 16 P05 | 7min | 2 tasks | 1 files |
+| Phase 17 P01 | 3min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -289,6 +290,7 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase 16]: [16-06]: DRY: _run_alembic + REPO_ROOT imported from tests/integration/_phase16_helpers (Plan 10-04 venv-portable subprocess pattern); test file is 206 lines with ZERO copy-paste of alembic CLI plumbing
 - [Phase 16]: Cross-user drift target must be FK-valid (PRAGMA foreign_keys=ON from 10-04 forbids non-existent ids); test registers User B and drifts to user_id_b not 9999 — FK constraint failure was Rule 1 bug found mid-execution; deviation lock for future drift-style tests
 - [Phase 16]: monkeypatch.setattr(...) MUST stay on a single line for verifier grep gate compliance — line-wrap dropped grep -c count from 1 to 0 — verifier greps are per-line literal matches; multi-line Python style breaks them
+- [Phase ?]: [17-01]: docs/migration-v1.2.md locked 9-section skeleton (Purpose / Pre-flight / Command / Expected output / Verify / Failure mode per section); step ordering 1:1 mirrors test_migration_smoke.py (VERIFY-08 executable proof); revision IDs listed once in Section 1 chain table (DRY); Windows getpass-piping limitation kept inline in Section 5; Rollback split flat option-A (alembic downgrade chain) vs option-B (full backup restore)
 
 ### Pending Todos
 
@@ -304,6 +306,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-04-30T12:52:22.539Z
-Stopped at: Completed 16-06-migration-smoke-PLAN.md
+Last session: 2026-05-01T16:31:06.113Z
+Stopped at: Completed 17-01-PLAN.md
 Resume file: None
