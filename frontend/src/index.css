@@ -70,21 +70,33 @@
  * (no nested-if).
  */
 @layer components {
-  /* Outer Card per queue row — full-bleed, mobile-safe, status-border ready. */
+  /*
+   * Queue card — modern flat redesign.
+   *
+   * Drops `shadow-sm` from the shadcn Card baseline and replaces the full
+   * coloured border with a 4px left accent strip. Hover bumps border to
+   * a slightly darker tone (no shadow lift) to keep things visually flat.
+   * Radius shrinks from `rounded-xl` to `rounded-lg` for a tighter,
+   * more modern silhouette.
+   */
   .queue-card {
-    @apply w-full max-w-full transition-colors;
+    @apply w-full max-w-full rounded-lg border-l-4 transition-colors;
+    box-shadow: none;
+  }
+  .queue-card:hover {
+    @apply border-foreground/20;
   }
   .queue-card-pending {
-    @apply border-border;
+    @apply border-l-border;
   }
   .queue-card-processing {
-    @apply border-border;
+    @apply border-l-blue-500;
   }
   .queue-card-complete {
-    @apply border-green-500;
+    @apply border-l-green-500;
   }
   .queue-card-error {
-    @apply border-destructive;
+    @apply border-l-destructive;
   }
 
   /* Inner card padding — scales with viewport per UI-SPEC. */
@@ -108,9 +120,20 @@
     @apply flex items-center gap-2 ml-auto;
   }
 
+  /* Bar holding "View Transcript" + export buttons under a complete row. */
+  .queue-card-transcript-bar {
+    @apply flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border;
+  }
+
   /* Export-button row under a completed transcript. */
   .queue-export-actions {
     @apply flex flex-wrap gap-2;
+  }
+  .queue-export-button {
+    @apply gap-1;
+  }
+  .queue-export-icon {
+    @apply h-3 w-3;
   }
 
   /* Transcript table inside a Collapsible — stacks columns < sm so

@@ -95,35 +95,51 @@ export function FileQueueItem({
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
 
   /**
-   * Handle transcript viewer toggle with lazy loading
-   * Fetches transcript data on first expand only
+   * Lazy transcript loader — single source of truth for both the inline
+   * viewer ("View Transcript") and the always-visible download buttons.
+   * Caches via component state; subsequent calls return the cached value.
    */
-  const handleToggleTranscript = async () => {
-    // If opening and no data yet, fetch it
-    if (!isTranscriptOpen && !transcriptSegments && item.taskId) {
-      setIsLoadingTranscript(true);
-      setTranscriptError(null);
+  const ensureTranscriptLoaded = async () => {
+    if (transcriptSegments) {
+      return { segments: transcriptSegments, metadata: transcriptMetadata ?? undefined };
+    }
+    if (!item.taskId) throw new Error('Missing task id');
 
-      const result = await fetchTaskResult(item.taskId);
+    setIsLoadingTranscript(true);
+    setTranscriptError(null);
 
-      if (result.success && result.data.result?.segments) {
-        setTranscriptSegments(result.data.result.segments);
-        setTranscriptMetadata({
-          fileName: result.data.fileName,
-          language: result.data.language,
-          audioDuration: result.data.audioDuration,
-        });
-      } else {
-        setTranscriptError(
-          result.success
-            ? 'No transcript data available'
-            : result.error.detail
-        );
-      }
+    const result = await fetchTaskResult(item.taskId);
+    setIsLoadingTranscript(false);
 
-      setIsLoadingTranscript(false);
+    if (!result.success) {
+      setTranscriptError(result.error.detail);
+      throw new Error(result.error.detail);
+    }
+    if (!result.data.result?.segments) {
+      const message = 'No transcript data available';
+      setTranscriptError(message);
+      throw new Error(message);
     }
 
+    const segments = result.data.result.segments;
+    const metadata: TaskMetadata = {
+      fileName: result.data.fileName,
+      language: result.data.language,
+      audioDuration: result.data.audioDuration,
+    };
+    setTranscriptSegments(segments);
+    setTranscriptMetadata(metadata);
+    return { segments, metadata };
+  };
+
+  const handleToggleTranscript = async () => {
+    if (!isTranscriptOpen && !transcriptSegments && item.taskId) {
+      try {
+        await ensureTranscriptLoaded();
+      } catch {
+        // Error already surfaced via transcriptError state.
+      }
+    }
     setIsTranscriptOpen(!isTranscriptOpen);
   };
 
@@ -317,7 +333,7 @@ export function FileQueueItem({
           {/* Transcript viewer (completed files only) */}
           {isComplete && item.taskId && (
             <Collapsible open={isTranscriptOpen} onOpenChange={setIsTranscriptOpen}>
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border">
+              <div className="queue-card-transcript-bar">
                 <CollapsibleTrigger asChild>
                   <Button
                     variant="ghost"
@@ -334,14 +350,14 @@ export function FileQueueItem({
                   </Button>
                 </CollapsibleTrigger>
 
-                {/* Download buttons (visible once transcript is loaded) */}
-                {transcriptSegments && (
-                  <DownloadButtons
-                    segments={transcriptSegments}
-                    filename={item.fileName.replace(/\.[^/.]+$/, '')}
-                    metadata={transcriptMetadata ?? undefined}
-                  />
-                )}
+                {/* Download buttons — always visible for complete rows.
+                    Lazy-loads transcript on first download click. */}
+                <DownloadButtons
+                  segments={transcriptSegments}
+                  filename={item.fileName.replace(/\.[^/.]+$/, '')}
+                  metadata={transcriptMetadata ?? undefined}
+                  onEnsureLoaded={ensureTranscriptLoaded}
+                />
               </div>
 
               <CollapsibleContent>
