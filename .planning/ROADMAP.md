@@ -168,7 +168,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
   3. `README.md` describes registration/login flow, API key issuance and bearer usage, free-vs-Pro tier differences, and the manual `mailto:hey@logingrupa.lv` password-reset path
 **Plans**: 3 plans (3 waves)
 - [x] 17-01-PLAN.md — docs/migration-v1.2.md operator runbook (9 sections, OPS-03) (Wave 1)
-- [ ] 17-02-PLAN.md — .env.example Auth (v1.2) block (5 subsections, 15 vars, OPS-04) (Wave 2)
+- [x] 17-02-PLAN.md — .env.example Auth (v1.2) block (5 subsections, 15 vars, OPS-04) (Wave 2)
 - [ ] 17-03-PLAN.md — README.md Authentication & API Keys section (5 subheadings, OPS-05) (Wave 3)
 
 ### Phase 18: Stretch (Optional)
@@ -195,7 +195,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | 14. Atomic Frontend Cutover + Test Infra | v1.2 | 7/7 | Complete    | 2026-04-29 |
 | 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 6/6 | Complete   | 2026-04-29 |
 | 16. Verification + Cross-User Matrix + E2E | v1.2 | 6/6 | Complete   | 2026-04-30 |
-| 17. Docs + Migration Runbook + Operator Guide | v1.2 | 1/3 | In Progress|  |
+| 17. Docs + Migration Runbook + Operator Guide | v1.2 | 2/3 | In Progress|  |
 | 18. Stretch (Optional) | v1.2 | 0/TBD | Optional | - |
 
 **Total Plans:** TBD (refined during plan-phase per phase)
