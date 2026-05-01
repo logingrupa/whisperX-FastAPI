@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -25,6 +25,14 @@ import { ApiClientError, RateLimitError } from '@/lib/apiClient';
  * Anti-enumeration: 422/4xx surfaces as a single generic "Registration failed."
  * Strength meter renders only once the password field has any value.
  *
+ * Validation UX (debug fix — register-fails-and-mismatch H3):
+ *   - mode 'onBlur' surfaces "Passwords do not match" as soon as the user
+ *     leaves the confirm field (no wait for submit).
+ *   - reValidateMode 'onChange' clears the error live as the user fixes it.
+ *   - Watching `password` re-runs `confirmPassword` validation so the
+ *     mismatch error stays in sync when the primary password is edited
+ *     after the confirm field has been touched.
+ *
  * /frontend-design: AuthCard + shadcn Form + DRY FormFieldRow + PasswordStrengthMeter.
  */
 export function RegisterPage() {
@@ -35,6 +43,8 @@ export function RegisterPage() {
 
   const form = useForm<RegisterInput>({
     resolver: zodResolver(registerSchema),
+    mode: 'onBlur',
+    reValidateMode: 'onChange',
     defaultValues: {
       email: '',
       password: '',
@@ -44,6 +54,15 @@ export function RegisterPage() {
   });
 
   const passwordValue = form.watch('password') ?? '';
+  const confirmPasswordTouched = form.formState.touchedFields.confirmPassword === true;
+
+  // Re-run schema-level mismatch refine when password mutates after confirm
+  // has been touched (refine runs on object — without trigger the stale
+  // confirmPassword error never clears or updates).
+  useEffect(() => {
+    if (!confirmPasswordTouched) return;
+    void form.trigger('confirmPassword');
+  }, [passwordValue, confirmPasswordTouched, form]);
 
   const onSubmit = form.handleSubmit(async (values) => {
     setSubmitError(null);
