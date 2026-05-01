@@ -1,7 +1,7 @@
 ---
 slug: export-buttons-flat-cards
 created: 2026-05-01
-status: in-progress
+status: complete
 ---
 
 # Quick Task — Export buttons visible + flat card redesign
