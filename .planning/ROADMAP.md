@@ -26,7 +26,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - [x] **Phase 15: Account Dashboard Hardening + Billing Stubs** — Account page (delete + logout-all-devices + Pro upgrade CTA) + checkout/webhook 501 stubs (completed 2026-04-29)
 - [x] **Phase 16: Verification + Cross-User Matrix + E2E** — Cross-user tests + JWT attack tests + WS ticket reuse + CSRF mismatch + migration smoke against records.db (completed 2026-04-30)
 - [x] **Phase 17: Docs + Migration Runbook + Operator Guide** — `.env.example`, README auth flow, migration runbook, OpenAPI updates (completed 2026-05-01)
-- [ ] **Phase 18: Stretch (Optional)** — hCaptcha enable, HaveIBeenPwned check, per-key scopes UI, per-key expiration
+- [x] **Phase 18: Stretch (Optional)** — hCaptcha enable, HaveIBeenPwned check, per-key scopes UI, per-key expiration (closed empty 2026-05-01 — no observed need; features deferred to v1.3+)
 
 ## Phase Details
 
@@ -196,7 +196,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | 15. Account Dashboard Hardening + Billing Stubs | v1.2 | 6/6 | Complete   | 2026-04-29 |
 | 16. Verification + Cross-User Matrix + E2E | v1.2 | 6/6 | Complete   | 2026-04-30 |
 | 17. Docs + Migration Runbook + Operator Guide | v1.2 | 3/3 | Complete   | 2026-05-01 |
-| 18. Stretch (Optional) | v1.2 | 0/TBD | Optional | - |
+| 18. Stretch (Optional) | v1.2 | 0/0 | Closed empty | 2026-05-01 |
 
 **Total Plans:** TBD (refined during plan-phase per phase)
 **Requirements Coverage:** 95/95 mapped (v1.2 only)
