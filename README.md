@@ -181,6 +181,116 @@ In production, the frontend is served directly by FastAPI at `/ui`, so no proxy 
 
 ---
 
+## Authentication & API Keys (v1.2)
+
+Multi-user authentication and personal API keys ship in v1.2. The browser UI uses an httpOnly cookie session; external API consumers send a raw bearer key. One middleware (`DualAuthMiddleware`) accepts both.
+
+### Registration & Login Flow
+
+```
++------------------+      POST /auth/register       +------------------+
+| Browser /ui      |  --------------------------->  | DualAuthMiddleware|
+| (cookie session) |  <----- Set-Cookie: session    |                  |
++------------------+                                 +------------------+
+       |                                                      |
+       |  POST /auth/login (existing user)                    |
+       |  ---------------------------------------------->     |
+       |  <----- 200 + Set-Cookie: session + csrf_token ----- |
+       |                                                      |
+       |  POST /auth/logout                                   |
+       |  ---------------------------------------------->     |
+       |  <----- 204 + Set-Cookie: clear --------------------- |
+```
+
+- **Register**: `POST /auth/register {email, password}` -> 201 + httpOnly + Secure + SameSite=Lax session cookie
+- **Login**: `POST /auth/login {email, password}` -> 200 + httpOnly session cookie + non-httpOnly `csrf_token` cookie
+- **Logout**: `POST /auth/logout` (cookie + matching `X-CSRF-Token` header) -> 204 + cleared cookies
+- **Logout all devices**: `POST /auth/logout-all` -> bumps `users.token_version`, invalidating every prior JWT for that user (AUTH-06)
+- **Rate limits**: 3 register / hr / IP-/24 (ANTI-01), 10 login / hr / IP-/24 (ANTI-02)
+- **Disposable email registrations are rejected** with a generic error (ANTI-04)
+- **Password reset**: no SMTP in v1.2. Click the [mailto:hey@logingrupa.lv](mailto:hey@logingrupa.lv) link on the login page and the operator responds manually (AUTH-07)
+
+### Issuing API Keys
+
+Authenticated browser users issue keys via `/dashboard/keys`. External clients can issue keys over the cookie session via curl:
+
+```bash
+# 1. Log in to get the cookie session.
+curl -c cookies.txt -b cookies.txt \
+  -X POST https://your-host/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","password":"your-password"}'
+
+# 2. Read the csrf_token cookie value.
+CSRF=$(awk '$6=="csrf_token"{print $7}' cookies.txt)
+
+# 3. Issue a key. The plaintext is returned EXACTLY ONCE — copy it now.
+curl -c cookies.txt -b cookies.txt \
+  -X POST https://your-host/api/keys \
+  -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: $CSRF" \
+  -d '{"name":"my-laptop"}'
+# Response: {"id": 1, "name": "my-laptop", "prefix": "PREFIX01",
+#            "key": "whsk_PREFIX01_<22charbase64random>", "created_at": "..."}
+```
+
+- Endpoint: `POST /api/keys` (cookie session + matching `X-CSRF-Token`) -> 201 + show-once plaintext key
+- Key format: `whsk_<8-char-prefix>_<22-char-base64-random>` (~128 bits entropy, 36 chars total)
+- The full plaintext is shown EXACTLY ONCE in the response body. After that, only the prefix is visible (KEY-04)
+- Multiple active keys per user are allowed (KEY-06). Revoke via `DELETE /api/keys/{id}` (soft-delete, audit-preserved)
+
+### Using an API Key
+
+External clients send the bearer key in the `Authorization` header. Bearer-authenticated requests skip CSRF entirely (MID-04).
+
+```bash
+# Submit a transcription job via bearer.
+curl -X POST https://your-host/speech-to-text \
+  -H "Authorization: Bearer whsk_PREFIX01_<22charbase64random>" \
+  -F "file=@/path/to/audio.wav" \
+  -F "language=en" \
+  -F "model=tiny"
+# Response: 202 Accepted + {"task_id": "<uuid>"}
+
+# Poll the task.
+curl https://your-host/task/<uuid> \
+  -H "Authorization: Bearer whsk_PREFIX01_<22charbase64random>"
+# Response: {"status": "completed", "result": {...}}
+```
+
+`whsk_*` keys work on every authenticated route. WebSocket connections require a 60-second single-use ticket from `POST /api/ws/ticket` (MID-06) — see the OpenAPI spec at `/openapi.json` for the WS handshake.
+
+### Free vs Pro Tiers
+
+Default tier is `trial`. The trial counter starts at first key creation (RATE-08). After expiry the user lands on `free`.
+
+| Limit | Free | Pro (€5/mo, v1.3 stub) |
+|-------|------|-------------------------|
+| Requests / hour | 5 | 100 |
+| File size | <= 5 min audio | <= 60 min audio |
+| Duration cap | 30 min audio per day | 600 min audio per day |
+| Models | `tiny`, `small` | all (incl. `large-v3`) |
+| Concurrent slots | 1 (back-of-queue) | 3 (queue priority) |
+
+Limit hits return:
+- `429 Too Many Requests` with `Retry-After` header (RATE-12) when the per-hour cap is exceeded
+- `402 Payment Required` after trial expiry on transcription routes (RATE-09)
+- `403 Forbidden` when a free-tier user requests a Pro-only model or diarization (RATE-06)
+
+Pro checkout (`POST /billing/checkout`) and the Stripe webhook (`POST /billing/webhook`) return `501 Not Implemented` in v1.2 — schema is in place; live Stripe ships in v1.3 (BILL-05, BILL-06).
+
+### Migrating from v1.1
+
+If you are upgrading an existing v1.1 deployment (single shared `API_BEARER_TOKEN`, no users table), follow the runbook:
+
+[docs/migration-v1.2.md](docs/migration-v1.2.md)
+
+The runbook covers backup, alembic stamp + upgrade sequence, admin-user creation, task backfill, and rollback. Step ordering mirrors `tests/integration/test_migration_smoke.py` (VERIFY-08, executable proof-of-runbook).
+
+For new deployments, copy `.env.example` to `.env`, fill in the v1.2 secrets (`JWT_SECRET`, `CSRF_SECRET` — generate with `openssl rand -hex 32`), and run `alembic upgrade head` against an empty DB.
+
+---
+
 The whisperX API is a tool for enhancing and analyzing audio content. This API provides a suite of services for processing audio and video files, including transcription, alignment, diarization, and combining transcript with diarization results.
 
 ## Documentation
