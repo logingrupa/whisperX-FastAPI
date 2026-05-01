@@ -329,6 +329,24 @@ uvicorn app.main:app --reload --log-config uvicorn_log_conf.yaml --log-level $LO
 
 The API will be accessible at <http://127.0.0.1:8000>.
 
+#### Auto-Start on Windows Boot
+
+To have the server start automatically when you log in, run this PowerShell command to create a shortcut in your Startup folder:
+
+```powershell
+$startupPath = [Environment]::GetFolderPath('Startup')
+$shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut("$startupPath\WhisperX Server.lnk")
+$shortcut.TargetPath = 'C:\laragon\www\whisperx\start-server.bat'
+$shortcut.WorkingDirectory = 'C:\laragon\www\whisperx'
+$shortcut.Save()
+```
+
+To disable auto-start, remove the shortcut:
+
+```powershell
+Remove-Item "$([Environment]::GetFolderPath('Startup'))\WhisperX Server.lnk"
+```
+
 ### Docker Build
 
 1. Create `.env` file
