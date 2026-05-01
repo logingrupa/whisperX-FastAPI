@@ -272,17 +272,34 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
   }, [queue, processFile]);
 
   /**
-   * Start processing all ready files (FIFO order)
-   * Note: For MVP, processes one file at a time
-   * Future: Could implement parallel processing
+   * Pick the OLDEST ready file across the queue.
+   *
+   * Plan 15-ux invariant: display order is LIFO (newest live items first)
+   * but processing order stays FIFO. The picker uses `createdAt` — NOT
+   * array index — so flipping display order in `prependLiveFiles` cannot
+   * break the upload sequence the user expects.
+   */
+  const findOldestReady = useCallback((items: FileQueueItem[]): FileQueueItem | undefined => {
+    let oldest: FileQueueItem | undefined;
+    for (const item of items) {
+      if (!isFileReady(item)) continue;
+      if (oldest === undefined || item.createdAt < oldest.createdAt) {
+        oldest = item;
+      }
+    }
+    return oldest;
+  }, [isFileReady]);
+
+  /**
+   * Start processing all ready files (FIFO order by `createdAt`).
+   * Note: For MVP, processes one file at a time.
    */
   const handleStartAll = useCallback(() => {
-    // Find first ready file
-    const readyFile = queue.find(isFileReady);
+    const readyFile = findOldestReady(queue);
     if (readyFile) {
       processFile(readyFile);
     }
-  }, [queue, isFileReady, processFile]);
+  }, [queue, findOldestReady, processFile]);
 
   /**
    * Retry a failed file (reset status and process again)
@@ -341,11 +358,11 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
     );
     if (!hasStartedFiles) return;
 
-    const nextReady = queue.find(isFileReady);
+    const nextReady = findOldestReady(queue);
     if (nextReady) {
       processFile(nextReady);
     }
-  }, [queue, isFileReady, processFile]);
+  }, [queue, findOldestReady, processFile]);
 
   return {
     ...fileQueue,

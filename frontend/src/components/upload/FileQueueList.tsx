@@ -1,6 +1,5 @@
 import { Trash2, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { FileQueueItem } from './FileQueueItem';
 import type { FileQueueItem as FileQueueItemType, LanguageCode, WhisperModel } from '@/types/upload';
 
@@ -84,23 +83,30 @@ export function FileQueueList({
         </div>
       </div>
 
-      {/* Queue items */}
-      <ScrollArea className="max-h-[60vh]">
-        <div className="space-y-2 pr-4">
-          {queue.map(item => (
-            <FileQueueItem
-              key={item.id}
-              item={item}
-              onRemove={onRemoveFile}
-              onUpdateSettings={onUpdateSettings}
-              onStart={onStartFile}
-              onRetry={onRetry}
-              onCancel={onCancel}
-              isRetrying={retryingFileId === item.id}
-            />
-          ))}
-        </div>
-      </ScrollArea>
+      {/*
+       * Queue items render inline in normal document flow.
+       *
+       * Plan 15-ux fix: the previous Radix `<ScrollArea max-h-[60vh]>`
+       * wrapper was the root cause of the View Transcript overlap bug —
+       * Radix injects a `display: table` Viewport child whose layout
+       * does not reflow when a sibling Collapsible expands inside, so
+       * the transcript drew over the next card. The page itself
+       * scrolls, so a list-level ScrollArea was unnecessary anyway.
+       */}
+      <div className="flex flex-col gap-2">
+        {queue.map(item => (
+          <FileQueueItem
+            key={item.id}
+            item={item}
+            onRemove={onRemoveFile}
+            onUpdateSettings={onUpdateSettings}
+            onStart={onStartFile}
+            onRetry={onRetry}
+            onCancel={onCancel}
+            isRetrying={retryingFileId === item.id}
+          />
+        ))}
+      </div>
     </div>
   );
 }

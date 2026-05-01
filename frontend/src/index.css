@@ -55,3 +55,79 @@
 [data-slot="indicator"] {
   transition: transform 500ms ease-out;
 }
+
+/*
+ * Plan 15-ux — extracted Tailwind soup for the upload queue.
+ *
+ * DRY: same long class strings repeated across FileQueueItem +
+ * TranscriptViewer + DownloadButtons get a single named handle here.
+ * Tailwind v4 CSS-first @apply keeps the source-of-truth in CSS while
+ * still resolving theme tokens (`bg-card`, `border-border`, etc.) at
+ * build time.
+ *
+ * SRP: each class names ONE visual region. Status border colors split
+ * into 4 modifier classes so the JSX stays a flat conditional list
+ * (no nested-if).
+ */
+@layer components {
+  /* Outer Card per queue row — full-bleed, mobile-safe, status-border ready. */
+  .queue-card {
+    @apply w-full max-w-full transition-colors;
+  }
+  .queue-card-pending {
+    @apply border-border;
+  }
+  .queue-card-processing {
+    @apply border-border;
+  }
+  .queue-card-complete {
+    @apply border-green-500;
+  }
+  .queue-card-error {
+    @apply border-destructive;
+  }
+
+  /* Inner card padding — scales with viewport per UI-SPEC. */
+  .queue-card-content {
+    @apply px-3 sm:px-4 md:px-6 py-4;
+  }
+
+  /* Top action row inside a card — wraps on narrow viewports so the
+     filename, badges, selects, and action buttons stack naturally. */
+  .queue-card-row {
+    @apply flex flex-wrap items-center gap-3 sm:gap-4;
+  }
+
+  /* Filename + badges block (grows to fill remaining row width). */
+  .queue-card-filename {
+    @apply flex-1 min-w-0 basis-full sm:basis-auto;
+  }
+
+  /* Action button cluster (Start / Retry / Remove). */
+  .queue-card-actions {
+    @apply flex items-center gap-2 ml-auto;
+  }
+
+  /* Export-button row under a completed transcript. */
+  .queue-export-actions {
+    @apply flex flex-wrap gap-2;
+  }
+
+  /* Transcript table inside a Collapsible — stacks columns < sm so
+     long Latvian text never forces horizontal overflow on phones. */
+  .transcript-row {
+    @apply flex flex-col sm:flex-row gap-1 sm:gap-3 py-2 border-b border-border last:border-b-0;
+  }
+  .transcript-header {
+    @apply flex flex-col sm:flex-row gap-1 sm:gap-3 pb-2 border-b border-border text-xs font-medium text-muted-foreground;
+  }
+  .transcript-cell-time {
+    @apply shrink-0 sm:w-20 text-xs text-muted-foreground font-mono;
+  }
+  .transcript-cell-speaker {
+    @apply shrink-0 sm:w-24;
+  }
+  .transcript-cell-text {
+    @apply flex-1 text-sm break-words;
+  }
+}

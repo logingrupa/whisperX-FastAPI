@@ -76,8 +76,16 @@ function mapBackendStatus(status: string): FileQueueItemStatus {
  * Convert a backend task summary to a historic FileQueueItem.
  *
  * Self-explanatory naming over abbreviations: `taskToQueueItem`.
+ *
+ * `historicSortIndex` is the row's position in the server response
+ * (server orders `created_at DESC`). It seeds `createdAt` so the upload
+ * orchestrator's FIFO picker observes a consistent age ordering across
+ * live + historic items — older index = newer task = larger `createdAt`.
  */
-export function taskToQueueItem(task: TaskListItem): FileQueueItem | null {
+export function taskToQueueItem(
+  task: TaskListItem,
+  historicSortIndex: number = 0,
+): FileQueueItem | null {
   // Tiger-style boundary: identifier MUST be non-empty for the row to be
   // useful (taskId drives WS, transcript fetch, retries).
   if (!task.identifier || task.identifier.length === 0) {
@@ -98,6 +106,10 @@ export function taskToQueueItem(task: TaskListItem): FileQueueItem | null {
     errorMessage: task.error ?? undefined,
     progressPercentage: status === 'complete' ? 100 : undefined,
     progressStage: status === 'complete' ? 'complete' : undefined,
+    // Server slice is DESC by created_at: index 0 = newest. Map to a
+    // descending `createdAt` so newer rows sort first and live items
+    // (Date.now()-stamped) always appear newer than historic ones.
+    createdAt: -historicSortIndex,
   };
 }
 
@@ -110,7 +122,7 @@ export function taskToQueueItem(task: TaskListItem): FileQueueItem | null {
  */
 export function seedQueueFromTasks(tasks: TaskListItem[]): FileQueueItem[] {
   return tasks
-    .map(taskToQueueItem)
+    .map((task, index) => taskToQueueItem(task, index))
     .filter((item): item is FileQueueItem => item !== null);
 }
 

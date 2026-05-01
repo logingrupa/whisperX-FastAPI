@@ -1,21 +1,28 @@
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { TranscriptSegmentRow } from './TranscriptSegmentRow';
 import type { TranscriptSegment } from '@/types/transcript';
 
 interface TranscriptViewerProps {
   segments: TranscriptSegment[];
-  maxHeight?: string; // Default: "300px"
+  /**
+   * Optional max-height. When omitted (default in queue rows) the viewer
+   * grows inline so the queue card re-flows naturally — fixes the
+   * absolute/clipping overlap bug where a fixed-height ScrollArea inside
+   * a Collapsible bled over sibling cards.
+   */
+  maxHeight?: string;
 }
 
 /**
- * Scrollable transcript viewer with segments
+ * Inline transcript viewer with segments
  *
- * Displays all transcript segments in a scrollable container.
- * Uses shadcn/ui ScrollArea for consistent styling.
+ * Renders segments in normal document flow so the parent card grows
+ * with the content. The legacy `maxHeight` prop is preserved for
+ * non-queue callers; when supplied it caps the rendered height with a
+ * native `overflow-y: auto` (no Radix `display: table` interaction).
  */
 export function TranscriptViewer({
   segments,
-  maxHeight = "300px"
+  maxHeight,
 }: TranscriptViewerProps) {
   if (segments.length === 0) {
     return (
@@ -25,14 +32,16 @@ export function TranscriptViewer({
     );
   }
 
+  const containerStyle = maxHeight ? { maxHeight, overflowY: 'auto' as const } : undefined;
+
   return (
-    <ScrollArea className="rounded-md border" style={{ maxHeight }}>
-      <div className="p-4">
+    <div className="rounded-md border" style={containerStyle}>
+      <div className="p-3 sm:p-4">
         {/* Header row */}
-        <div className="flex gap-3 pb-2 border-b border-border text-xs font-medium text-muted-foreground">
-          <div className="shrink-0 w-20">Time</div>
-          <div className="shrink-0 w-24">Speaker</div>
-          <div className="flex-1">Text</div>
+        <div className="transcript-header">
+          <div className="transcript-cell-time">Time</div>
+          <div className="transcript-cell-speaker">Speaker</div>
+          <div className="transcript-cell-text">Text</div>
         </div>
 
         {/* Segment rows */}
@@ -43,6 +52,6 @@ export function TranscriptViewer({
           />
         ))}
       </div>
-    </ScrollArea>
+    </div>
   );
 }

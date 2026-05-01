@@ -17,10 +17,21 @@ export function useFileQueue() {
   const [queue, setQueue] = useState<FileQueueItem[]>([]);
 
   /**
-   * Add files to the queue with detected language and default model
+   * Add files to the queue with detected language and default model.
+   *
+   * Plan 15-ux: newly selected files PREPEND so the user sees the file
+   * they just chose at the top of the list (LIFO display). Each item
+   * carries `createdAt` so the upload orchestrator can still pick the
+   * OLDEST ready item (FIFO upload) — display order is decoupled from
+   * processing order on purpose.
+   *
+   * Tiger-style invariant: every new live item carries a strictly
+   * monotonic `createdAt` so the FIFO picker has a deterministic
+   * tie-breaker even when several files arrive in the same drop.
    */
-  const addFiles = useCallback((files: File[]) => {
-    const newItems: FileQueueItem[] = files.map(file => {
+  const prependLiveFiles = useCallback((files: File[]) => {
+    const baseTime = Date.now();
+    const newItems: FileQueueItem[] = files.map((file, index) => {
       const detectedLanguage = detectLanguageFromFilename(file.name);
       return {
         id: crypto.randomUUID(),
@@ -33,11 +44,21 @@ export function useFileQueue() {
         selectedLanguage: detectedLanguage ?? '',
         selectedModel: DEFAULT_MODEL,
         status: 'pending' as const,
+        createdAt: baseTime + index,
       };
     });
 
-    setQueue(previousQueue => [...previousQueue, ...newItems]);
+    // Prepend reversed so the file the user picked LAST in the OS dialog
+    // ends up at the bottom of the new prepended block — within a single
+    // drop, FIFO order across the new block is preserved (oldest first
+    // among the new arrivals), and the whole block sits ABOVE the
+    // existing queue.
+    const prepended = [...newItems].reverse();
+    setQueue(previousQueue => [...prepended, ...previousQueue]);
   }, []);
+
+  /** Public alias — keeps the existing call sites + tests working. */
+  const addFiles = prependLiveFiles;
 
   /**
    * Append historic items (seeded from GET /task/all on mount).

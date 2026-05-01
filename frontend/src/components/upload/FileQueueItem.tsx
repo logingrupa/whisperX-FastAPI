@@ -46,6 +46,18 @@ function formatFileSize(bytes: number): string {
 }
 
 /**
+ * Resolve the status-border modifier class for the outer card.
+ *
+ * Flat lookup — DRY against `@layer components` modifiers, no nested-if.
+ */
+function statusBorderClass(item: FileQueueItemType): string {
+  if (item.status === 'complete') return 'queue-card-complete';
+  if (item.status === 'error') return 'queue-card-error';
+  if (item.status === 'uploading' || item.status === 'processing') return 'queue-card-processing';
+  return 'queue-card-pending';
+}
+
+/**
  * Individual file in the upload queue
  *
  * Displays:
@@ -116,15 +128,11 @@ export function FileQueueItem({
   };
 
   return (
-    <Card className={cn(
-      'transition-colors',
-      isError && 'border-destructive',
-      isComplete && 'border-green-500',
-    )}>
-      <CardContent className="p-4">
+    <Card className={cn('queue-card', statusBorderClass(item))}>
+      <CardContent className="queue-card-content">
         <div className="flex flex-col gap-3">
           {/* Top row: File info and actions */}
-          <div className="flex items-center gap-4">
+          <div className="queue-card-row">
             {/* Status icon for complete/error */}
             {isComplete && (
               <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
@@ -134,8 +142,8 @@ export function FileQueueItem({
             )}
 
             {/* File info */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
+            <div className="queue-card-filename">
+              <div className="flex flex-wrap items-center gap-2">
                 <p className="font-medium truncate" title={item.fileName}>
                   {item.fileName}
                 </p>
@@ -176,7 +184,7 @@ export function FileQueueItem({
                   </Tooltip>
                 )}
               </div>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground break-words">
                 {item.kind === 'historic' && item.fileSize === 0
                   ? '—'
                   : formatFileSize(item.fileSize)}
@@ -223,7 +231,19 @@ export function FileQueueItem({
                       </Badge>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Fine-tuned Latvian model (LATE-lv) will be used automatically</p>
+                      <p>Whisper large-v3 (full) will be used for better Latvian accuracy</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                {item.selectedLanguage === 'ru' && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="outline" className="shrink-0 text-xs border-blue-400 text-blue-600">
+                        RU model
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Fine-tuned Russian model (whisper-large-v3-russian) will be used automatically</p>
                     </TooltipContent>
                   </Tooltip>
                 )}
@@ -231,7 +251,7 @@ export function FileQueueItem({
             )}
 
             {/* Actions */}
-            <div className="flex items-center gap-2">
+            <div className="queue-card-actions">
               {/* Start button (per-file, pending only) */}
               {onStart && isPending && (
                 <Button
@@ -297,7 +317,7 @@ export function FileQueueItem({
           {/* Transcript viewer (completed files only) */}
           {isComplete && item.taskId && (
             <Collapsible open={isTranscriptOpen} onOpenChange={setIsTranscriptOpen}>
-              <div className="flex items-center justify-between pt-2 border-t border-border">
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border">
                 <CollapsibleTrigger asChild>
                   <Button
                     variant="ghost"
@@ -339,7 +359,7 @@ export function FileQueueItem({
                   )}
 
                   {transcriptSegments && !isLoadingTranscript && (
-                    <TranscriptViewer segments={transcriptSegments} maxHeight="250px" />
+                    <TranscriptViewer segments={transcriptSegments} />
                   )}
                 </div>
               </CollapsibleContent>

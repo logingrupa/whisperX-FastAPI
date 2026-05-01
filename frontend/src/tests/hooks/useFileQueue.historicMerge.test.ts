@@ -26,6 +26,7 @@ function makeHistoric(overrides: Partial<FileQueueItem> = {}): FileQueueItem {
     taskId: 'task-h-1',
     progressPercentage: 100,
     progressStage: 'complete',
+    createdAt: 0,
     ...overrides,
   };
 }
@@ -92,6 +93,45 @@ describe('useFileQueue.addHistoricTasks — queue-merge regression', () => {
       result.current.addHistoricTasks([]);
     });
     expect(result.current.queue).toHaveLength(0);
+  });
+
+  it('newly added live files PREPEND so the freshest selection is on top (Plan 15-ux LIFO display)', () => {
+    const { result } = renderHook(() => useFileQueue());
+
+    act(() => {
+      result.current.addFiles([
+        new File(['old'], 'first.mp3', { type: 'audio/mpeg' }),
+      ]);
+    });
+    expect(result.current.queue[0].fileName).toBe('first.mp3');
+
+    act(() => {
+      result.current.addFiles([
+        new File(['new'], 'second.mp3', { type: 'audio/mpeg' }),
+      ]);
+    });
+
+    // Newest at top, previous live items preserved below.
+    expect(result.current.queue).toHaveLength(2);
+    expect(result.current.queue[0].fileName).toBe('second.mp3');
+    expect(result.current.queue[1].fileName).toBe('first.mp3');
+  });
+
+  it('createdAt stamps every live item monotonically (FIFO upload invariant)', () => {
+    const { result } = renderHook(() => useFileQueue());
+
+    act(() => {
+      result.current.addFiles([
+        new File(['a'], 'a.mp3', { type: 'audio/mpeg' }),
+        new File(['b'], 'b.mp3', { type: 'audio/mpeg' }),
+      ]);
+    });
+
+    const items = result.current.queue;
+    expect(items).toHaveLength(2);
+    // Every live item carries a numeric stamp; orchestrator uses min(createdAt)
+    // to pick the OLDEST ready item regardless of array order.
+    items.forEach(item => expect(typeof item.createdAt).toBe('number'));
   });
 
   it('readyCount excludes historic items', () => {

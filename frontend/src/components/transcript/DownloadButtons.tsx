@@ -32,7 +32,7 @@ export function DownloadButtons({
   };
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="queue-export-actions">
       <Button
         variant="outline"
         size="sm"

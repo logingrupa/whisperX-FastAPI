@@ -44,14 +44,14 @@ export function TranscriptSegmentRow({ segment }: TranscriptSegmentRowProps) {
   const speakerLabel = formatSpeakerLabel(segment.speaker);
 
   return (
-    <div className="flex gap-3 py-2 border-b border-border last:border-b-0">
+    <div className="transcript-row">
       {/* Timestamp */}
-      <div className="shrink-0 w-20 text-xs text-muted-foreground font-mono">
+      <div className="transcript-cell-time">
         {formatTimestamp(segment.start)}
       </div>
 
       {/* Speaker badge (if present) */}
-      <div className="shrink-0 w-24">
+      <div className="transcript-cell-speaker">
         {speakerLabel && (
           <Badge variant="outline" className="text-xs">
             {speakerLabel}
@@ -60,7 +60,7 @@ export function TranscriptSegmentRow({ segment }: TranscriptSegmentRowProps) {
       </div>
 
       {/* Text content */}
-      <div className="flex-1 text-sm">
+      <div className="transcript-cell-text">
         {segment.text}
       </div>
     </div>

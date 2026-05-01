@@ -69,6 +69,16 @@ export interface FileQueueItem {
   uploadSpeed?: string;
   /** Estimated time remaining formatted (e.g., "2m 15s") -- set during upload phase */
   uploadEta?: string;
+  /**
+   * Insertion timestamp (ms since epoch).
+   *
+   * Plan 15-ux: display order is LIFO (newest live items prepend) so the
+   * just-selected file is visible without scrolling. Upload semantics
+   * stay FIFO — orchestration picks the OLDEST ready item by this stamp,
+   * not by array order. Decoupling display order from processing order
+   * keeps both invariants intact.
+   */
+  createdAt: number;
 }
 
 /** Language definition for display */
