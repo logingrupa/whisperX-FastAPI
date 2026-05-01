@@ -75,7 +75,18 @@ export function useTusUpload() {
         upload.start();
       })();
 
-      return { abort: () => upload.abort(true) };
+      // Idempotent cancel: terminate=true issues DELETE on the TUS Location.
+       // Backend returns 404 if the upload was never created (cancelled before
+       // first PATCH) or already cleaned up. Both are valid no-ops; swallow
+       // the DetailedError so user doesn't see "Server error" on Stop click.
+       const abort = async (): Promise<void> => {
+         try {
+           await upload.abort(true);
+         } catch {
+           // Best-effort cancel — backend may have purged the session already.
+         }
+       };
+       return { abort: () => { void abort(); } };
     },
     [],
   );
