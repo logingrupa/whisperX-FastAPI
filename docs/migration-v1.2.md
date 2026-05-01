@@ -29,6 +29,7 @@ Pre-requisite checklist:
 - Working directory: project root (where `alembic.ini` lives).
 - `uv sync` has run; `.venv` is active.
 - `.env` has `DB_URL` pointing at the production records.db.
+- `.env` has `AUTH__V2_ENABLED=true` (master gate; without it the v1.2 auth/keys/billing routers never mount — see [`.env.example`](../.env.example) and `app/main.py:247-252`).
 - Operator has shell-level access with a real TTY (not just `docker exec` without `-it`) — `getpass` in Section 5 needs an interactive terminal.
 - Application is stopped or out of rotation for the duration of the migration.
 
@@ -336,6 +337,16 @@ uv run uvicorn app.main:app --port 8000
 ```
 
 Expected output: startup logs end with `Application startup complete.` with no schema errors. Stop with `Ctrl+C`. The v1.2 frontend at `/ui` will require login on the next request.
+
+Check 7 — v1.2 auth surface is mounted (boundary assert: every preceding check passes regardless of `AUTH__V2_ENABLED`; this one fires only when the master gate is set):
+
+```bash
+curl -i -X POST http://localhost:8000/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"smoke@example.com","password":"smoke-pw-1234"}'
+```
+
+Expected output: `HTTP/1.1 201 Created` (registration succeeded) OR `HTTP/1.1 400/422` (validation rejected the body) — anything except `HTTP/1.1 404 Not Found`. A 404 here means `AUTH__V2_ENABLED=false` (or unset) in the running env: the v1.2 routers in `app/main.py:247-252` never mounted. Fix `.env` per Section 1's pre-requisite checklist and restart.
 
 Failure mode: any check above failing means the migration is incomplete. Roll back via Section 9 and investigate before retrying.
 
