@@ -88,7 +88,15 @@ def upload_dirs(
 def account_app(
     tmp_db_url: str, session_factory
 ) -> Generator[tuple[FastAPI, Container], None, None]:
-    """Slim FastAPI app: auth_router + account_router + DualAuthMiddleware."""
+    """Slim FastAPI app: auth_router + account_router + DualAuthMiddleware.
+
+    Phase 19 Plan 06 additive override: ``app.dependency_overrides[get_db]``
+    is wired so the new ``Depends(authenticated_user)`` chain in
+    account_routes resolves against the tmp SQLite (NOT the prod
+    SessionLocal). This is the minimum fixture surface needed by the route
+    migration; full container-override -> dependency_overrides migration
+    is owned by Plan 10.
+    """
     container = Container()
     container.db_session_factory.override(providers.Factory(session_factory))
     dependencies.set_container(container)
@@ -104,8 +112,18 @@ def account_app(
     app.include_router(account_router)
     app.add_middleware(DualAuthMiddleware, container=container)
 
+    def _override_get_db():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    app.dependency_overrides[dependencies.get_db] = _override_get_db
+
     yield app, container
 
+    app.dependency_overrides.clear()
     container.unwire()
     container.db_session_factory.reset_override()
     limiter.reset()
@@ -118,9 +136,19 @@ def client(account_app: tuple[FastAPI, Container]) -> TestClient:
 
 
 def _register(client: TestClient, email: str, password: str = "supersecret123") -> int:
-    """Register a user via /auth/register; return the user_id."""
+    """Register a user via /auth/register; return the user_id.
+
+    Phase 19 Plan 06 additive: account_router now applies router-level
+    csrf_protected (Depends), so cookie-auth state-mutating calls (DELETE)
+    require X-CSRF-Token. Stamp the csrf_token cookie value as a default
+    header on the client after register so subsequent DELETEs pass the
+    double-submit check; this preserves the legacy test bodies untouched.
+    """
     response = client.post("/auth/register", json={"email": email, "password": password})
     assert response.status_code == 201, response.text
+    csrf = client.cookies.get("csrf_token")
+    assert csrf is not None, "csrf_token cookie missing after /auth/register"
+    client.headers["X-CSRF-Token"] = csrf
     return int(response.json()["user_id"])
 
 

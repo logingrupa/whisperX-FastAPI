@@ -8,9 +8,19 @@ frontend authStore.refresh() and AccountPage.
 SCOPE-06: full-row account delete + 3-step cascade orchestrated by
 AccountService.delete_account; clears auth cookies on success.
 
+Phase 19 — pilot route migration to the Depends auth chain:
+- Auth resolved via the authenticated_user Depends (NOT the legacy
+  DualAuthMiddleware request.state lookup).
+- CSRF enforced router-level via the csrf_protected Depends; csrf_protected
+  method-gates so GET /me passes through, DELETEs fire the double-submit
+  check.
+- AccountService bound via get_account_service_v2 (chains off get_db ->
+  get_user_repository_v2). Local helper preserved for backward compat
+  callers; switched to the get_db Depends (was get_db_session).
+
 Constraints honoured:
-    DRY  — get_authenticated_user dependency reused (single resolution
-           point set by DualAuthMiddleware); AccountSummaryResponse +
+    DRY  — authenticated_user dependency reused (single resolution
+           point per Phase 19 D2 lock); AccountSummaryResponse +
            DeleteAccountRequest imported from the central account_schemas
            module; clear_auth_cookies imported from _cookie_helpers.
     SRP  — routes do HTTP only; AccountService owns business logic.
@@ -23,7 +33,12 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.api._cookie_helpers import clear_auth_cookies
-from app.api.dependencies import get_authenticated_user, get_db_session
+from app.api.dependencies import (
+    authenticated_user,
+    csrf_protected,
+    get_account_service_v2,
+    get_db,
+)
 from app.api.schemas.account_schemas import (
     AccountSummaryResponse,
     DeleteAccountRequest,
@@ -32,25 +47,29 @@ from app.core.exceptions import ValidationError
 from app.domain.entities.user import User
 from app.services.account_service import AccountService
 
-account_router = APIRouter(prefix="/api/account", tags=["Account"])
+account_router = APIRouter(
+    prefix="/api/account",
+    tags=["Account"],
+    dependencies=[Depends(csrf_protected)],
+)
 
 
 def get_account_service(
-    session: Session = Depends(get_db_session),
+    session: Session = Depends(get_db),
 ) -> AccountService:
     """Per-request AccountService factory (binds a fresh DB session).
 
-    AccountService lazy-constructs the user repository when only ``session``
-    is passed — keeps SCOPE-05 callers untouched while UI-07 / SCOPE-06
-    benefit from the shared instance.
+    Kept for backward compat with any external callers; new routes
+    composes ``get_account_service_v2`` directly. AccountService
+    lazy-constructs the user repository when only ``session`` is passed.
     """
     return AccountService(session=session)
 
 
 @account_router.delete("/data", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user_data(
-    user: User = Depends(get_authenticated_user),
-    account_service: AccountService = Depends(get_account_service),
+    user: User = Depends(authenticated_user),
+    account_service: AccountService = Depends(get_account_service_v2),
 ) -> Response:
     """Delete the caller's tasks + uploaded files. User row preserved."""
     account_service.delete_user_data(int(user.id))
@@ -59,8 +78,8 @@ async def delete_user_data(
 
 @account_router.get("/me", response_model=AccountSummaryResponse)
 async def get_account_me(
-    user: User = Depends(get_authenticated_user),
-    account_service: AccountService = Depends(get_account_service),
+    user: User = Depends(authenticated_user),
+    account_service: AccountService = Depends(get_account_service_v2),
 ) -> AccountSummaryResponse:
     """GET /api/account/me — return account summary for client hydration (UI-07).
 
@@ -85,8 +104,8 @@ async def get_account_me(
 @account_router.delete("", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_account(
     body: DeleteAccountRequest,
-    user: User = Depends(get_authenticated_user),
-    account_service: AccountService = Depends(get_account_service),
+    user: User = Depends(authenticated_user),
+    account_service: AccountService = Depends(get_account_service_v2),
 ) -> Response:
     """DELETE /api/account — cascade delete + clear cookies. SCOPE-06.
 
