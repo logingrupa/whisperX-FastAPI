@@ -32,6 +32,7 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
+from dependency_injector import providers
 from fastapi import APIRouter, Depends, FastAPI, Request, Response
 from fastapi.testclient import TestClient
 from slowapi.errors import RateLimitExceeded
@@ -40,11 +41,15 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.api import dependencies as deps_module
 from app.api.auth_routes import auth_router
+from app.api.key_routes import key_router
 from app.api.exception_handlers import (
     invalid_credentials_handler,
     validation_error_handler,
 )
 from app.core.config import get_settings
+from app.core.container import Container
+from app.core.csrf_middleware import CsrfMiddleware
+from app.core.dual_auth import DualAuthMiddleware
 from app.core.exceptions import InvalidCredentialsError, ValidationError
 from app.core.rate_limiter import limiter, rate_limit_handler
 from app.domain.entities.user import User
@@ -107,22 +112,23 @@ def _build_protected_router() -> APIRouter:
 
 @pytest.fixture
 def app_and_factory(
-    tmp_db_url: str, session_factory
+    tmp_db_url: str,
+    session_factory,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> Generator[tuple[FastAPI, sessionmaker], None, None]:
-    """FastAPI app: auth_router (cookie issuance) + protected/optional routes.
+    """FastAPI app: auth_router + key_router + protected/optional routes.
 
-    Phase 19 wiring: NO DualAuthMiddleware. Auth is per-route Depends. The
-    legacy `_container` is still set because auth_router today resolves
-    services through `_container`-backed deps (Plan 06+ migrates auth_routes
-    off the legacy path; Plan 04 only adds the new dep alongside).
+    DualAuthMiddleware + CsrfMiddleware are mounted because /auth/register
+    and POST /api/keys (used to seat cookies/bearers) require them. The
+    middleware lets unauthenticated requests through on PUBLIC_ALLOWLIST
+    paths; we extend the allowlist with /protected and /optional so the
+    new authenticated_user dep runs end-to-end without the legacy
+    middleware short-circuiting tests 1, 5, 6, 7, 8, 9, 10, 12.
 
-    `app.dependency_overrides[get_db]` pins all `_v2` providers to the
-    tmp-DB sessionmaker so the new auth dep reads/writes the same DB the
-    auth_router writes via the legacy container.
+    Coexistence target (Plan 04): the new dep must work even WHILE
+    DualAuthMiddleware is still installed (Plan 11 deletes it).
     """
-    from dependency_injector import providers
-
-    from app.core.container import Container
+    from app.core import dual_auth as dual_auth_mod
 
     container = Container()
     container.db_session_factory.override(providers.Factory(session_factory))
@@ -130,13 +136,28 @@ def app_and_factory(
 
     limiter.reset()
 
+    # Add the test routes to the public allowlist so DualAuthMiddleware lets
+    # unauthenticated calls fall through to the dep instead of 401-ing at
+    # the middleware layer. Real prod routes that adopt the new dep will
+    # also be removed from PUBLIC_ALLOWLIST checks in Plan 11; until then
+    # this monkeypatch isolates the dep under test.
+    extended_allowlist = dual_auth_mod.PUBLIC_ALLOWLIST + ("/protected", "/optional")
+    monkeypatch.setattr(dual_auth_mod, "PUBLIC_ALLOWLIST", extended_allowlist)
+
     app = FastAPI()
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
     app.add_exception_handler(InvalidCredentialsError, invalid_credentials_handler)
     app.add_exception_handler(ValidationError, validation_error_handler)
     app.include_router(auth_router)
+    app.include_router(key_router)
     app.include_router(_build_protected_router())
+    # ASGI reversal: register Csrf FIRST so it dispatches AFTER DualAuth
+    # (DualAuth populates request.state.auth_method which Csrf reads).
+    # Required so /api/keys CSRF check passes when seating bearer keys via
+    # cookie+csrf in helper functions.
+    app.add_middleware(CsrfMiddleware, container=container)
+    app.add_middleware(DualAuthMiddleware, container=container)
 
     def _override_get_db() -> Generator[Session, None, None]:
         db = session_factory()

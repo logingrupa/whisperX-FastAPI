@@ -2,12 +2,21 @@
 
 from collections.abc import Generator
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.constants import CONTAINER_NOT_INITIALIZED_ERROR
+from app.core import jwt_codec
 from app.core import services as core_services
+from app.core.config import get_settings
 from app.core.container import Container
+from app.core.exceptions import (
+    InvalidApiKeyFormatError,
+    InvalidApiKeyHashError,
+    JwtAlgorithmError,
+    JwtExpiredError,
+    JwtTamperedError,
+)
 from app.domain.entities.user import User
 from app.domain.repositories.api_key_repository import IApiKeyRepository
 from app.domain.repositories.device_fingerprint_repository import (
@@ -578,3 +587,180 @@ def get_account_service_v2(
     instance shared across methods (DRY) instead of lazy-constructing one.
     """
     return AccountService(session=db, user_repository=user_repository)
+
+
+# ===========================================================================
+# Phase 19 Plan 04 — authenticated_user Depends chain (D2)
+#
+# Replaces DualAuthMiddleware request.state population with per-route auth.
+# Bearer wins when both presented (CONTEXT §50 invariant). Cookie path
+# performs sliding refresh by stamping a fresh Set-Cookie BEFORE the dep
+# returns (FastAPI flushes Response headers AFTER route handler runs, so
+# the slide must happen during dep resolution, not after).
+#
+# Subtype-first error tuples mirror app/core/dual_auth.py:110-125 — specific
+# JWT subtypes caught before generic ValueError. Cookie attrs in the slide
+# are byte-identical to dual_auth.py:310-321 (REFACTOR-07 lock; verified
+# at every commit by tests/integration/test_set_cookie_attrs.py).
+#
+# Coexistence: DualAuthMiddleware stays installed in app/main.py until
+# Plan 11 deletes it; Plans 06-07 migrate routes off the middleware to
+# Depends(authenticated_user). Public routes (e.g. /auth/login, /health)
+# either omit the dep or use authenticated_user_optional — PUBLIC_ALLOWLIST
+# goes away in Plan 16.
+#
+# Tiger-style: flat early-returns; subtype-first exception tuples; zero
+# nested-if (verifier grep returns 0 in this region).
+# ===========================================================================
+
+
+SESSION_COOKIE = "session"
+BEARER_PREFIX = "Bearer "
+_BEARER_FAILURES = (InvalidApiKeyFormatError, InvalidApiKeyHashError)
+_COOKIE_DECODE_FAILURES = (
+    JwtExpiredError,
+    JwtAlgorithmError,
+    JwtTamperedError,
+    KeyError,
+    ValueError,
+)
+_COOKIE_REFRESH_FAILURES = (JwtExpiredError, JwtAlgorithmError, JwtTamperedError)
+STATE_MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+def _resolve_bearer(plaintext: str, db: Session) -> User | None:
+    """Resolve a presented bearer plaintext to a User, or None on failure.
+
+    Two-query semantics verbatim from app/core/dual_auth.py:209-225 (Phase
+    20 collapses to a single JOIN; preserved here so structural refactor
+    and perf optimisation revert independently). Subtype-first try/except
+    over _BEARER_FAILURES; any other exception bubbles (caller treats as
+    500).
+    """
+    key_service = KeyService(repository=SQLAlchemyApiKeyRepository(db))
+    try:
+        api_key = key_service.verify_plaintext(plaintext)
+    except _BEARER_FAILURES:
+        return None
+    return SQLAlchemyUserRepository(db).get_by_id(api_key.user_id)
+
+
+def _resolve_cookie(token: str, db: Session, response: Response) -> User | None:
+    """Resolve a session-cookie JWT to a User and stamp a sliding-refresh cookie.
+
+    Semantics mirror app/core/dual_auth.py:262-321:
+      - jwt_codec.decode_session validates HS256 + extracts ``sub``.
+      - SQLAlchemyUserRepository.get_by_id loads the user (None → 401 leg).
+      - TokenService.verify_and_refresh re-validates the token_version and
+        issues a fresh JWT (sliding 7d expiry).
+      - response.set_cookie stamps the fresh JWT BEFORE the dep returns so
+        FastAPI flushes it on the response (Pitfall 1 in 19-RESEARCH).
+      - Cookie attrs byte-identical to dual_auth.py:310-321 (REFACTOR-07).
+
+    Returns None on any failure leg — caller decides 401-vs-anonymous.
+    """
+    settings = get_settings()
+    secret = settings.auth.JWT_SECRET.get_secret_value()
+    try:
+        payload = jwt_codec.decode_session(token, secret=secret)
+        user_id = int(payload["sub"])
+    except _COOKIE_DECODE_FAILURES:
+        return None
+    user = SQLAlchemyUserRepository(db).get_by_id(user_id)
+    if user is None:
+        return None
+    try:
+        _payload, refreshed = core_services.get_token_service().verify_and_refresh(
+            token, user.token_version
+        )
+    except _COOKIE_REFRESH_FAILURES:
+        return None
+    response.set_cookie(
+        key=SESSION_COOKIE,
+        value=refreshed,
+        max_age=settings.auth.JWT_TTL_DAYS * 24 * 3600,
+        httponly=True,
+        secure=settings.auth.COOKIE_SECURE,
+        samesite="lax",
+        path="/",
+        domain=settings.auth.COOKIE_DOMAIN or None,
+    )
+    return user
+
+
+def _try_resolve(
+    request: Request, response: Response, db: Session
+) -> User | None:
+    """Bearer wins. Then cookie. Then None. Three flat early-returns.
+
+    Bearer-then-cookie order is the Phase 13 invariant (CONTEXT §50). If
+    the bearer header is present but malformed, this returns None — it
+    does NOT silently fall through to the cookie (T-19-04-06 mitigation;
+    see RESEARCH §Pitfall 5).
+    """
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.startswith(BEARER_PREFIX):
+        plaintext = auth_header[len(BEARER_PREFIX):].strip()
+        return _resolve_bearer(plaintext, db)
+    cookie = request.cookies.get(SESSION_COOKIE)
+    if cookie:
+        return _resolve_cookie(cookie, db, response)
+    return None
+
+
+async def authenticated_user(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> User:
+    """Resolve the authenticated user via Depends — raise 401 on failure.
+
+    Single 401 detail string ``"Authentication required"`` plus a
+    ``Bearer realm="whisperx"`` challenge header matches the
+    DualAuthMiddleware response shape (T-13-05 anti-leak: callers cannot
+    distinguish which auth leg failed).
+    """
+    user = _try_resolve(request, response, db)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": 'Bearer realm="whisperx"'},
+        )
+    return user
+
+
+async def authenticated_user_optional(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> User | None:
+    """Same as authenticated_user but returns None instead of raising.
+
+    Used by public routes that need optional auth context (none today;
+    placeholder for Plan 16 PUBLIC_ALLOWLIST removal — public routes
+    that want to surface user.id when present can opt in via this dep).
+    """
+    return _try_resolve(request, response, db)
+
+
+def get_scoped_task_repository_v2(
+    user: User = Depends(authenticated_user),
+    db: Session = Depends(get_db),
+) -> ITaskRepository:
+    """Return a per-user-scoped SQLAlchemyTaskRepository.
+
+    Chains off authenticated_user (so anonymous callers 401 before the
+    repo is built). No try/finally for session.close — get_db owns the
+    request-scoped Session lifecycle (single close site invariant).
+    """
+    repository = SQLAlchemyTaskRepository(db)
+    repository.set_user_scope(int(user.id) if user.id is not None else 0)
+    return repository
+
+
+def get_task_management_service_v2(
+    repository: ITaskRepository = Depends(get_scoped_task_repository_v2),
+) -> TaskManagementService:
+    """Return a TaskManagementService wrapping the user-scoped task repo."""
+    return TaskManagementService(repository=repository)
