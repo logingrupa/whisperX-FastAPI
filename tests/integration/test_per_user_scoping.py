@@ -15,11 +15,11 @@ Coverage (≥10 cases):
   11. test_get_all_tasks_anonymous_returns_401
   12. test_cross_user_delete_returns_same_404_body_as_unknown_id
 
-Slim FastAPI app per test (mirrors 13-03/13-04/13-06):
-  - auth_router (for cookie-acquisition via /auth/register)
-  - task_router + ws_ticket_router
-  - DualAuthMiddleware for cookie session resolution
-  - Per-test Container overridden against a fresh SQLite DB
+Phase 19 Plan 10: slim app per test (auth + task + ws_ticket routers) driven
+solely by app.dependency_overrides[get_db]. The new
+Depends(authenticated_user) handles auth per-route and
+get_scoped_task_repository_v2 + get_scoped_task_management_service_v2 own
+scope via the Depends graph — no DualAuthMiddleware, no Container override.
 """
 
 from __future__ import annotations
@@ -29,7 +29,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
-from dependency_injector import providers
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from slowapi.errors import RateLimitExceeded
@@ -44,8 +43,6 @@ from app.api.exception_handlers import (
 )
 from app.api.task_api import task_router
 from app.api.ws_ticket_routes import ws_ticket_router
-from app.core.container import Container
-from app.core.dual_auth import DualAuthMiddleware
 from app.core.exceptions import (
     InvalidCredentialsError,
     TaskNotFoundError,
@@ -94,12 +91,16 @@ def session_factory(tmp_db_url: str):
 @pytest.fixture
 def app_and_container(
     tmp_db_url: str, session_factory
-) -> Generator[tuple[FastAPI, Container], None, None]:
-    """Slim FastAPI app: auth + task + ws_ticket routers + DualAuthMiddleware."""
-    container = Container()
-    container.db_session_factory.override(providers.Factory(session_factory))
-    dependencies.set_container(container)
+) -> Generator[FastAPI, None, None]:
+    """Slim FastAPI app: auth + task + ws_ticket routers driven via dep overrides.
 
+    Phase 19 Plan 10: dependency_overrides[get_db] is the SOLE DB-binding
+    seam. Auth + scope are owned by the new Depends graph
+    (Depends(authenticated_user) + get_scoped_task_repository_v2). Fixture
+    name kept as ``app_and_container`` for backward compat with existing
+    test signatures even though the container concept is gone — the
+    deprecation rename happens in Plan 13 alongside container.py deletion.
+    """
     limiter.reset()
 
     app = FastAPI()
@@ -111,11 +112,7 @@ def app_and_container(
     app.include_router(auth_router)
     app.include_router(task_router)
     app.include_router(ws_ticket_router)
-    app.add_middleware(DualAuthMiddleware, container=container)
 
-    # Phase 19 Plan 07 additive override (Rule 3): wire app.dependency_overrides
-    # for get_db so authenticated_user + the v2 service chain resolves against
-    # the tmp SQLite. Plan 10 owns the full fixture migration.
     def _override_get_db():
         session = session_factory()
         try:
@@ -125,18 +122,15 @@ def app_and_container(
 
     app.dependency_overrides[dependencies.get_db] = _override_get_db
 
-    yield app, container
+    yield app
 
     app.dependency_overrides.clear()
-    container.unwire()
-    container.db_session_factory.reset_override()
     limiter.reset()
 
 
 @pytest.fixture
-def client(app_and_container: tuple[FastAPI, Container]) -> TestClient:
-    app, _ = app_and_container
-    return TestClient(app)
+def client(app_and_container: FastAPI) -> TestClient:
+    return TestClient(app_and_container)
 
 
 # ---------------------------------------------------------------
@@ -421,35 +415,38 @@ def test_get_all_tasks_anonymous_returns_401(client: TestClient) -> None:
 
 @pytest.mark.integration
 def test_post_speech_to_text_persists_with_user_id(
-    app_and_container: tuple[FastAPI, Container],
     client: TestClient,
     session_factory,
 ) -> None:
     """Direct exercise: scoped repo.add() persists task with caller's user_id.
 
     Bypasses the full /speech-to-text route (which depends on heavy
-    audio-decode + ML), but exercises the SAME wiring the route uses:
-    container.task_repository() + set_user_scope(user.id) + repo.add().
-    Proves the scope mechanism injects user_id at write-time.
+    audio-decode + ML), but exercises the SAME wiring the
+    get_scoped_task_repository_v2 dep uses:
+    SQLAlchemyTaskRepository(session) + set_user_scope(user.id) + repo.add().
+    Proves the scope mechanism injects user_id at write-time without going
+    through the container (Phase 19 Plan 10 — container.task_repository()
+    callsite removed).
     """
-    _, container = app_and_container
     user_id = _register(client, "monica@example.com")
-
-    # Acquire a scoped repo exactly the way get_scoped_task_repository does
-    repo = container.task_repository()
-    repo.set_user_scope(user_id)
 
     from app.domain.entities.task import Task as DomainTask
 
-    task = DomainTask(
-        uuid="monica-task-1",
-        status="processing",
-        task_type="speech-to-text",
-        # NB: user_id intentionally None — scope must inject it
-        user_id=None,
-    )
-    persisted_uuid = repo.add(task)
-    repo.set_user_scope(None)
+    # Build a scoped repo exactly the way get_scoped_task_repository_v2 does:
+    # one Session per "request", set_user_scope(user.id) on the bound repo.
+    with session_factory() as session:
+        repo = SQLAlchemyTaskRepository(session)
+        repo.set_user_scope(user_id)
+
+        task = DomainTask(
+            uuid="monica-task-1",
+            status="processing",
+            task_type="speech-to-text",
+            # NB: user_id intentionally None — scope must inject it
+            user_id=None,
+        )
+        persisted_uuid = repo.add(task)
+        repo.set_user_scope(None)
 
     assert persisted_uuid == "monica-task-1"
     with session_factory() as session:

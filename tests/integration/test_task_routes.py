@@ -11,11 +11,9 @@ Coverage:
   8. Total reflects un-paginated count under filters
   9. Newest tasks come first (created_at DESC)
 
-Slim FastAPI app per test (mirrors test_per_user_scoping):
-  - auth_router (cookie acquisition via /auth/register)
-  - task_router
-  - DualAuthMiddleware for cookie session resolution
-  - Per-test Container overridden against a fresh SQLite DB
+Phase 19 Plan 10: slim app + dependency_overrides[get_db] only — auth and
+scope are owned by the new Depends graph (Depends(authenticated_user) +
+get_scoped_task_management_service_v2). No DualAuthMiddleware, no Container.
 """
 
 from __future__ import annotations
@@ -25,7 +23,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
-from dependency_injector import providers
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from slowapi.errors import RateLimitExceeded
@@ -39,8 +36,6 @@ from app.api.exception_handlers import (
     validation_error_handler,
 )
 from app.api.task_api import task_router
-from app.core.container import Container
-from app.core.dual_auth import DualAuthMiddleware
 from app.core.exceptions import (
     InvalidCredentialsError,
     TaskNotFoundError,
@@ -81,11 +76,14 @@ def session_factory(tmp_db_url: str):
 @pytest.fixture
 def app_and_container(
     tmp_db_url: str, session_factory
-) -> Generator[tuple[FastAPI, Container], None, None]:
-    container = Container()
-    container.db_session_factory.override(providers.Factory(session_factory))
-    dependencies.set_container(container)
+) -> Generator[FastAPI, None, None]:
+    """Slim FastAPI app: auth + task routers driven via dep overrides.
 
+    Phase 19 Plan 10: dependency_overrides[get_db] is the SOLE DB-binding
+    seam. Auth + scope are owned by the new Depends graph. Fixture name
+    kept as ``app_and_container`` for callsite stability across the
+    refactor wave; the legacy container is gone.
+    """
     limiter.reset()
 
     app = FastAPI()
@@ -96,11 +94,7 @@ def app_and_container(
     app.add_exception_handler(TaskNotFoundError, _task_not_found_handler)
     app.include_router(auth_router)
     app.include_router(task_router)
-    app.add_middleware(DualAuthMiddleware, container=container)
 
-    # Phase 19 Plan 07 additive override (Rule 3): wire app.dependency_overrides
-    # for get_db so authenticated_user + get_task_management_service_v2 chain
-    # resolves against the tmp SQLite. Plan 10 owns the full fixture migration.
     def _override_get_db():
         session = session_factory()
         try:
@@ -110,18 +104,15 @@ def app_and_container(
 
     app.dependency_overrides[dependencies.get_db] = _override_get_db
 
-    yield app, container
+    yield app
 
     app.dependency_overrides.clear()
-    container.unwire()
-    container.db_session_factory.reset_override()
     limiter.reset()
 
 
 @pytest.fixture
-def client(app_and_container: tuple[FastAPI, Container]) -> TestClient:
-    app, _ = app_and_container
-    return TestClient(app)
+def client(app_and_container: FastAPI) -> TestClient:
+    return TestClient(app_and_container)
 
 
 # ---------------------------------------------------------------

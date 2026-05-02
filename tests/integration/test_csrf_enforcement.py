@@ -3,13 +3,17 @@
 Cookie-auth state-mutating POST without X-CSRF-Token header -> 403 "CSRF token missing".
 Cookie-auth state-mutating POST with mismatched X-CSRF-Token -> 403 "CSRF token mismatch".
 Cookie-auth state-mutating POST with matching X-CSRF-Token -> 204.
-Bearer-auth state-mutating POST with NO X-CSRF-Token header -> 204 (CsrfMiddleware skips,
-MID-04 invariant — auth_method='bearer' bypasses CSRF check).
+Bearer-auth state-mutating POST with NO X-CSRF-Token header -> 204 — bearer
+bypass invariant: csrf_protected dep early-returns when Authorization: Bearer
+is present (auth_method='bearer'), regardless of cookie state.
 
-Builds a slim FastAPI app per test (NOT app/main.py): mounts auth_router + key_router
-with both DualAuthMiddleware (resolves session/bearer first) and CsrfMiddleware
-(enforces double-submit second). ASGI registration is REVERSED so dispatch order is
-DualAuth -> Csrf -> route.
+Phase 19 Plan 10 fixture migration: slim FastAPI app per test mounts
+auth_router + key_router driven by dependency_overrides[get_db] only — the
+new Depends(csrf_protected) on the routers handles double-submit per-route,
+composed with Depends(authenticated_user) for auth resolution. The
+Phase-16-04 ASGI ordering note (CsrfMiddleware-first DualAuth-last) is
+OBSOLETE: order is now determined by the Depends graph (csrf_protected
+sub-resolves authenticated_user first), not by ASGI middleware registration.
 
 Code-quality invariants (verifier-checked):
     DRY  — _csrf_target_endpoint() is the single source for the path under test.
@@ -24,7 +28,6 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
-from dependency_injector import providers
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from slowapi.errors import RateLimitExceeded
@@ -38,9 +41,6 @@ from app.api.exception_handlers import (
     validation_error_handler,
 )
 from app.api.key_routes import key_router
-from app.core.container import Container
-from app.core.csrf_middleware import CsrfMiddleware
-from app.core.dual_auth import DualAuthMiddleware
 from app.core.exceptions import InvalidCredentialsError, ValidationError
 from app.core.rate_limiter import limiter, rate_limit_handler
 from app.infrastructure.database.models import Base
@@ -74,18 +74,17 @@ def session_factory(tmp_db_url: str):
 @pytest.fixture
 def auth_full_app(
     tmp_db_url: str, session_factory
-) -> Generator[tuple[FastAPI, Container], None, None]:
-    """FastAPI app with auth_router + key_router + DualAuthMiddleware + CsrfMiddleware.
+) -> Generator[FastAPI, None, None]:
+    """FastAPI app: auth_router + key_router driven via dep overrides.
 
-    Middleware ASGI registration order (CRITICAL):
-        add_middleware(CsrfMiddleware)     → registered first → runs SECOND on dispatch
-        add_middleware(DualAuthMiddleware) → registered last  → runs FIRST on dispatch
-    Net dispatch order: request -> DualAuth (sets auth_method) -> Csrf (enforces) -> route.
+    Phase 19 Plan 10: dependency_overrides[get_db] is the SOLE DB-binding
+    seam. Auth + CSRF are handled per-route via the production Depends
+    graph (Depends(authenticated_user) on /auth/logout-all, plus router-level
+    Depends(csrf_protected) on key_router). The Phase-16-04 ASGI ordering
+    invariant (CsrfMiddleware-first DualAuth-last) is OBSOLETE — order is
+    now determined by Depends resolution (csrf_protected sub-resolves
+    authenticated_user before its own check).
     """
-    container = Container()
-    container.db_session_factory.override(providers.Factory(session_factory))
-    dependencies.set_container(container)
-
     limiter.reset()
 
     app = FastAPI()
@@ -95,12 +94,7 @@ def auth_full_app(
     app.add_exception_handler(ValidationError, validation_error_handler)
     app.include_router(auth_router)
     app.include_router(key_router)
-    app.add_middleware(CsrfMiddleware, container=container)
-    app.add_middleware(DualAuthMiddleware, container=container)
 
-    # Phase 19 Plan 07 additive override (Rule 3): wire app.dependency_overrides
-    # for get_db so authenticated_user + the v2 auth/key service chain resolve
-    # against the tmp SQLite. Plan 10 owns the full fixture migration.
     def _override_get_db():
         session = session_factory()
         try:
@@ -110,11 +104,9 @@ def auth_full_app(
 
     app.dependency_overrides[dependencies.get_db] = _override_get_db
 
-    yield app, container
+    yield app
 
     app.dependency_overrides.clear()
-    container.unwire()
-    container.db_session_factory.reset_override()
     limiter.reset()
 
 
@@ -157,10 +149,10 @@ def _issue_api_key(client: TestClient) -> str:
 
 @pytest.mark.integration
 def test_csrf_missing_header_returns_403(
-    auth_full_app: tuple[FastAPI, Container],
+    auth_full_app: FastAPI,
 ) -> None:
     """Cookie-auth POST without X-CSRF-Token -> 403 'CSRF token missing'."""
-    app, _ = auth_full_app
+    app = auth_full_app
     client = TestClient(app)
     _issue_csrf_pair(client, "csrf-missing@phase16.example.com")
     # Cookies attached automatically; X-CSRF-Token deliberately absent.
@@ -171,10 +163,10 @@ def test_csrf_missing_header_returns_403(
 
 @pytest.mark.integration
 def test_csrf_mismatched_header_returns_403(
-    auth_full_app: tuple[FastAPI, Container],
+    auth_full_app: FastAPI,
 ) -> None:
     """X-CSRF-Token != csrf_token cookie -> 403 'CSRF token mismatch'."""
-    app, _ = auth_full_app
+    app = auth_full_app
     client = TestClient(app)
     _issue_csrf_pair(client, "csrf-mismatch@phase16.example.com")
     response = client.post(
@@ -187,10 +179,10 @@ def test_csrf_mismatched_header_returns_403(
 
 @pytest.mark.integration
 def test_csrf_matching_header_succeeds(
-    auth_full_app: tuple[FastAPI, Container],
+    auth_full_app: FastAPI,
 ) -> None:
     """Matching X-CSRF-Token -> request passes through (204)."""
-    app, _ = auth_full_app
+    app = auth_full_app
     client = TestClient(app)
     _, csrf_cookie_value = _issue_csrf_pair(
         client, "csrf-match@phase16.example.com"
@@ -204,7 +196,7 @@ def test_csrf_matching_header_succeeds(
 
 @pytest.mark.integration
 def test_bearer_auth_bypasses_csrf(
-    auth_full_app: tuple[FastAPI, Container],
+    auth_full_app: FastAPI,
 ) -> None:
     """Bearer-auth state-mutating POST WITHOUT X-CSRF-Token still succeeds (MID-04).
 
@@ -212,7 +204,7 @@ def test_bearer_auth_bypasses_csrf(
     Authorization: Bearer leg; CsrfMiddleware then short-circuits its check
     (cookie + header double-submit only fires when auth_method=='cookie').
     """
-    app, _ = auth_full_app
+    app = auth_full_app
     client = TestClient(app)
     _issue_csrf_pair(client, "csrf-bearer-bypass@phase16.example.com")
     plaintext_key = _issue_api_key(client)  # cookie-auth path issues key
