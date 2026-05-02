@@ -79,8 +79,14 @@ async def websocket_task_progress(
         return
 
     ticket_service = dependencies._container.ws_ticket_service()
+    # task_repository is a Factory — it owns a fresh DB Session that MUST
+    # be closed in finally or the engine pool exhausts (see
+    # app/api/dependencies.py::get_task_repository for the failure mode).
     task_repo = dependencies._container.task_repository()
-    task = task_repo.get_by_id(task_id)
+    try:
+        task = task_repo.get_by_id(task_id)
+    finally:
+        task_repo.session.close()
     if task is None:
         await websocket.close(code=WS_POLICY_VIOLATION)
         return

@@ -107,12 +107,36 @@ def _logout_clear_cookies(response: Response) -> None:
     response.delete_cookie(key=CSRF_COOKIE, path="/")
 
 
+_BEARER_FAILURE_EXCEPTIONS = (
+    InvalidApiKeyFormatError,
+    InvalidApiKeyHashError,
+)
+_COOKIE_DECODE_EXCEPTIONS = (
+    JwtExpiredError,
+    JwtAlgorithmError,
+    JwtTamperedError,
+    KeyError,
+    ValueError,
+)
+_COOKIE_REFRESH_EXCEPTIONS = (
+    JwtExpiredError,
+    JwtAlgorithmError,
+    JwtTamperedError,
+)
+
+
 class DualAuthMiddleware(BaseHTTPMiddleware):
     """Resolve cookie session JWT OR ``whsk_*`` bearer; populate request.state.
 
     Single source of auth context for all Phase 13 routes (DRT). Routes never
     parse Authorization or session cookies directly — they consume
     ``Depends(get_authenticated_user)`` which reads ``request.state.user``.
+
+    Failure model: on a credential-bearing request that fails to validate
+    (bad bearer, bad cookie), the middleware falls through to the public
+    allowlist when the path is public. Without this, a stale browser cookie
+    locks the user out of the recovery routes (/auth/login, /auth/register).
+    Non-public paths still 401 fast — security posture unchanged.
     """
 
     def __init__(self, app: ASGIApp, *, container: Container) -> None:
@@ -125,84 +149,163 @@ class DualAuthMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             return await call_next(request)
 
-        # 1. Bearer first — external API consumers; bearer wins over cookie.
-        auth_header = request.headers.get("authorization", "")
-        if auth_header.startswith(BEARER_PREFIX):
-            plaintext = auth_header[len(BEARER_PREFIX) :].strip()
-            return await self._dispatch_bearer(request, call_next, plaintext)
+        is_public_path = _is_public(request.url.path)
+        bearer = self._extract_bearer(request)
+        if bearer is not None:
+            return await self._dispatch_bearer(
+                request, call_next, bearer, is_public_path
+            )
 
-        # 2. Cookie session — browser flow with sliding refresh.
-        session_cookie = request.cookies.get(SESSION_COOKIE)
-        if session_cookie:
-            return await self._dispatch_cookie(request, call_next, session_cookie)
+        cookie = request.cookies.get(SESSION_COOKIE)
+        if cookie:
+            return await self._dispatch_cookie(
+                request, call_next, cookie, is_public_path
+            )
 
-        # 3. Public allowlist — pass-through with anonymous state.
-        if _is_public(request.url.path):
-            _set_state_anonymous(request)
-            return await call_next(request)
+        if is_public_path:
+            return await self._call_anonymous(request, call_next)
 
-        # 4. Else: 401.
         return _unauthorized()
+
+    # -- bearer ---------------------------------------------------------
+
+    @staticmethod
+    def _extract_bearer(request: Request) -> str | None:
+        header = request.headers.get("authorization", "")
+        if not header.startswith(BEARER_PREFIX):
+            return None
+        return header[len(BEARER_PREFIX) :].strip() or None
 
     async def _dispatch_bearer(
         self,
         request: Request,
         call_next: RequestResponseEndpoint,
         plaintext: str,
+        is_public_path: bool,
     ) -> Response:
-        try:
-            api_key = self._container.key_service().verify_plaintext(plaintext)
-        except (InvalidApiKeyFormatError, InvalidApiKeyHashError):
-            return _unauthorized()
-
-        user = self._container.user_repository().get_by_id(api_key.user_id)
-        if user is None:
-            return _unauthorized()
-
-        request.state.user = user
-        request.state.plan_tier = user.plan_tier
-        request.state.auth_method = "bearer"
-        request.state.api_key_id = api_key.id
+        result = self._resolve_bearer(plaintext)
+        if result is None:
+            return await self._reject_or_anonymous(request, call_next, is_public_path)
+        user, api_key_id = result
+        self._set_state(request, user=user, method="bearer", api_key_id=api_key_id)
         logger.debug("auth ok auth_method=bearer user_id=%s", user.id)
         return await call_next(request)
+
+    def _resolve_bearer(self, plaintext: str):
+        """Resolve bearer plaintext to (User, api_key_id) or None.
+
+        Owns the lifecycle of every Factory-provided service it constructs:
+        each service has an underlying SQLAlchemy ``Session`` checked out
+        from the engine pool, and that Session MUST be closed in a finally
+        clause. Otherwise the pool exhausts after pool_size + max_overflow
+        (default 5+10=15) requests and the next checkout blocks 30s on
+        QueuePool timeout — surfacing as a 401 because
+        ``SQLAlchemyUserRepository.get_by_email`` swallows the
+        ``SQLAlchemyError`` and returns None. Same root cause and same
+        contract as the FastAPI ``Depends`` providers in
+        ``app/api/dependencies.py``; this middleware bypasses Depends so
+        it must do the cleanup itself.
+        """
+        key_service = self._container.key_service()
+        try:
+            try:
+                api_key = key_service.verify_plaintext(plaintext)
+            except _BEARER_FAILURE_EXCEPTIONS:
+                return None
+        finally:
+            key_service.repository.session.close()
+
+        user_repository = self._container.user_repository()
+        try:
+            user = user_repository.get_by_id(api_key.user_id)
+        finally:
+            user_repository.session.close()
+        if user is None:
+            return None
+        return user, api_key.id
+
+    # -- cookie ---------------------------------------------------------
 
     async def _dispatch_cookie(
         self,
         request: Request,
         call_next: RequestResponseEndpoint,
         token: str,
+        is_public_path: bool,
     ) -> Response:
-        # Decode once to recover sub before token-version compare; typed errors
-        # collapse to a generic 401 (T-13-02 / T-13-05).
-        try:
-            payload = jwt_codec.decode_session(
-                token, secret=get_settings().auth.JWT_SECRET.get_secret_value()
-            )
-            user_id = int(payload["sub"])
-        except (JwtExpiredError, JwtAlgorithmError, JwtTamperedError, KeyError, ValueError):
-            return _unauthorized()
-
-        user = self._container.user_repository().get_by_id(user_id)
-        if user is None:
-            return _unauthorized()
-
-        # Verify token_version + issue refreshed token (AUTH-04 sliding window).
-        try:
-            _payload, new_token = self._container.token_service().verify_and_refresh(
-                token, user.token_version
-            )
-        except (JwtExpiredError, JwtAlgorithmError, JwtTamperedError):
-            return _unauthorized()
-
-        request.state.user = user
-        request.state.plan_tier = user.plan_tier
-        request.state.auth_method = "cookie"
-        request.state.api_key_id = None
-
+        result = self._resolve_cookie(token)
+        if result is None:
+            return await self._reject_or_anonymous(request, call_next, is_public_path)
+        user, refreshed_token = result
+        self._set_state(request, user=user, method="cookie")
         response = await call_next(request)
-        self._set_session_cookie(response, new_token)
+        self._set_session_cookie(response, refreshed_token)
         logger.debug("auth ok auth_method=cookie user_id=%s", user.id)
         return response
+
+    def _resolve_cookie(self, token: str):
+        """Resolve session cookie token to (User, refreshed_token) or None.
+
+        Same Session lifecycle contract as ``_resolve_bearer``:
+        the Factory-provided ``user_repository`` owns a fresh DB Session
+        and must be closed in a finally clause to keep the pool alive.
+        ``token_service`` is a Singleton (no DB) so it does not require
+        a close.
+        """
+        secret = get_settings().auth.JWT_SECRET.get_secret_value()
+        try:
+            payload = jwt_codec.decode_session(token, secret=secret)
+            user_id = int(payload["sub"])
+        except _COOKIE_DECODE_EXCEPTIONS:
+            return None
+
+        user_repository = self._container.user_repository()
+        try:
+            user = user_repository.get_by_id(user_id)
+        finally:
+            user_repository.session.close()
+        if user is None:
+            return None
+
+        try:
+            _payload, refreshed_token = self._container.token_service().verify_and_refresh(
+                token, user.token_version
+            )
+        except _COOKIE_REFRESH_EXCEPTIONS:
+            return None
+        return user, refreshed_token
+
+    # -- shared helpers -------------------------------------------------
+
+    @staticmethod
+    def _set_state(
+        request: Request,
+        *,
+        user,
+        method: str,
+        api_key_id: int | None = None,
+    ) -> None:
+        request.state.user = user
+        request.state.plan_tier = user.plan_tier
+        request.state.auth_method = method
+        request.state.api_key_id = api_key_id
+
+    @staticmethod
+    async def _call_anonymous(
+        request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
+        _set_state_anonymous(request)
+        return await call_next(request)
+
+    async def _reject_or_anonymous(
+        self,
+        request: Request,
+        call_next: RequestResponseEndpoint,
+        is_public_path: bool,
+    ) -> Response:
+        if not is_public_path:
+            return _unauthorized()
+        return await self._call_anonymous(request, call_next)
 
     def _set_session_cookie(self, response: Response, token: str) -> None:
         settings = get_settings()

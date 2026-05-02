@@ -304,8 +304,14 @@ def _resolve_user_for_task(task_user_id: int | None) -> User | None:
 
         if _container is None:
             return None
+        # Factory-provided repo owns a fresh DB Session — close in finally
+        # to keep the engine pool alive (see app/api/dependencies.py
+        # ::get_task_repository for the failure mode).
         user_repo = _container.user_repository()
-        return user_repo.get_by_id(task_user_id)
+        try:
+            return user_repo.get_by_id(task_user_id)
+        finally:
+            user_repo.session.close()
     except Exception as exc:  # pragma: no cover — defensive
         logger.warning(
             "Failed to resolve user for task user_id=%s: %s", task_user_id, exc
@@ -626,4 +632,12 @@ def process_audio_common(
                         exc,
                     )
 
+        # Close every Session checked out via Factory providers. Without
+        # these closes the engine pool exhausts after a handful of
+        # transcribe jobs (see app/api/dependencies.py::get_task_repository
+        # for the failure mode).
+        if free_tier_gate is not None:
+            free_tier_gate.rate_limit_service.repository.session.close()
+        if usage_writer is not None:
+            usage_writer.session.close()
         session.close()
