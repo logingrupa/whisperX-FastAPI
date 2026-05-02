@@ -22,13 +22,20 @@ Phase 15-02 additions (AUTH-06 — /auth/logout-all):
 15. logout-all invalidates the caller's existing JWT (token_version invariant)
 16. logout-all without auth returns 401 "Authentication required"
 
-The auth-required tests use a fuller fixture (``auth_full_app``) that mounts
-``DualAuthMiddleware`` so the auth gate fires; the existing slim ``auth_app``
-fixture stays untouched (it tests anonymous register/login + idempotent logout
-which would 401 under the middleware).
-
-Builds a slim FastAPI app per test (NOT app/main.py) — keeps tests
-isolated from BearerAuthMiddleware + Phase 13-09 routing wiring.
+Phase 19 Plan 10 fixture migration:
+  - slim FastAPI app per test (auth_router only)
+  - app.dependency_overrides[get_db] is the SOLE DB-binding seam — drives
+    Depends(authenticated_user) + Depends(csrf_protected) on /auth/logout-all
+    transitively against the tmp SQLite.
+  - Single fixture ``auth_app`` covers BOTH anonymous public-allowlist routes
+    (register/login/logout) AND the auth-gated /auth/logout-all path; the
+    Phase-15-02 ``auth_full_app`` middleware-mounting variant collapses into
+    the same shape because the new Depends graph runs the auth gate per-route
+    (not via middleware).
+  - DualAuthMiddleware mounting + Container().db_session_factory.override(...)
+    + dependencies.set_container(...) are GONE — Plans 11-13 delete those
+    modules; the fixture surface migrates ahead of the deletions so the
+    atomic-commit invariant holds (collection succeeds at every commit).
 """
 
 from __future__ import annotations
@@ -37,7 +44,6 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
-from dependency_injector import providers
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from slowapi.errors import RateLimitExceeded
@@ -50,8 +56,6 @@ from app.api.exception_handlers import (
     invalid_credentials_handler,
     validation_error_handler,
 )
-from app.core.container import Container
-from app.core.dual_auth import DualAuthMiddleware
 from app.core.exceptions import InvalidCredentialsError, ValidationError
 from app.core.rate_limiter import limiter, rate_limit_handler
 from app.infrastructure.database.models import Base
@@ -75,10 +79,15 @@ def tmp_db_url(tmp_path: Path) -> str:
 
 @pytest.fixture
 def auth_app(tmp_db_url: str) -> Generator[FastAPI, None, None]:
-    """Build a slim FastAPI test app with auth_router mounted.
+    """Slim FastAPI test app: auth_router driven via dependency_overrides[get_db].
 
-    Wires its own Container instance with a per-test DB session factory so
-    that tests do NOT contaminate the module-global Container or each other.
+    Phase 19 Plan 10: ``app.dependency_overrides[get_db]`` is the SOLE
+    DB-binding seam. The production Depends graph
+    (``Depends(authenticated_user)`` for /auth/logout-all,
+    ``Depends(get_auth_service_v2)`` for /auth/register + /auth/login)
+    resolves transitively through the overridden ``get_db`` against the
+    tmp SQLite. No middleware mounting — the new Depends chain owns auth
+    end-to-end.
     """
     test_engine = create_engine(
         tmp_db_url, connect_args={"check_same_thread": False}
@@ -86,11 +95,6 @@ def auth_app(tmp_db_url: str) -> Generator[FastAPI, None, None]:
     TestSession = sessionmaker(
         autocommit=False, autoflush=False, bind=test_engine
     )
-
-    container = Container()
-    # Override with a Factory so each call constructs a fresh Session
-    container.db_session_factory.override(providers.Factory(TestSession))
-    dependencies.set_container(container)
 
     # Reset slowapi bucket between tests so 3/hr + 10/hr counters are fresh.
     limiter.reset()
@@ -102,10 +106,6 @@ def auth_app(tmp_db_url: str) -> Generator[FastAPI, None, None]:
     app.add_exception_handler(ValidationError, validation_error_handler)
     app.include_router(auth_router)
 
-    # Phase 19 Plan 07 additive override (Rule 3): wire app.dependency_overrides
-    # for get_db so the new /register + /login Depends(get_auth_service_v2)
-    # chain resolves against the tmp SQLite. Plan 10 owns the full fixture
-    # migration to dependency_overrides only.
     def _override_get_db():
         session = TestSession()
         try:
@@ -118,8 +118,6 @@ def auth_app(tmp_db_url: str) -> Generator[FastAPI, None, None]:
     yield app
 
     app.dependency_overrides.clear()
-    container.unwire()
-    container.db_session_factory.reset_override()
     test_engine.dispose()
     limiter.reset()
 
@@ -140,21 +138,16 @@ def auth_full_session_factory(tmp_db_url: str):
 @pytest.fixture
 def auth_full_app(
     tmp_db_url: str, auth_full_session_factory
-) -> Generator[tuple[FastAPI, Container], None, None]:
-    """FastAPI app with auth_router + DualAuthMiddleware mounted.
+) -> Generator[FastAPI, None, None]:
+    """Slim FastAPI app: auth_router driven via dependency_overrides[get_db].
 
-    Required for auth-gated routes (e.g. /auth/logout-all). The slim
-    ``auth_app`` fixture above is anonymous-only — public-allowlisted
-    /auth/register + /auth/login + idempotent /auth/logout work without a
-    middleware. /auth/logout-all needs ``request.state.user`` populated by
-    DualAuthMiddleware → 401 otherwise.
+    Phase 19 Plan 10: collapses the legacy ``auth_full_app`` (which mounted
+    DualAuthMiddleware) into the same shape as ``auth_app`` because the new
+    Depends(authenticated_user) on /auth/logout-all gates auth per-route via
+    the dep graph — no middleware needed. ``auth_full_session_factory`` is
+    kept as a separate fixture so tests can introspect DB state directly
+    (e.g. token_version row reads) without going through the dep override.
     """
-    container = Container()
-    container.db_session_factory.override(
-        providers.Factory(auth_full_session_factory)
-    )
-    dependencies.set_container(container)
-
     limiter.reset()
 
     app = FastAPI()
@@ -163,11 +156,7 @@ def auth_full_app(
     app.add_exception_handler(InvalidCredentialsError, invalid_credentials_handler)
     app.add_exception_handler(ValidationError, validation_error_handler)
     app.include_router(auth_router)
-    app.add_middleware(DualAuthMiddleware, container=container)
 
-    # Phase 19 Plan 07 additive override (Rule 3): wire app.dependency_overrides
-    # for get_db so authenticated_user + csrf_protected + the v2 service chain
-    # resolve against the tmp SQLite. Plan 10 owns the full fixture migration.
     def _override_get_db():
         session = auth_full_session_factory()
         try:
@@ -177,21 +166,18 @@ def auth_full_app(
 
     app.dependency_overrides[dependencies.get_db] = _override_get_db
 
-    yield app, container
+    yield app
 
     app.dependency_overrides.clear()
-    container.unwire()
-    container.db_session_factory.reset_override()
     limiter.reset()
 
 
 @pytest.fixture
 def auth_full_client(
-    auth_full_app: tuple[FastAPI, Container],
+    auth_full_app: FastAPI,
 ) -> TestClient:
-    """TestClient wrapping the auth_router + DualAuthMiddleware app."""
-    app, _ = auth_full_app
-    return TestClient(app)
+    """TestClient wrapping the auth_full_app."""
+    return TestClient(auth_full_app)
 
 
 def _register(
@@ -483,10 +469,10 @@ def test_logout_all_invalidates_existing_jwt(
 
 @pytest.mark.integration
 def test_logout_all_requires_auth(
-    auth_full_app: tuple[FastAPI, Container],
+    auth_full_app: FastAPI,
 ) -> None:
     """Anonymous POST /auth/logout-all returns 401 'Authentication required'."""
-    app, _ = auth_full_app
+    app = auth_full_app
     anon = TestClient(app)
 
     response = anon.post("/auth/logout-all")

@@ -9,10 +9,16 @@ Coverage (≥6 cases per plan 13-05):
 5. test_delete_user_data_cross_user_isolation — A's data survives B's DELETE
 6. test_delete_user_data_requires_auth — no auth → 401
 
-Slim FastAPI app per test mirrors 13-03/13-04 patterns:
-  - mounts auth_router (cookie acquisition) + account_router
-  - mounts DualAuthMiddleware for cookie/bearer resolution
-  - per-test Container override against tmp SQLite
+Phase 19 Plan 10 fixture migration:
+  - slim FastAPI app per test (auth_router + account_router only)
+  - app.dependency_overrides[get_db] is the SOLE DB-binding seam — drives
+    the production Depends(authenticated_user) + Depends(csrf_protected) chain
+    through the tmp SQLite without any middleware stack.
+  - DualAuthMiddleware / Container().db_session_factory.override(...) /
+    dependencies.set_container(container) are GONE — Plans 11-13 delete
+    those modules; this plan switches the fixture surface ahead of those
+    deletions so the atomic-commit invariant holds (collection succeeds at
+    every commit).
   - monkey-patches UPLOAD_DIR / TUS_UPLOAD_DIR on account_service module
 """
 
@@ -23,7 +29,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
-from dependency_injector import providers
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from slowapi.errors import RateLimitExceeded
@@ -37,8 +42,6 @@ from app.api.exception_handlers import (
     invalid_credentials_handler,
     validation_error_handler,
 )
-from app.core.container import Container
-from app.core.dual_auth import DualAuthMiddleware
 from app.core.exceptions import InvalidCredentialsError, ValidationError
 from app.core.rate_limiter import limiter, rate_limit_handler
 from app.infrastructure.database.models import Base
@@ -87,20 +90,18 @@ def upload_dirs(
 @pytest.fixture
 def account_app(
     tmp_db_url: str, session_factory
-) -> Generator[tuple[FastAPI, Container], None, None]:
-    """Slim FastAPI app: auth_router + account_router + DualAuthMiddleware.
+) -> Generator[FastAPI, None, None]:
+    """Slim FastAPI app: auth_router + account_router driven via dependency_overrides.
 
-    Phase 19 Plan 06 additive override: ``app.dependency_overrides[get_db]``
-    is wired so the new ``Depends(authenticated_user)`` chain in
-    account_routes resolves against the tmp SQLite (NOT the prod
-    SessionLocal). This is the minimum fixture surface needed by the route
-    migration; full container-override -> dependency_overrides migration
-    is owned by Plan 10.
+    Phase 19 Plan 10 fixture migration: ``app.dependency_overrides[get_db]``
+    is the SOLE DB-binding seam. The production
+    ``Depends(authenticated_user)`` + ``Depends(csrf_protected)`` chain on
+    account_router resolves transitively against the tmp SQLite via the
+    overridden ``get_db`` (FastAPI dep cache shares the Session across
+    sub-deps in one request). DualAuthMiddleware mounting is gone — the new
+    Depends graph owns auth resolution end-to-end (Plan 11 deletes the
+    middleware module).
     """
-    container = Container()
-    container.db_session_factory.override(providers.Factory(session_factory))
-    dependencies.set_container(container)
-
     limiter.reset()
 
     app = FastAPI()
@@ -110,7 +111,6 @@ def account_app(
     app.add_exception_handler(ValidationError, validation_error_handler)
     app.include_router(auth_router)
     app.include_router(account_router)
-    app.add_middleware(DualAuthMiddleware, container=container)
 
     def _override_get_db():
         session = session_factory()
@@ -121,18 +121,15 @@ def account_app(
 
     app.dependency_overrides[dependencies.get_db] = _override_get_db
 
-    yield app, container
+    yield app
 
     app.dependency_overrides.clear()
-    container.unwire()
-    container.db_session_factory.reset_override()
     limiter.reset()
 
 
 @pytest.fixture
-def client(account_app: tuple[FastAPI, Container]) -> TestClient:
-    app, _ = account_app
-    return TestClient(app)
+def client(account_app: FastAPI) -> TestClient:
+    return TestClient(account_app)
 
 
 def _register(client: TestClient, email: str, password: str = "supersecret123") -> int:
@@ -339,12 +336,12 @@ def test_delete_user_data_skips_missing_files(
 
 @pytest.mark.integration
 def test_delete_user_data_cross_user_isolation(
-    account_app: tuple[FastAPI, Container],
+    account_app: FastAPI,
     session_factory,
     upload_dirs: tuple[Path, Path],
 ) -> None:
     """User B's DELETE only affects User B; User A's tasks survive."""
-    app, _ = account_app
+    app = account_app
     client_a = TestClient(app)
     client_b = TestClient(app)
     user_a_id = _register(client_a, "alice@a.com")
@@ -374,10 +371,10 @@ def test_delete_user_data_cross_user_isolation(
 
 @pytest.mark.integration
 def test_delete_user_data_requires_auth(
-    account_app: tuple[FastAPI, Container],
+    account_app: FastAPI,
 ) -> None:
     """DELETE without cookie/bearer → 401."""
-    app, _ = account_app
+    app = account_app
     client_no_auth = TestClient(app)
     response = client_no_auth.delete("/api/account/data")
     assert response.status_code == 401
@@ -412,10 +409,10 @@ def test_get_account_me_returns_summary(
 
 @pytest.mark.integration
 def test_get_account_me_requires_auth(
-    account_app: tuple[FastAPI, Container],
+    account_app: FastAPI,
 ) -> None:
     """Anonymous GET → 401 with the same generic detail used elsewhere (T-15-04)."""
-    app, _ = account_app
+    app = account_app
     anon = TestClient(app)
 
     response = anon.get("/api/account/me")
@@ -571,10 +568,10 @@ def test_delete_account_clears_cookies(
 
 @pytest.mark.integration
 def test_delete_account_requires_auth(
-    account_app: tuple[FastAPI, Container],
+    account_app: FastAPI,
 ) -> None:
     """Anonymous DELETE → 401 'Authentication required'."""
-    app, _ = account_app
+    app = account_app
     anon = TestClient(app)
 
     response = anon.request(
@@ -589,12 +586,12 @@ def test_delete_account_requires_auth(
 
 @pytest.mark.integration
 def test_delete_account_preserves_other_user_data(
-    account_app: tuple[FastAPI, Container],
+    account_app: FastAPI,
     session_factory,
     upload_dirs: tuple[Path, Path],
 ) -> None:
     """Cross-user isolation smoke: Bob's data fully intact after Alice's delete."""
-    app, _ = account_app
+    app = account_app
 
     alice_client = TestClient(app)
     alice_id = _register(alice_client, "alice-iso@example.com")
