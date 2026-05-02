@@ -4,14 +4,14 @@ milestone: v1.2
 milestone_name: milestone
 status: executing
 stopped_at: Completed 19-01-PLAN.md
-last_updated: "2026-05-02T16:38:04.793Z"
+last_updated: "2026-05-02T16:50:42.801Z"
 last_activity: 2026-05-02
 progress:
   total_phases: 10
   completed_phases: 8
   total_plans: 62
-  completed_plans: 51
-  percent: 82
+  completed_plans: 52
+  percent: 84
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 19 (Auth + DI Structural Refactor) — EXECUTING
-Plan: 6 of 17 (next: 19-02 services.py @lru_cache singletons)
+Plan: 7 of 17 (next: 19-02 services.py @lru_cache singletons)
 Status: Ready to execute
 Last activity: 2026-05-02
 
@@ -103,6 +103,7 @@ Prior position: Phase 17 complete 2026-05-01; Phase 18 closed empty 2026-05-01.
 | Phase 19 P03 | 10min | 2 tasks | 2 files |
 | Phase 19 P04 | 31min | 2 tasks | 4 files |
 | Phase Phase 19 PP05 | 9min | 2 tasks (TDD) tasks | 2 files files |
+| Phase Phase 19 PP06 | 8min | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -312,6 +313,7 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [Phase 19]: [19-04]: authenticated_user + authenticated_user_optional + _resolve_bearer/_resolve_cookie/_try_resolve helpers + scoped task repo + task_management_service v2 added to dependencies.py — bearer wins over cookie; cookie path stamps fresh Set-Cookie via response.set_cookie BEFORE dep returns (sliding refresh); subtype-first error tuples preserved verbatim from dual_auth.py:110-125; cookie attrs byte-identical to dual_auth.py:310-321 — locked at every commit by tests/integration/test_set_cookie_attrs.py (REFACTOR-07 Wave 2 backend gate, faster feedback than Plan 15 Playwright)
 - [Phase ?]: [Phase 19]: [19-04]: Test fixture monkeypatches dual_auth.PUBLIC_ALLOWLIST with /protected + /optional so DualAuthMiddleware (still installed pre-Plan-11) lets unauthenticated calls fall through to the new dep — coexistence seam between the new Depends auth and the legacy middleware. Real prod routes opt out via the same allowlist mechanism for the duration of Plans 06-10; Plan 11 deletes the middleware and the allowlist. WWW-Authenticate docstring rephrased to dodge grep-gate double-count (same lesson as Plan 15-02 + Plan 19-02)
 - [Phase ?]: [Phase 19]: [19-05]: csrf_protected Depends factory + 5-case TDD test added (~50 LOC + 264 LOC) — composes with authenticated_user (auth runs first), four flat early-returns, zero nested-if; reuses STATE_MUTATING_METHODS + BEARER_PREFIX from Plan 04 (DRY); core_services.get_csrf_service() lru-cache singleton (NOT the legacy DI container, D1 lock); two distinct 403 detail strings preserved verbatim matching Phase 16 test grep targets; CsrfMiddleware NOT deleted (Plan 12 owns deletion); router-level dependencies=[Depends(csrf_protected)] application deferred to Plans 06-07; docstring grep-gate tax recurred — keep verifier-grep tokens code-only (third recurrence: 19-02, 15-02, 19-05)
+- [Phase ?]: [19-06]: Pilot route migration complete — account_router migrated to Depends(authenticated_user) + router-level Depends(csrf_protected); local get_account_service helper preserved (backward compat) but switched to Depends(get_db); routes use get_account_service_v2 directly. Rule 3 additive fixture fix: app.dependency_overrides[get_db] + X-CSRF-Token plumbing in _register helper (NOT full Plan 10 migration). Docstring grep-gate tax recurred 4th time (19-02, 15-02, 19-05, 19-06) — keep verifier-grep tokens code-only on first write.
 
 ### Pending Todos
 
@@ -327,6 +329,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-05-02T16:37:58.521Z
+Last session: 2026-05-02T16:50:36.809Z
 Stopped at: Completed 19-01-PLAN.md
 Resume file: None
