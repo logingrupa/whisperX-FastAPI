@@ -48,3 +48,31 @@ def setup_test_db(
 # Phase 19 Plan 13: legacy `test_container` fixture removed alongside
 # `app.core.container.Container`. Integration tests now drive the slim
 # FastAPI app via `app.dependency_overrides[get_db]` (Plan 19-10).
+
+
+@pytest.fixture(autouse=True)
+def _clear_dependency_overrides():
+    """Test isolation: prevent overrides bleeding across files (Pitfall 6).
+
+    Plan 10 added per-fixture cleanup; this autouse fixture is belt-and-suspenders
+    for any fixture that forgets.
+    """
+    yield
+    from app.main import app
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def _clear_lru_caches():
+    """Test isolation: clear lru-cached singletons between tests (Pitfall 7).
+
+    Each services factory in app/core/services.py is lru-cached (maxsize=1).
+    Without cache_clear, a stale singleton could leak state across tests.
+    """
+    yield
+    from app.core import services
+    services.get_password_service.cache_clear()
+    services.get_csrf_service.cache_clear()
+    services.get_token_service.cache_clear()
+    services.get_ws_ticket_service.cache_clear()
+    # Add any other lru-cached services factories here as Plan 02 evolves.
