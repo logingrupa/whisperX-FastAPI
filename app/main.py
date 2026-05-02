@@ -43,11 +43,9 @@ from app.api.exception_handlers import (  # noqa: E402
     trial_expired_handler,
     validation_error_handler,
 )
-from app.core.auth import BearerAuthMiddleware  # noqa: E402  (W4 — V2_ENABLED=false fallback)
 from app.core.config import Config, get_settings  # noqa: E402
-from app.core.container import Container  # noqa: E402
-from app.core.csrf_middleware import CsrfMiddleware  # noqa: E402
-from app.core.dual_auth import DualAuthMiddleware  # noqa: E402
+from app.core.container import Container  # noqa: E402  (Plan 19-13 deletes)
+from app.core.csrf_middleware import CsrfMiddleware  # noqa: E402  (Plan 19-12 deletes)
 from app.core.exceptions import (  # noqa: E402
     ConcurrencyLimitError,
     DomainError,
@@ -59,7 +57,6 @@ from app.core.exceptions import (  # noqa: E402
     TrialExpiredError,
     ValidationError,
 )
-from app.core.feature_flags import is_auth_v2_enabled  # noqa: E402
 from app.core.rate_limiter import limiter, rate_limit_handler  # noqa: E402
 from slowapi.errors import RateLimitExceeded  # noqa: E402
 from app.docs import generate_db_schema, save_openapi_json  # noqa: E402
@@ -188,25 +185,17 @@ TUS_HEADERS: list[str] = [
     "Upload-Expires",
 ]
 
-# Phase 13 atomic-cutover middleware stack — single is_auth_v2_enabled() check
-# decides which auth path is wired. CORS is locked to FRONTEND_URL in BOTH
-# branches (never wildcard) per ANTI-06 / T-13-42.
+# Phase 19 single-stack middleware — auth lives in Depends(authenticated_user)
+# (D2 lock); the legacy auth middleware modules are gone. CsrfMiddleware stays
+# until Plan 19-12 confirms every state-mutating cookie-auth route opts into
+# Depends(csrf_protected). CORS is locked to FRONTEND_URL (never wildcard) per
+# ANTI-06 / T-13-42.
 settings = get_settings()
 
 # slowapi state — required for @limiter.limit decorators on routes.
 app.state.limiter = limiter
 
-if is_auth_v2_enabled():
-    # ASGI middleware reverses registration order (last-registered runs first
-    # on request). Required request flow: CORS → DualAuth → CSRF → route.
-    # So register: CSRF → DualAuth → CORS.
-    app.add_middleware(CsrfMiddleware, container=container)
-    app.add_middleware(DualAuthMiddleware, container=container)
-else:
-    # W4 — Legacy fallback during atomic cutover window. Without this branch
-    # dev/CI environments running AUTH_V2_ENABLED=false would have zero auth
-    # middleware. Removed in Phase 16+ once V2 is verified stable in prod.
-    app.add_middleware(BearerAuthMiddleware)
+app.add_middleware(CsrfMiddleware, container=container)
 
 # CORS — locked to FRONTEND_URL allowlist with credentials enabled (ANTI-06).
 # Single-origin (or comma-separated allowlist) — NEVER use wildcard origins
@@ -244,24 +233,13 @@ app.include_router(websocket_router)
 app.include_router(streaming_upload_router)
 app.include_router(tus_upload_router)
 
-# Phase 13 routers — gated on AUTH_V2_ENABLED (atomic flip).
-if is_auth_v2_enabled():
-    app.include_router(auth_router)
-    app.include_router(key_router)
-    app.include_router(account_router)
-    app.include_router(billing_router)
-    app.include_router(billing_webhook_router)
-    app.include_router(ws_ticket_router)
-
-# Fail-loud production safety guard — refuse to boot in production with the
-# legacy fallback active (T-13-43). Dev/CI may run V2_ENABLED=false; prod must
-# always run the Phase 13 stack once frontend Phase 14 ships.
-if settings.ENVIRONMENT == "production" and not is_auth_v2_enabled():
-    raise RuntimeError(
-        "Production refuses to boot with AUTH_V2_ENABLED=false — "
-        "set AUTH__V2_ENABLED=true to enable the Phase 13 auth stack. "
-        "The BearerAuthMiddleware fallback is for dev/CI environments only."
-    )
+# Phase 13 routers — V2 is the only auth path post Phase 19, no flag gate.
+app.include_router(auth_router)
+app.include_router(key_router)
+app.include_router(account_router)
+app.include_router(billing_router)
+app.include_router(billing_webhook_router)
+app.include_router(ws_ticket_router)
 
 
 @app.get("/", include_in_schema=False)

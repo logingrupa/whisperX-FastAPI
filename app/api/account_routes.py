@@ -9,8 +9,8 @@ SCOPE-06: full-row account delete + 3-step cascade orchestrated by
 AccountService.delete_account; clears auth cookies on success.
 
 Phase 19 — pilot route migration to the Depends auth chain:
-- Auth resolved via the authenticated_user Depends (NOT the legacy
-  DualAuthMiddleware request.state lookup).
+- Auth resolved via the authenticated_user Depends (NOT the deleted legacy
+  middleware request.state lookup).
 - CSRF enforced router-level via the csrf_protected Depends; csrf_protected
   method-gates so GET /me passes through, DELETEs fire the double-submit
   check.

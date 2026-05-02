@@ -11,8 +11,11 @@ Behaviour:
       ``X-CSRF-Token`` header == ``csrf_token`` cookie via
       ``secrets.compare_digest`` (CsrfService.verify).
 
-Wired AFTER DualAuthMiddleware in app/main.py (Plan 13-09) so that
-``request.state.auth_method`` is populated before this runs.
+Historically wired after the legacy auth middleware so that
+``request.state.auth_method`` was populated before this ran. Plan 19-11
+deleted the legacy auth middleware; this class is also scheduled for
+deletion in Plan 19-12 once every state-mutating cookie-auth route opts
+into Depends(csrf_protected).
 """
 
 from __future__ import annotations
@@ -42,7 +45,7 @@ class CsrfMiddleware(BaseHTTPMiddleware):
     """Enforce double-submit CSRF on cookie-authenticated state-mutating routes.
 
     Single-responsibility: CSRF only. No business logic, no state writes,
-    no auth resolution (DualAuthMiddleware owns that).
+    no auth resolution (the auth Depends owns that post Phase 19).
     """
 
     def __init__(self, app: ASGIApp, *, container: Container) -> None:

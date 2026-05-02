@@ -166,7 +166,7 @@ class AuthSettings(BaseSettings):
     # ----- Phase 13 atomic-cutover envs -----
     V2_ENABLED: bool = Field(
         default=False,
-        description="Phase 13 feature flag: false=legacy BearerAuthMiddleware, true=DualAuthMiddleware",
+        description="Phase 13 feature flag (deprecated post Phase 19; V2 is the only auth path)",
     )
     FRONTEND_URL: str = Field(
         default="http://localhost:5173",

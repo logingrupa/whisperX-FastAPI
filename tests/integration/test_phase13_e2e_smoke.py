@@ -16,8 +16,7 @@ exercises every locked must-have from Phase 13:
   - CORS preflight allowlist + credentials echo (``ANTI-06``)
   - CORS preflight from non-allowlisted origin → no ACAO
   - Stripe stubs return 501 (``BILL-05/06``); malformed signature → 400
-  - ``AUTH_V2_ENABLED=false`` → /auth/register NOT registered (404 with auth)
-  - ``AUTH_V2_ENABLED=true``  → /auth/register registered (422 on empty body)
+  - /auth/register registered (422 on empty body — single auth path post Phase 19)
   - ``CSRF`` required on cookie-auth POST (``MID-04``)
   - Bearer auth skips CSRF (bearer wins; no double-submit needed)
 
@@ -155,32 +154,6 @@ def server_v2_on(tmp_path: Path) -> Generator[str, None, None]:
     port = _free_port()
     db = tmp_path / "smoke_v2on.db"
     proc = _start_server({"AUTH__V2_ENABLED": "true"}, db, port)
-    try:
-        yield f"http://127.0.0.1:{port}"
-    finally:
-        _stop_server(proc)
-
-
-@pytest.fixture
-def server_v2_off(tmp_path: Path) -> Generator[str, None, None]:
-    """Boot uvicorn with ``AUTH__V2_ENABLED=false`` (legacy fallback path).
-
-    Sets a real ``API_BEARER_TOKEN`` so the legacy ``BearerAuthMiddleware``
-    passes the request to the FastAPI router — only then can we observe that
-    Phase 13 routes return 404 (route not registered). Without the bearer
-    header the middleware would short-circuit at 401 and we could not
-    distinguish "auth missing" from "route absent".
-    """
-    port = _free_port()
-    db = tmp_path / "smoke_v2off.db"
-    proc = _start_server(
-        {
-            "AUTH__V2_ENABLED": "false",
-            "API_BEARER_TOKEN": "smoke-legacy-token",
-        },
-        db,
-        port,
-    )
     try:
         yield f"http://127.0.0.1:{port}"
     finally:
@@ -467,25 +440,6 @@ def test_billing_stubs_return_501(server_v2_on: str) -> None:
             headers={"Stripe-Signature": "garbage"},
         )
         assert webhook_bad.status_code == 400, webhook_bad.text
-
-
-@pytest.mark.integration
-def test_v2_disabled_routes_not_registered(server_v2_off: str) -> None:
-    """V2_OFF: /auth/register NOT registered (404 with valid legacy bearer)."""
-    with httpx.Client(base_url=server_v2_off) as client:
-        # /health is in PUBLIC_ALLOWLIST in BOTH branches.
-        health = client.get("/health")
-        assert health.status_code == 200
-
-        # /auth/register requires bearer in V2-OFF (BearerAuthMiddleware) AND
-        # is unregistered → with valid bearer the middleware passes, FastAPI
-        # router returns 404 (no route matched).
-        response = client.post(
-            "/auth/register",
-            json={"email": "x@example.com", "password": "supersecret123"},
-            headers={"Authorization": "Bearer smoke-legacy-token"},
-        )
-        assert response.status_code == 404, response.text
 
 
 @pytest.mark.integration

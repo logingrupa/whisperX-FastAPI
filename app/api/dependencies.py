@@ -224,22 +224,23 @@ def get_speaker_assignment_service() -> Generator[
 
 
 # ---------------------------------------------------------------
-# Phase 13 — Auth dependencies
+# Phase 13 — legacy request.state auth helpers (deprecated)
 #
-# request.state.{user, plan_tier, auth_method, api_key_id} is populated by
-# DualAuthMiddleware (app/core/dual_auth.py). All Phase 13 routes consume
-# these helpers via Depends() — they MUST NOT parse Authorization headers
-# or session cookies directly (DRY: single resolution point).
+# request.state.{user, plan_tier, auth_method, api_key_id} was historically
+# populated by the legacy auth middleware (deleted in Phase 19-11). These
+# helpers remain for the few v1.1 routes that still consume request.state;
+# Phase-13+ routes go through ``authenticated_user`` Depends instead (single
+# resolution point, DRY). Plan 19-13 removes the last v1.1 callers.
 # ---------------------------------------------------------------
 
 
 def get_authenticated_user(request: Request) -> User:
     """Resolve the authenticated user from request.state.
 
-    DualAuthMiddleware sets ``request.state.user`` on every authenticated
-    request; on protected paths without auth the middleware already 401s,
-    so reaching this helper with ``user is None`` only happens if the
-    middleware was misconfigured. Defence-in-depth raises 401 anyway.
+    Historically the legacy middleware populated ``request.state.user`` on
+    every authenticated request; with Phase 19 the population happens via
+    ``authenticated_user`` Depends instead. Defence-in-depth raises 401 if
+    the helper is reached with ``user is None``.
     """
     user: User | None = getattr(request.state, "user", None)
     if user is None:
@@ -324,7 +325,7 @@ def get_rate_limit_service() -> Generator[RateLimitService, None, None]:
 #
 # Every HTTP route touching `tasks` MUST consume one of these helpers
 # instead of get_task_repository / get_task_management_service.
-# DualAuthMiddleware sets request.state.user; we resolve user.id and
+# The auth dep populates request.state.user; we resolve user.id and
 # call repo.set_user_scope(user.id) before yielding so every read+write
 # is automatically WHERE user_id = caller.
 #
@@ -339,8 +340,8 @@ def get_rate_limit_service() -> Generator[RateLimitService, None, None]:
 def _resolve_authenticated_user_id(request: Request) -> int:
     """Tiger-style guard: extract user.id or 401.
 
-    DualAuthMiddleware should have already 401'd unauthenticated callers
-    on protected paths — this is defence-in-depth (T-13-33).
+    The auth dep should have already 401'd unauthenticated callers on
+    protected paths — this is defence-in-depth (T-13-33).
     """
     user: User | None = getattr(request.state, "user", None)
     if user is None:
@@ -592,22 +593,20 @@ def get_account_service_v2(
 # ===========================================================================
 # Phase 19 Plan 04 — authenticated_user Depends chain (D2)
 #
-# Replaces DualAuthMiddleware request.state population with per-route auth.
+# Owns per-route auth (the legacy middleware was deleted in Plan 11).
 # Bearer wins when both presented (CONTEXT §50 invariant). Cookie path
 # performs sliding refresh by stamping a fresh Set-Cookie BEFORE the dep
 # returns (FastAPI flushes Response headers AFTER route handler runs, so
 # the slide must happen during dep resolution, not after).
 #
-# Subtype-first error tuples mirror app/core/dual_auth.py:110-125 — specific
-# JWT subtypes caught before generic ValueError. Cookie attrs in the slide
-# are byte-identical to dual_auth.py:310-321 (REFACTOR-07 lock; verified
-# at every commit by tests/integration/test_set_cookie_attrs.py).
+# Subtype-first error tuples mirror the legacy auth-helper resolver —
+# specific JWT subtypes caught before generic ValueError. Cookie attrs in
+# the slide are byte-identical to the prior implementation (REFACTOR-07
+# lock; verified at every commit by tests/integration/test_set_cookie_attrs.py).
 #
-# Coexistence: DualAuthMiddleware stays installed in app/main.py until
-# Plan 11 deletes it; Plans 06-07 migrate routes off the middleware to
-# Depends(authenticated_user). Public routes (e.g. /auth/login, /health)
-# either omit the dep or use authenticated_user_optional — PUBLIC_ALLOWLIST
-# goes away in Plan 16.
+# Public routes (e.g. /auth/login, /health) either omit the dep or use
+# authenticated_user_optional — the legacy public allowlist is gone with
+# the middleware (Plan 16 finalises the dead-code sweep).
 #
 # Tiger-style: flat early-returns; subtype-first exception tuples; zero
 # nested-if (verifier grep returns 0 in this region).
@@ -631,11 +630,11 @@ STATE_MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 def _resolve_bearer(plaintext: str, db: Session) -> User | None:
     """Resolve a presented bearer plaintext to a User, or None on failure.
 
-    Two-query semantics verbatim from app/core/dual_auth.py:209-225 (Phase
-    20 collapses to a single JOIN; preserved here so structural refactor
-    and perf optimisation revert independently). Subtype-first try/except
-    over _BEARER_FAILURES; any other exception bubbles (caller treats as
-    500).
+    Two-query semantics carried forward verbatim from the legacy resolver
+    (Phase 20 collapses to a single JOIN; preserved here so structural
+    refactor and perf optimisation revert independently). Subtype-first
+    try/except over _BEARER_FAILURES; any other exception bubbles (caller
+    treats as 500).
     """
     key_service = KeyService(repository=SQLAlchemyApiKeyRepository(db))
     try:
@@ -648,14 +647,15 @@ def _resolve_bearer(plaintext: str, db: Session) -> User | None:
 def _resolve_cookie(token: str, db: Session, response: Response) -> User | None:
     """Resolve a session-cookie JWT to a User and stamp a sliding-refresh cookie.
 
-    Semantics mirror app/core/dual_auth.py:262-321:
+    Semantics carried forward from the deleted legacy auth resolver:
       - jwt_codec.decode_session validates HS256 + extracts ``sub``.
       - SQLAlchemyUserRepository.get_by_id loads the user (None → 401 leg).
       - TokenService.verify_and_refresh re-validates the token_version and
         issues a fresh JWT (sliding 7d expiry).
       - response.set_cookie stamps the fresh JWT BEFORE the dep returns so
         FastAPI flushes it on the response (Pitfall 1 in 19-RESEARCH).
-      - Cookie attrs byte-identical to dual_auth.py:310-321 (REFACTOR-07).
+      - Cookie attrs byte-identical to the prior implementation
+        (REFACTOR-07 — covered by tests/integration/test_set_cookie_attrs.py).
 
     Returns None on any failure leg — caller decides 401-vs-anonymous.
     """
@@ -716,9 +716,9 @@ async def authenticated_user(
     """Resolve the authenticated user via Depends — raise 401 on failure.
 
     Single 401 detail string ``"Authentication required"`` plus a
-    ``Bearer realm="whisperx"`` challenge header matches the
-    DualAuthMiddleware response shape (T-13-05 anti-leak: callers cannot
-    distinguish which auth leg failed).
+    ``Bearer realm="whisperx"`` challenge header preserves the historical
+    response shape (T-13-05 anti-leak: callers cannot distinguish which
+    auth leg failed).
     """
     user = _try_resolve(request, response, db)
     if user is None:

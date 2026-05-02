@@ -5,7 +5,7 @@ from app.api.audio_services_api import service_router
 from app.api.task_api import task_router
 from app.api.websocket_api import websocket_router
 
-# Phase 13 routers — registered conditionally on AUTH_V2_ENABLED in app/main.py
+# Phase 13 routers — registered unconditionally in app/main.py post Phase 19.
 from app.api.auth_routes import auth_router
 from app.api.key_routes import key_router
 from app.api.account_routes import account_router

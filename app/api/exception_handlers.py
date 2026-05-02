@@ -204,8 +204,8 @@ async def invalid_credentials_handler(
     """Map InvalidCredentialsError -> HTTP 401 (Phase 13 / AUTH-03).
 
     Generic 401 body — anti-enumeration: identical shape on either
-    wrong-email or wrong-password (T-13-10). Registered alongside
-    DualAuthMiddleware in plan 13-09.
+    wrong-email or wrong-password (T-13-10). Registered alongside the
+    other domain-error handlers in app/main.py.
     """
     ic_exc = (
         exc if isinstance(exc, InvalidCredentialsError) else InvalidCredentialsError()
