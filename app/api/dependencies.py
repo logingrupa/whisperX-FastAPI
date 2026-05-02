@@ -2,17 +2,41 @@
 
 from collections.abc import Generator
 
-from fastapi import HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.constants import CONTAINER_NOT_INITIALIZED_ERROR
+from app.core import services as core_services
 from app.core.container import Container
 from app.domain.entities.user import User
+from app.domain.repositories.api_key_repository import IApiKeyRepository
+from app.domain.repositories.device_fingerprint_repository import (
+    IDeviceFingerprintRepository,
+)
+from app.domain.repositories.rate_limit_repository import IRateLimitRepository
 from app.domain.repositories.task_repository import ITaskRepository
+from app.domain.repositories.user_repository import IUserRepository
 from app.domain.services.alignment_service import IAlignmentService
 from app.domain.services.diarization_service import IDiarizationService
 from app.domain.services.speaker_assignment_service import ISpeakerAssignmentService
 from app.domain.services.transcription_service import ITranscriptionService
+from app.infrastructure.database.connection import SessionLocal
+from app.infrastructure.database.repositories.sqlalchemy_api_key_repository import (
+    SQLAlchemyApiKeyRepository,
+)
+from app.infrastructure.database.repositories.sqlalchemy_device_fingerprint_repository import (
+    SQLAlchemyDeviceFingerprintRepository,
+)
+from app.infrastructure.database.repositories.sqlalchemy_rate_limit_repository import (
+    SQLAlchemyRateLimitRepository,
+)
+from app.infrastructure.database.repositories.sqlalchemy_task_repository import (
+    SQLAlchemyTaskRepository,
+)
+from app.infrastructure.database.repositories.sqlalchemy_user_repository import (
+    SQLAlchemyUserRepository,
+)
+from app.services.account_service import AccountService
 from app.services.auth import (
     AuthService,
     CsrfService,
@@ -418,3 +442,139 @@ def get_usage_event_writer() -> Generator[UsageEventWriter, None, None]:
         yield writer
     finally:
         writer.session.close()
+
+
+# ===========================================================================
+# Phase 19 v2 providers (Depends chain)
+#
+# T-19-03 — get_db is the ONE site that owns Session.close() for the HTTP
+# request scope. Every `_v2` repo / service factory chains off Depends(get_db)
+# (or off another `_v2` provider that already chains off it). FastAPI's
+# per-request dep cache shares the same Session across the entire call
+# graph — ONE Session per request, closed once in get_db's finally.
+#
+# Coexistence: existing `_container.X()` providers above stay UNTOUCHED.
+# Plans 06-09 migrate routes one wave at a time off the legacy paths;
+# Plans 11-13 delete the legacy helpers + container.py once nothing imports
+# them. Until then the suffix `_v2` disambiguates new from old.
+#
+# Tiger-style: each helper is 1-3 lines (factory); no nested-if; only
+# get_db has try/finally (the centralized close site).
+# ===========================================================================
+
+
+def get_db() -> Generator[Session, None, None]:
+    """Yield a SQLAlchemy Session for the HTTP request; close on exit.
+
+    Single source of truth for request-scoped Session lifecycle (D2 lock).
+    Every Phase 19 `_v2` repo / service factory chains off
+    Depends(get_db); FastAPI shares the yielded Session across all sub-deps
+    via its per-request dep cache, so the whole route call graph runs on
+    ONE Session that is closed exactly once in this finally.
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# Repository providers — chain off Depends(get_db)
+# ---------------------------------------------------------------------------
+
+
+def get_user_repository_v2(
+    db: Session = Depends(get_db),
+) -> IUserRepository:
+    """Return a SQLAlchemyUserRepository bound to the request-scoped Session."""
+    return SQLAlchemyUserRepository(db)
+
+
+def get_api_key_repository_v2(
+    db: Session = Depends(get_db),
+) -> IApiKeyRepository:
+    """Return a SQLAlchemyApiKeyRepository bound to the request-scoped Session."""
+    return SQLAlchemyApiKeyRepository(db)
+
+
+def get_rate_limit_repository_v2(
+    db: Session = Depends(get_db),
+) -> IRateLimitRepository:
+    """Return a SQLAlchemyRateLimitRepository bound to the request-scoped Session."""
+    return SQLAlchemyRateLimitRepository(db)
+
+
+def get_task_repository_v2(
+    db: Session = Depends(get_db),
+) -> ITaskRepository:
+    """Return an UNSCOPED SQLAlchemyTaskRepository bound to the request Session.
+
+    Per-user scoping (set_user_scope) lives in Plan 04's
+    `get_scoped_task_repository_v2` helper which chains off authenticated_user.
+    """
+    return SQLAlchemyTaskRepository(db)
+
+
+def get_device_fingerprint_repository_v2(
+    db: Session = Depends(get_db),
+) -> IDeviceFingerprintRepository:
+    """Return a SQLAlchemyDeviceFingerprintRepository bound to the request Session."""
+    return SQLAlchemyDeviceFingerprintRepository(db)
+
+
+# ---------------------------------------------------------------------------
+# Service providers — chain off `_v2` repo providers or core_services singletons
+# ---------------------------------------------------------------------------
+
+
+def get_auth_service_v2(
+    user_repository: IUserRepository = Depends(get_user_repository_v2),
+) -> AuthService:
+    """Return an AuthService wired to the request-scoped user repo + singletons."""
+    return AuthService(
+        user_repository=user_repository,
+        password_service=core_services.get_password_service(),
+        token_service=core_services.get_token_service(),
+    )
+
+
+def get_key_service_v2(
+    repository: IApiKeyRepository = Depends(get_api_key_repository_v2),
+) -> KeyService:
+    """Return a KeyService wired to the request-scoped api_key repo."""
+    return KeyService(repository=repository)
+
+
+def get_rate_limit_service_v2(
+    repository: IRateLimitRepository = Depends(get_rate_limit_repository_v2),
+) -> RateLimitService:
+    """Return a RateLimitService wired to the request-scoped rate_limit repo."""
+    return RateLimitService(repository=repository)
+
+
+def get_free_tier_gate_v2(
+    rate_limit_service: RateLimitService = Depends(get_rate_limit_service_v2),
+) -> FreeTierGate:
+    """Return a FreeTierGate wired to the request-scoped RateLimitService."""
+    return FreeTierGate(rate_limit_service=rate_limit_service)
+
+
+def get_usage_event_writer_v2(
+    db: Session = Depends(get_db),
+) -> UsageEventWriter:
+    """Return a UsageEventWriter bound to the request-scoped Session."""
+    return UsageEventWriter(session=db)
+
+
+def get_account_service_v2(
+    db: Session = Depends(get_db),
+    user_repository: IUserRepository = Depends(get_user_repository_v2),
+) -> AccountService:
+    """Return an AccountService bound to the request Session + explicit user repo.
+
+    Plan 15-03 deviation lock: AccountService accepts both `session` and an
+    optional pre-built `user_repository`; passing both keeps a single repo
+    instance shared across methods (DRY) instead of lazy-constructing one.
+    """
+    return AccountService(session=db, user_repository=user_repository)
