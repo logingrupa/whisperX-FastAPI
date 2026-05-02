@@ -23,7 +23,6 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
-from dependency_injector import providers
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from slowapi.errors import RateLimitExceeded
@@ -36,9 +35,7 @@ from app.api.exception_handlers import (
     invalid_credentials_handler,
     validation_error_handler,
 )
-from app.core.container import Container
-from app.core.csrf_middleware import CsrfMiddleware
-from app.core.dual_auth import DualAuthMiddleware
+from app.core.config import get_settings
 from app.core.exceptions import InvalidCredentialsError, ValidationError
 from app.core.rate_limiter import limiter, rate_limit_handler
 from app.infrastructure.database.models import Base
@@ -77,20 +74,20 @@ def session_factory(tmp_db_url: str):
 @pytest.fixture
 def auth_full_app(
     tmp_db_url: str, session_factory
-) -> Generator[tuple[FastAPI, Container], None, None]:
-    """FastAPI app with auth_router + CsrfMiddleware + DualAuthMiddleware.
+) -> Generator[FastAPI, None, None]:
+    """Slim FastAPI app: auth_router driven via dep overrides.
 
-    Middleware registration order is CRITICAL (Pitfall 3 — RESEARCH.md):
-    Starlette dispatches in REVERSE registration order. We need
-    DualAuthMiddleware to run FIRST (sets request.state.auth_method),
-    then CsrfMiddleware (reads it), so Csrf is registered FIRST.
+    Phase 19 Plan 10: dependency_overrides[get_db] is the SOLE DB-binding
+    seam. The new Depends(authenticated_user) on /auth/logout-all rejects
+    forged tokens via the token_service / SQLAlchemyUserRepository chain
+    against the tmp DB — same 401 outcome as the legacy DualAuthMiddleware
+    path, no middleware mounting required. The Phase-16-04 ASGI ordering
+    invariant (CsrfMiddleware-first DualAuth-last) is OBSOLETE: order is
+    determined by Depends resolution.
 
-    Limiter reset in BOTH setup and teardown (Pitfall 1) so register
+    Limiter reset in BOTH setup and teardown (Pitfall 1) so the register
     bucket (3/hr/IP/24) does not poison adjacent tests.
     """
-    container = Container()
-    container.db_session_factory.override(providers.Factory(session_factory))
-    dependencies.set_container(container)
     limiter.reset()
 
     app = FastAPI()
@@ -99,14 +96,19 @@ def auth_full_app(
     app.add_exception_handler(InvalidCredentialsError, invalid_credentials_handler)
     app.add_exception_handler(ValidationError, validation_error_handler)
     app.include_router(auth_router)
-    # ASGI reversal: register CsrfMiddleware FIRST so it runs SECOND on dispatch.
-    app.add_middleware(CsrfMiddleware, container=container)
-    app.add_middleware(DualAuthMiddleware, container=container)
 
-    yield app, container
+    def _override_get_db():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
 
-    container.unwire()
-    container.db_session_factory.reset_override()
+    app.dependency_overrides[dependencies.get_db] = _override_get_db
+
+    yield app
+
+    app.dependency_overrides.clear()
     limiter.reset()
 
 
@@ -115,14 +117,15 @@ def auth_full_app(
 # ---------------------------------------------------------------------------
 
 
-def _jwt_secret(container: Container) -> str:
+def _jwt_secret() -> str:
     """Unwrap the HS256 signing secret from the resolved Settings instance.
 
-    Plan 11-04 lesson: Settings.auth.JWT_SECRET is a Pydantic v2 SecretStr;
-    tests need the plaintext to forge real signatures. The container
-    exposes settings via the ``config`` provider (not ``settings``).
+    Phase 19 Plan 10: tokens are now signed via the @lru_cache singleton
+    in app.core.services.get_token_service which reads JWT_SECRET from
+    Settings.auth — the same single source of truth used by every signing
+    path in the codebase. Tests forge tokens with this secret to match.
     """
-    raw = container.config().auth.JWT_SECRET
+    raw = get_settings().auth.JWT_SECRET
     if hasattr(raw, "get_secret_value"):
         return raw.get_secret_value()
     return str(raw)
@@ -174,14 +177,14 @@ _TRANSPORTS = [
 @pytest.mark.parametrize("transport", _TRANSPORTS)
 @pytest.mark.integration
 def test_alg_none_jwt_returns_401(
-    transport: str, auth_full_app: tuple[FastAPI, Container]
+    transport: str, auth_full_app: FastAPI
 ) -> None:
     """VERIFY-02 — alg=none token rejected on every transport.
 
     PyJWT decodes with ``algorithms=["HS256"]`` so an alg=none header
     surfaces ``InvalidAlgorithmError`` → ``JwtAlgorithmError`` → 401.
     """
-    app, _ = auth_full_app
+    app = auth_full_app
     client = TestClient(app)
     user_id = _register_user(client, f"alg-none-{transport}@phase16.example.com")
     forged_token = _forge_jwt(alg=JWT_ALG_NONE, user_id=user_id)
@@ -198,7 +201,7 @@ def test_alg_none_jwt_returns_401(
 @pytest.mark.parametrize("transport", _TRANSPORTS)
 @pytest.mark.integration
 def test_tampered_jwt_returns_401(
-    transport: str, auth_full_app: tuple[FastAPI, Container]
+    transport: str, auth_full_app: FastAPI
 ) -> None:
     """VERIFY-03 — HS256 token with flipped last sig char rejected.
 
@@ -206,10 +209,10 @@ def test_tampered_jwt_returns_401(
     → 401. Real signing key is required so the forgery exercises the
     signature-verification code path (not the algorithm allow-list).
     """
-    app, container = auth_full_app
+    app = auth_full_app
     client = TestClient(app)
     user_id = _register_user(client, f"tampered-{transport}@phase16.example.com")
-    forged_token = _forge_jwt(alg=JWT_HS256, user_id=user_id, secret=_jwt_secret(container), tamper=True)
+    forged_token = _forge_jwt(alg=JWT_HS256, user_id=user_id, secret=_jwt_secret(), tamper=True)
 
     client.cookies.clear()
     response = _send_with(client, transport, forged_token)
@@ -223,17 +226,17 @@ def test_tampered_jwt_returns_401(
 @pytest.mark.parametrize("transport", _TRANSPORTS)
 @pytest.mark.integration
 def test_expired_jwt_returns_401(
-    transport: str, auth_full_app: tuple[FastAPI, Container]
+    transport: str, auth_full_app: FastAPI
 ) -> None:
     """VERIFY-04 — HS256 token with exp in the past rejected.
 
     Real signing key + iat/exp shifted to the past so PyJWT raises
     ``ExpiredSignatureError`` → ``JwtExpiredError`` → 401.
     """
-    app, container = auth_full_app
+    app = auth_full_app
     client = TestClient(app)
     user_id = _register_user(client, f"expired-{transport}@phase16.example.com")
-    forged_token = _forge_jwt(alg=JWT_HS256, user_id=user_id, secret=_jwt_secret(container), expired=True)
+    forged_token = _forge_jwt(alg=JWT_HS256, user_id=user_id, secret=_jwt_secret(), expired=True)
 
     client.cookies.clear()
     response = _send_with(client, transport, forged_token)

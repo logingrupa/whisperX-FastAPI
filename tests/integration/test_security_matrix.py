@@ -24,7 +24,6 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
-from dependency_injector import providers
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
@@ -42,9 +41,6 @@ from app.api.exception_handlers import (
 from app.api.key_routes import key_router
 from app.api.task_api import task_router
 from app.api.ws_ticket_routes import ws_ticket_router
-from app.core.container import Container
-from app.core.csrf_middleware import CsrfMiddleware
-from app.core.dual_auth import DualAuthMiddleware
 from app.core.exceptions import (
     InvalidCredentialsError,
     TaskNotFoundError,
@@ -97,17 +93,15 @@ def session_factory(tmp_db_url: str):
 @pytest.fixture
 def full_app(
     tmp_db_url: str, session_factory
-) -> Generator[tuple[FastAPI, Container], None, None]:
-    """Slim FastAPI app with all 5 routers + CSRF + DualAuth middleware.
+) -> Generator[FastAPI, None, None]:
+    """Slim FastAPI app with all 5 routers driven via dep overrides.
 
-    ASGI middleware ORDER LOCKED (Pitfall 3): registration is REVERSED on
-    dispatch. Registering CsrfMiddleware FIRST means it runs SECOND on
-    dispatch -> DualAuth runs FIRST -> request.state.auth_method is set
-    BEFORE CsrfMiddleware reads it.
+    Phase 19 Plan 10: dependency_overrides[get_db] is the SOLE DB-binding
+    seam — no DualAuthMiddleware, no CsrfMiddleware. Auth + CSRF are
+    handled per-route via the Depends graph (Pitfall 3 ASGI ordering note
+    OBSOLETE: order is now determined by Depends resolution, csrf_protected
+    sub-resolves authenticated_user before its own check).
     """
-    container = Container()
-    container.db_session_factory.override(providers.Factory(session_factory))
-    dependencies.set_container(container)
     limiter.reset()
 
     app = FastAPI()
@@ -123,14 +117,18 @@ def full_app(
     app.include_router(account_router)
     app.include_router(ws_ticket_router)
 
-    # Pitfall 3: CSRF FIRST registration -> DualAuth FIRST on dispatch.
-    app.add_middleware(CsrfMiddleware, container=container)
-    app.add_middleware(DualAuthMiddleware, container=container)
+    def _override_get_db():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
 
-    yield app, container
+    app.dependency_overrides[dependencies.get_db] = _override_get_db
 
-    container.unwire()
-    container.db_session_factory.reset_override()
+    yield app
+
+    app.dependency_overrides.clear()
     limiter.reset()
 
 
@@ -251,7 +249,7 @@ def test_foreign_user_blocked(
     path_tmpl: str,
     expected_foreign_status: int,
     requires_csrf: bool,
-    full_app: tuple[FastAPI, Container],
+    full_app: FastAPI,
     session_factory,
 ) -> None:
     """User B requesting User A's resource -> catalog-encoded status.
@@ -261,7 +259,7 @@ def test_foreign_user_blocked(
     /task/all, /api/account/me, DELETE /api/account/data) produce
     200/204 against B's own (empty) namespace — also no leak.
     """
-    app, _ = full_app
+    app = full_app
     _client_a, client_b, resources = _seed_resources(app, session_factory)
     body = _ws_ticket_body(path_tmpl, resources)
     url = _format_url(path_tmpl, resources)
@@ -292,11 +290,11 @@ def test_self_user_succeeds(
     path_tmpl: str,
     _foreign: int,
     requires_csrf: bool,
-    full_app: tuple[FastAPI, Container],
+    full_app: FastAPI,
     session_factory,
 ) -> None:
     """User A accesses their own resource -> success status from _SELF_STATUS."""
-    app, _ = full_app
+    app = full_app
     client_a, _client_b, resources = _seed_resources(app, session_factory)
     body = _ws_ticket_body(path_tmpl, resources)
     url = _format_url(path_tmpl, resources)
@@ -321,11 +319,11 @@ def test_self_user_succeeds(
 
 @pytest.mark.integration
 def test_anti_enum_body_parity_unknown_vs_foreign_task(
-    full_app: tuple[FastAPI, Container],
+    full_app: FastAPI,
     session_factory,
 ) -> None:
     """Foreign-id 404 body is bytewise-identical to unknown-id 404 body."""
-    app, _ = full_app
+    app = full_app
     _client_a, client_b, resources = _seed_resources(app, session_factory)
 
     foreign_response = client_b.get(f"/task/{resources['task_uuid']}")
