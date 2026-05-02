@@ -4,14 +4,14 @@ milestone: v1.2
 milestone_name: milestone
 status: executing
 stopped_at: Completed 19-01-PLAN.md
-last_updated: "2026-05-02T15:19:00Z"
-last_activity: 2026-05-02 -- Phase 19 Plan 01 baseline + DEVIATIONS waiver committed
+last_updated: "2026-05-02T15:40:11.275Z"
+last_activity: 2026-05-02
 progress:
   total_phases: 10
   completed_phases: 8
-  total_plans: 79
-  completed_plans: 47
-  percent: 59
+  total_plans: 62
+  completed_plans: 48
+  percent: 77
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 19 (Auth + DI Structural Refactor) — EXECUTING
-Plan: 2 of 17 (next: 19-02 services.py @lru_cache singletons)
-Status: Executing Phase 19 — Wave 0 complete (T-19-01 baseline pinned)
-Last activity: 2026-05-02 -- Phase 19 Plan 01 baseline + DEVIATIONS waiver committed (b83d3d8)
+Plan: 3 of 17 (next: 19-02 services.py @lru_cache singletons)
+Status: Ready to execute
+Last activity: 2026-05-02
 
 Prior position: Phase 17 complete 2026-05-01; Phase 18 closed empty 2026-05-01.
 
@@ -99,6 +99,7 @@ Prior position: Phase 17 complete 2026-05-01; Phase 18 closed empty 2026-05-01.
 | Phase 17 P02 | 1min | 1 tasks | 1 files |
 | Phase 17 P03 | 4min | 1 tasks | 1 files |
 | Phase 19 P01 | 8min | 1 tasks | 1 files |
+| Phase 19 P02 | 16min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -301,6 +302,8 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase 19]: [19-01]: pytest --collect-only must use -qq (not -q) on pytest 9.0.3 — only -qq emits flat path::Class::method nodeids; -q emits hierarchical <Module>/<Function> tree. Baseline filter regex anchors `^[A-Za-z0-9_./\\-]+\.py::[A-Za-z0-9_:\\-]+(\[.+\])?$` keeps parametrized cases.
 - [Phase 19]: [19-01]: factory-boy 3.3.3 missing from .venv even though declared in pyproject.toml:63 — installed at execution time so 4 test modules (test_task_lifecycle, test_task, test_task_mapper, test_sqlalchemy_task_repository) collect; baseline rose from 455+4errors to 500 collected. Operator/CI must `uv sync` to pick up.
 - [Phase 19]: [19-01]: DEVIATIONS.md was already committed in plan-phase commit 2e89924; T-19-01 commits the baseline file alone (single commit b83d3d8). Plan's `git log -1 --name-only shows both files in the same commit` gate is inapplicable; logical pair is intact across two commits, individual gates (>=500 lines + grep waiver entry) both pass.
+- [Phase ?]: [Phase 19]: [19-02]: app/core/services.py created with 9 lru-cached singleton factories — D1 replacement pattern locked; ML services lazy-imported inside factory body (CLI/migration paths free of PyTorch/whisperx/pyannote import cost); existing app/core/container.py untouched (Plans 03..12 migrate callsites incrementally)
+- [Phase ?]: [Phase 19]: [19-02]: docstring grep-gate tax — verifier 'grep -c | grep -q 9' counts every literal '@lru_cache(maxsize=1)' on every line; rephrase docstring to 'lru-cached'/'functools.lru_cache' (Rule 1 fix). Same lesson as Plan 15-02: keep verifier-grep-gate tokens code-only
 
 ### Pending Todos
 
@@ -316,6 +319,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-05-02T15:19:00Z
+Last session: 2026-05-02T15:39:33.908Z
 Stopped at: Completed 19-01-PLAN.md
 Resume file: None

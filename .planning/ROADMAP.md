@@ -196,7 +196,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
   5. `pytest --collect-only` count at phase end is ≥ baseline snapshot committed in `tests/baseline_phase19.txt` at T-19-01; no test name from baseline missing in post-refactor collection; `bun run test` and `bun run test:e2e` from `frontend/` both green (any frontend red treated as a backend HTTP-contract regression)
 **Plans**: 17 plans (11 waves) — Plan 15 has a human-verify checkpoint after frontend e2e — autonomous: false
 - [x] 19-01-PLAN.md — Baseline snapshot + DEVIATIONS.md commit (Wave 0) (completed 2026-05-02)
-- [ ] 19-02-PLAN.md — app/core/services.py with @lru_cache(maxsize=1) singletons (Wave 1)
+- [x] 19-02-PLAN.md — app/core/services.py with @lru_cache(maxsize=1) singletons (Wave 1)
 - [ ] 19-03-PLAN.md — get_db generator + chained repo/service _v2 providers (Wave 1)
 - [ ] 19-04-PLAN.md — authenticated_user + authenticated_user_optional + scoped task repo Depends + Set-Cookie attr lock (Wave 2)
 - [ ] 19-05-PLAN.md — csrf_protected Depends factory (Wave 2)
@@ -229,7 +229,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | 16. Verification + Cross-User Matrix + E2E | v1.2 | 6/6 | Complete   | 2026-04-30 |
 | 17. Docs + Migration Runbook + Operator Guide | v1.2 | 3/3 | Complete   | 2026-05-01 |
 | 18. Stretch (Optional) | v1.2 | 0/0 | Closed empty | 2026-05-01 |
-| 19. Auth + DI Structural Refactor | v1.2 | 1/17 | In Progress | — |
+| 19. Auth + DI Structural Refactor | v1.2 | 2/17 | In Progress|  |
 
 **Total Plans:** TBD (refined during plan-phase per phase)
 **Requirements Coverage:** 95/95 mapped (v1.2 entry set); Phase 19 adds REFACTOR-01..07 (post-entry, addresses observed structural defect)
