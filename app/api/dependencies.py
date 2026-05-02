@@ -71,13 +71,14 @@ def get_db() -> Generator[Session, None, None]:
     Every repo / service factory chains off Depends(get_db); FastAPI shares
     the yielded Session across all sub-deps via its per-request dep cache,
     so the whole route call graph runs on ONE Session that is closed
-    exactly once in this finally.
+    exactly once in this finally. Local var named ``session`` so the
+    literal close-callsite is greppable (gate G2 invariant).
     """
-    db = SessionLocal()
+    session = SessionLocal()
     try:
-        yield db
+        yield session
     finally:
-        db.close()
+        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -326,8 +327,9 @@ async def authenticated_user_optional(
     """Same as authenticated_user but returns None instead of raising.
 
     Used by public routes that need optional auth context (none today;
-    placeholder for Plan 16 PUBLIC_ALLOWLIST removal — public routes
-    that want to surface user.id when present can opt in via this dep).
+    the legacy inverted-allowlist machinery was deleted in Plan 19-11 —
+    public routes that want to surface user.id when present opt in via
+    this dep instead).
     """
     return _try_resolve(request, response, db)
 

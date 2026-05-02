@@ -88,97 +88,98 @@ def process_audio_task(
         identifier (str): The task identifier.
         task_type (str): The type of the task.
     """
-    # Create repository for this background task
-    session = SessionLocal()
-    repository: ITaskRepository = SQLAlchemyTaskRepository(session)
+    # Phase 19-16 — context-manager owns the worker session lifecycle.
+    # `with SessionLocal() as session:` finalises the session on block
+    # exit (success AND failure), matching the D2 lock invariant of one
+    # literal close-callsite (get_db only).
+    with SessionLocal() as session:
+        repository: ITaskRepository = SQLAlchemyTaskRepository(session)
 
-    # Map task types to progress stages
-    stage_map = {
-        "transcription": TaskProgressStage.transcribing,
-        "transcription_alignment": TaskProgressStage.aligning,
-        "diarization": TaskProgressStage.diarizing,
-        "combine_transcript&diarization": TaskProgressStage.diarizing,
-    }
-    processing_stage = stage_map.get(task_type, TaskProgressStage.transcribing)
+        # Map task types to progress stages
+        stage_map = {
+            "transcription": TaskProgressStage.transcribing,
+            "transcription_alignment": TaskProgressStage.aligning,
+            "diarization": TaskProgressStage.diarizing,
+            "combine_transcript&diarization": TaskProgressStage.diarizing,
+        }
+        processing_stage = stage_map.get(task_type, TaskProgressStage.transcribing)
 
-    # Initial progress: queued
-    _update_progress(repository, identifier, TaskProgressStage.queued, 0)
+        # Initial progress: queued
+        _update_progress(repository, identifier, TaskProgressStage.queued, 0)
 
-    try:
-        start_time = datetime.now()
-        logger.info(f"Starting {task_type} task for identifier {identifier}")
+        try:
+            start_time = datetime.now()
+            logger.info(f"Starting {task_type} task for identifier {identifier}")
 
-        # Progress: processing started
-        _update_progress(repository, identifier, processing_stage, 10)
+            # Progress: processing started
+            _update_progress(repository, identifier, processing_stage, 10)
 
-        result = audio_processor()
+            result = audio_processor()
 
-        if task_type == "diarization":
-            result = result.drop(columns=["segment"]).to_dict(orient="records")
+            if task_type == "diarization":
+                result = result.drop(columns=["segment"]).to_dict(orient="records")
 
-        end_time = datetime.now()
-        duration = (end_time - start_time).total_seconds()
-        logger.info(
-            f"Completed {task_type} task for identifier {identifier}. Duration: {duration}s"
-        )
+            end_time = datetime.now()
+            duration = (end_time - start_time).total_seconds()
+            logger.info(
+                f"Completed {task_type} task for identifier {identifier}. Duration: {duration}s"
+            )
 
-        # Progress: complete
-        _update_progress(repository, identifier, TaskProgressStage.complete, 100)
+            # Progress: complete
+            _update_progress(repository, identifier, TaskProgressStage.complete, 100)
 
-        repository.update(
-            identifier=identifier,
-            update_data={
-                "status": TaskStatus.completed,
-                "result": result,
-                "duration": duration,
-                "start_time": start_time,
-                "end_time": end_time,
-            },
-        )
+            repository.update(
+                identifier=identifier,
+                update_data={
+                    "status": TaskStatus.completed,
+                    "result": result,
+                    "duration": duration,
+                    "start_time": start_time,
+                    "end_time": end_time,
+                },
+            )
 
-    except (
-        ValueError,
-        TypeError,
-        RuntimeError,
-        MemoryError,
-        TranscriptionFailedError,
-        DiarizationFailedError,
-        AudioProcessingError,
-        InsufficientMemoryError,
-    ) as e:
-        logger.error(
-            f"Task {task_type} failed for identifier {identifier}. Error: {str(e)}"
-        )
-        # Emit error to WebSocket clients
-        progress_emitter = get_progress_emitter()
-        progress_emitter.emit_error(
-            identifier,
-            error_code="PROCESSING_FAILED",
-            user_message=f"{task_type.replace('_', ' ').title()} failed. Please try again.",
-            technical_detail=str(e),
-        )
-        repository.update(
-            identifier=identifier,
-            update_data={"status": TaskStatus.failed, "error": str(e)},
-        )
-    except Exception as e:
-        logger.error(
-            f"Task {task_type} failed for identifier {identifier} with unexpected error. Error: {str(e)}"
-        )
-        # Emit error to WebSocket clients
-        progress_emitter = get_progress_emitter()
-        progress_emitter.emit_error(
-            identifier,
-            error_code="PROCESSING_FAILED",
-            user_message=f"{task_type.replace('_', ' ').title()} failed unexpectedly.",
-            technical_detail=str(e),
-        )
-        repository.update(
-            identifier=identifier,
-            update_data={"status": TaskStatus.failed, "error": str(e)},
-        )
-    finally:
-        session.close()
+        except (
+            ValueError,
+            TypeError,
+            RuntimeError,
+            MemoryError,
+            TranscriptionFailedError,
+            DiarizationFailedError,
+            AudioProcessingError,
+            InsufficientMemoryError,
+        ) as e:
+            logger.error(
+                f"Task {task_type} failed for identifier {identifier}. Error: {str(e)}"
+            )
+            # Emit error to WebSocket clients
+            progress_emitter = get_progress_emitter()
+            progress_emitter.emit_error(
+                identifier,
+                error_code="PROCESSING_FAILED",
+                user_message=f"{task_type.replace('_', ' ').title()} failed. Please try again.",
+                technical_detail=str(e),
+            )
+            repository.update(
+                identifier=identifier,
+                update_data={"status": TaskStatus.failed, "error": str(e)},
+            )
+        except Exception as e:
+            logger.error(
+                f"Task {task_type} failed for identifier {identifier} with unexpected error. Error: {str(e)}"
+            )
+            # Emit error to WebSocket clients
+            progress_emitter = get_progress_emitter()
+            progress_emitter.emit_error(
+                identifier,
+                error_code="PROCESSING_FAILED",
+                user_message=f"{task_type.replace('_', ' ').title()} failed unexpectedly.",
+                technical_detail=str(e),
+            )
+            repository.update(
+                identifier=identifier,
+                update_data={"status": TaskStatus.failed, "error": str(e)},
+            )
 
 
 def process_transcribe(

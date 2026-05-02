@@ -70,7 +70,7 @@ After T-19-12 these MUST hold (run as a CI gate in T-19-16):
 | # | Invariant | Command | Expected |
 |---|-----------|---------|----------|
 | G1 | No container callsites | `grep -rn '_container\.' app/` | 0 |
-| G2 | Single session.close site | `grep -rn 'session\.close()' app/` | exactly 2 (get_db + WhisperX background) |
+| G2 | Single session.close site | `grep -rn 'session\.close()' app/` | exactly 1 (get_db; WhisperX worker uses with-block) |
 | G3 | dependency_injector deleted | `grep -rn 'dependency_injector' app/` | 0 |
 | G4 | AUTH_V2 + legacy middleware deleted | `grep -rn 'AUTH_V2_ENABLED\|is_auth_v2_enabled\|BearerAuthMiddleware\|DualAuthMiddleware' app/` | 0 |
 | G5 | No nested if-in-if-in-if | `grep -rn '            if ' app/api/dependencies.py` | 0 (tiger-style) |

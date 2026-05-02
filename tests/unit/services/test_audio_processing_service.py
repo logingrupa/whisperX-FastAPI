@@ -37,7 +37,7 @@ class TestAudioProcessingService:
         self, mock_session_local: Mock, mock_repository_class: Mock
     ) -> None:
         """Test processing audio task successfully."""
-        # Setup mocks
+        # Setup mocks (Phase 19-16: with-block — __exit__ replaces .close())
         mock_session = MagicMock()
         mock_session_local.return_value = mock_session
         mock_repository = MagicMock()
@@ -62,7 +62,9 @@ class TestAudioProcessingService:
         assert update_call[1]["update_data"]["result"] == {
             "segments": [{"text": "hello"}]
         }
-        mock_session.close.assert_called_once()
+        # Context-manager exit guarantees session finalisation (replaces
+        # legacy literal mock_session.close.assert_called_once()).
+        mock_session.__exit__.assert_called_once()
 
     @patch("app.services.audio_processing_service.SQLAlchemyTaskRepository")
     @patch("app.services.audio_processing_service.SessionLocal")
@@ -133,7 +135,9 @@ class TestAudioProcessingService:
         assert update_call[1]["identifier"] == "test-789"
         assert update_call[1]["update_data"]["status"] == "failed"
         assert "error" in update_call[1]["update_data"]
-        mock_session.close.assert_called_once()
+        # Context-manager exit fires on the failure path too (replaces
+        # legacy literal mock_session.close.assert_called_once()).
+        mock_session.__exit__.assert_called_once()
 
     @patch("app.services.audio_processing_service.SQLAlchemyTaskRepository")
     @patch("app.services.audio_processing_service.SessionLocal")

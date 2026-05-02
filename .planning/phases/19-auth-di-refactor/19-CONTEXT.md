@@ -226,10 +226,11 @@ byte-identical post-refactor:
 
 1. `grep -rn '_container\.' app/` → ZERO matches. (`app/core/container.py`
    no longer exists, so this is structural.)
-2. `grep -rn 'session\.close()' app/` → exactly TWO matches: one inside
-   `get_db` in `app/api/dependencies.py`, one inside the `with
-   SessionLocal()` block of `whisperx_wrapper_service.py` (background
-   path, no request scope).
+2. `grep -rn 'session\.close()' app/` → exactly ONE match: inside
+   `get_db` in `app/api/dependencies.py`. Background tasks
+   (`whisperx_wrapper_service.py`, `audio_processing_service.py`) and the
+   WebSocket route (`websocket_api.py`) all use `with SessionLocal() as
+   db:` blocks (context-manager close, no literal `.close()`).
 3. `grep -rn 'dependency_injector' app/` → ZERO matches.
 4. `grep -rn 'AUTH_V2_ENABLED\|is_auth_v2_enabled\|BearerAuthMiddleware\|DualAuthMiddleware' app/`
    → ZERO matches.
