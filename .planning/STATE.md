@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: executing
-stopped_at: Completed 19-01-PLAN.md
-last_updated: "2026-05-02T19:59:28.954Z"
+stopped_at: Completed 19-12-PLAN.md
+last_updated: "2026-05-02T20:17:26.444Z"
 last_activity: 2026-05-02
 progress:
   total_phases: 10
   completed_phases: 8
   total_plans: 62
-  completed_plans: 57
-  percent: 92
+  completed_plans: 58
+  percent: 94
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 19 (Auth + DI Structural Refactor) — EXECUTING
-Plan: 12 of 17 (next: 19-12 delete CsrfMiddleware class + obsolete unit test)
+Plan: 13 of 17 (next: 19-13 delete container + dependency_injector + drop _v2 namespace)
 Status: Ready to execute
 Last activity: 2026-05-02
 
@@ -106,6 +106,7 @@ Prior position: Phase 17 complete 2026-05-01; Phase 18 closed empty 2026-05-01.
 | Phase Phase 19 PP06 | 8min | 1 tasks | 2 files |
 | Phase Phase 19 PP10 | 28min | 1 multi-group tasks | 17 files files |
 | Phase 19 P11 | 10m | 1 tasks | 13 files |
+| Phase 19 P12 | 14m | 1 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -321,6 +322,9 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [19-11]: Atomic deletion of DualAuthMiddleware + BearerAuthMiddleware modules + AUTH_V2_ENABLED flag + 23 obsolete unit tests in single commit (8e1a3cf); 4 source files deleted (438 LOC removed); single auth path D2 invariant + V2-only D3 invariant locked structurally; production fail-loud guard at main.py:257-262 deleted
 - [Phase ?]: [19-11]: docstring-grep-tax recurrence #6 — comment + docstring cleanup is in scope when plan acceptance gate is literal-token grep; 8 historical comments in app/api/dependencies.py + 6 other files paraphrased to satisfy structural-invariant gate; should be lifted to PATTERNS.md as cross-plan rule
 - [Phase ?]: [19-11]: test_phase13_e2e_smoke.py V2_OFF tests deleted (Rule 3) — server_v2_off fixture + test_v2_disabled_routes_not_registered exercised V2_ENABLED=false + BearerAuthMiddleware behavior that no longer exists; pre-flight test inventory check caught the under-scoped deletion list; pytest collection 540→516 (-24 = 15 dual_auth + 8 container + 1 v2-off)
+- [Phase 19]: [19-12]: CsrfMiddleware class + obsolete unit test deleted atomically (commit bb41522); final middleware stack collapsed to CORSMiddleware only — len(app.user_middleware) == 1 — CSRF defence now lives exclusively in Depends(csrf_protected) on every cookie-auth state-mutating router; Phase 16-04 + Plan 19-05 CSRF integration tests stay GREEN
+- [Phase 19]: [19-12]: Rule 2 deviation — TestGetAuthenticatedUser (3 cases) relocated to tests/unit/api/test_dependencies_request_state.py BEFORE deleting tests/unit/core/test_csrf_middleware.py; helpers get_authenticated_user / get_current_user_id are still consumed by audio_api.py:70/178 + audio_services_api.py:90/285 (Plan 19-13 sweeps the callsites). Plan-prescribed blind delete would have dropped unit coverage for live code; relocation preserves coverage 1:1
+- [Phase 19]: [19-12]: docstring-grep-tax recurrence #7 (after 19-02/15-02/19-05/19-06/19-10/19-11) — literal `CsrfMiddleware` token stripped from 4 docstrings/comments in app/main.py + app/api/dependencies.py to satisfy `grep -rn CsrfMiddleware app/` == 0 acceptance gate; pattern should be lifted to PATTERNS.md as a cross-plan rule next recurrence
 
 ### Pending Todos
 
@@ -336,6 +340,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-05-02T19:58:59.988Z
-Stopped at: Completed 19-11-PLAN.md
+Last session: 2026-05-02T20:17:26.437Z
+Stopped at: Completed 19-12-PLAN.md
 Resume file: None

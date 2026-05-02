@@ -24,3 +24,15 @@ them with `@pytest.mark.skip` and rationale.
 
 Plan 04 success criterion "no regression vs Plan 03 baseline" satisfied —
 same failure set both before and after.
+
+## Pre-existing failure observed during T-19-12
+
+`tests/integration/test_free_tier_gate.py::test_free_user_6th_transcribe_returns_429_with_retry_after`
+fails with `RuntimeError: Container not initialized. Call set_container() first.`
+at `app/api/dependencies.py:366` (inside `_get_user_scoped_task_repository`).
+Reproduces identically on HEAD (commit `c4dfbfd`) BEFORE Plan 19-12 changes
+(verified via `git stash` round-trip). Root cause is the test bypassing
+`app/main.py`'s `dependencies.set_container(container)` boot path while
+exercising a v1.1 audio route that still resolves through `_container`.
+Resolution will land naturally in Plan 19-13 when `_container` is deleted
+and the v1.1 routes migrate to `Depends(get_db)` chain.
