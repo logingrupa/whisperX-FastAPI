@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: executing
-stopped_at: Completed 19-12-PLAN.md
-last_updated: "2026-05-02T21:08:45.813Z"
+status: phase-19-verification-human-needed
+stopped_at: Completed 19-17-PLAN.md
+last_updated: "2026-05-02T21:21:00.000Z"
 last_activity: 2026-05-02
 progress:
   total_phases: 10
   completed_phases: 8
-  total_plans: 62
-  completed_plans: 62
+  total_plans: 79
+  completed_plans: 79
   percent: 100
 ---
 
@@ -25,12 +25,22 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 
 ## Current Position
 
-Phase: 19 (Auth + DI Structural Refactor) — EXECUTING
-Plan: 17 of 17 (next: 19-13 delete container + dependency_injector + drop _v2 namespace)
-Status: Ready to execute
+Phase: 19 (Auth + DI Structural Refactor) — VERIFICATION COMPLETE (human_needed)
+Plan: 17 of 17 — DONE (final 21-gate verification recorded in 19-VERIFICATION.md)
+Status: Phase 19 implementation complete; phase-exit gated on 2 manual browser verifications (hard-reload + 20 sequential logins per 19-VALIDATION.md "Manual-Only Verifications")
 Last activity: 2026-05-02
 
 Prior position: Phase 17 complete 2026-05-01; Phase 18 closed empty 2026-05-01.
+
+## Phase 19 Verification Summary (2026-05-02)
+
+- 20 of 21 automated gates GREEN (gates 1-8, 10-21).
+- Gate 9 (`scripts/verify_session_leak_fix.py`) SUPERSEDED by Gate 8 per D6 lock — script's imports broke when Plan 13 deleted the leaky codepath it reproduced; pytest companion (`tests/integration/test_no_session_leak.py`) replaces it.
+- 2 manual verifications outstanding:
+  1. Hard-reload signed-in user lands on `/` (not `/ui/login`)
+  2. DevTools Network: 20 sequential logins all complete < 1s
+- All 7 REFACTOR-01..07 requirement IDs verified.
+- 27 pre-existing test failures unchanged from `deferred-items.md` (out-of-scope; resolution = future test-housekeeping plan).
 
 ## Performance Metrics
 
@@ -110,6 +120,8 @@ Prior position: Phase 17 complete 2026-05-01; Phase 18 closed empty 2026-05-01.
 | Phase 19 P13 | 14m | 2 tasks | 26 files |
 | Phase Phase 19 PP14 | 8m | - tasks | - files |
 | Phase 19 P15 | 8min | 2 tasks tasks | 1 files files |
+| Phase 19 P16 | 11min | 1 tasks | 5 files |
+| Phase 19 P17 | 11min | 1 tasks | 2 files |
 
 ## Accumulated Context
 

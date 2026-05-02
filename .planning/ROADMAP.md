@@ -211,7 +211,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - [x] 19-14-PLAN.md — No-leak regression test: 50-iter authed GET /me < 100ms each (Wave 9)
 - [x] 19-15-PLAN.md — Frontend test + Playwright e2e + autouse fixture safety net (Wave 10, has human-verify checkpoint, autonomous: false)
 - [x] 19-16-PLAN.md — Dead code sweep: PUBLIC_ALLOWLIST + inline session.close() boilerplate + reconcile gate 2 wording (Wave 10)
-- [ ] 19-17-PLAN.md — Final 21-gate verification + 19-VERIFICATION.md (Wave 11)
+- [x] 19-17-PLAN.md — Final 21-gate verification + 19-VERIFICATION.md (Wave 11) (verification: human_needed; 2 manual browser checks outstanding)
 **Reference**: `.planning/phases/19-auth-di-refactor/19-CONTEXT.md` — full mission, locked architectural decisions (D1-D6), enumerated callsite scope table, 21-gate verification matrix, 16-step suggested execution order, rollback procedure.
 
 ## Progress
@@ -229,7 +229,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | 16. Verification + Cross-User Matrix + E2E | v1.2 | 6/6 | Complete   | 2026-04-30 |
 | 17. Docs + Migration Runbook + Operator Guide | v1.2 | 3/3 | Complete   | 2026-05-01 |
 | 18. Stretch (Optional) | v1.2 | 0/0 | Closed empty | 2026-05-01 |
-| 19. Auth + DI Structural Refactor | v1.2 | 16/17 | In Progress|  |
+| 19. Auth + DI Structural Refactor | v1.2 | 17/17 | Verification: human_needed (2 manual checks) | 2026-05-02 |
 
 **Total Plans:** TBD (refined during plan-phase per phase)
 **Requirements Coverage:** 95/95 mapped (v1.2 entry set); Phase 19 adds REFACTOR-01..07 (post-entry, addresses observed structural defect)
