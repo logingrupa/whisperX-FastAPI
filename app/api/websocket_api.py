@@ -38,6 +38,11 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
+from app.core.services import get_ws_ticket_service
+from app.infrastructure.database.connection import SessionLocal
+from app.infrastructure.database.repositories.sqlalchemy_task_repository import (
+    SQLAlchemyTaskRepository,
+)
 from app.infrastructure.websocket import connection_manager
 from app.schemas.websocket_schemas import HeartbeatMessage
 
@@ -66,36 +71,17 @@ async def websocket_task_progress(
         task_id: UUID of the task to watch (path param).
         ticket: Single-use token from ``POST /api/ws/ticket`` (query param).
     """
-    # WS scope is not dispatched through ``BaseHTTPMiddleware``, so we reach
-    # into the module-level container reference.
-    # Phase 19-07: ticket service moved to the lru-cached singleton in
-    # ``app.core.services`` so HTTP issue-path (ws_ticket_routes) and WS
-    # consume-path (here) agree on the SAME instance. The legacy
-    # ``_container.ws_ticket_service()`` Singleton is a different object —
-    # mixing them silently broke ticket reuse in tests. Plan 19-08 owns the
-    # full websocket_api refactor (replace _container.task_repository() with
-    # ``with SessionLocal() as db:`` block); for now keep the legacy task
-    # repo path so coexistence holds.
-    from app.api import dependencies
-    from app.core.services import get_ws_ticket_service
-
+    # WS scope has no FastAPI Depends, so we use the lru-cached singleton
+    # for ws_ticket_service (HTTP issue and WS consume agree on the same
+    # in-memory dict) and an explicit ``with SessionLocal() as db:`` block
+    # for the per-request session. The context manager owns close().
     if not ticket:
         await websocket.close(code=WS_POLICY_VIOLATION)
         return
 
-    if dependencies._container is None:
-        await websocket.close(code=WS_POLICY_VIOLATION)
-        return
-
     ticket_service = get_ws_ticket_service()
-    # task_repository is a Factory — it owns a fresh DB Session that MUST
-    # be closed in finally or the engine pool exhausts (see
-    # app/api/dependencies.py::get_task_repository for the failure mode).
-    task_repo = dependencies._container.task_repository()
-    try:
-        task = task_repo.get_by_id(task_id)
-    finally:
-        task_repo.session.close()
+    with SessionLocal() as db:
+        task = SQLAlchemyTaskRepository(db).get_by_id(task_id)
     if task is None:
         await websocket.close(code=WS_POLICY_VIOLATION)
         return

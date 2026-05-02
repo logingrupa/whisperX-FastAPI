@@ -127,8 +127,17 @@ def ws_app(
 
     app.dependency_overrides[dependencies.get_db] = _override_get_db
 
+    # Phase 19 Plan 08: WS scope has no Depends, so monkey-patch the
+    # module-level SessionLocal that websocket_api.py uses for its
+    # explicit `with SessionLocal() as db:` block.
+    from app.api import websocket_api as _ws_api
+
+    original_session_local = _ws_api.SessionLocal
+    _ws_api.SessionLocal = session_factory
+
     yield app, container
 
+    _ws_api.SessionLocal = original_session_local
     app.dependency_overrides.clear()
     container.unwire()
     container.db_session_factory.reset_override()
