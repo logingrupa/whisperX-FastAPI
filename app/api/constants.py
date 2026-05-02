@@ -8,11 +8,6 @@ and file extensions used across API endpoints.
 TASK_QUEUED_MESSAGE = "Task queued"
 TASK_SCHEDULED_LOG_FORMAT = "Background task scheduled for processing: ID %s"
 
-# Dependency injection error messages
-CONTAINER_NOT_INITIALIZED_ERROR = (
-    "Container not initialized. Call set_container() first."
-)
-
 # Schema field descriptions
 AUDIO_LANGUAGE_DESCRIPTION = "Language of the audio"
 

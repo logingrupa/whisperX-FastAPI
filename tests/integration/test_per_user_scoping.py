@@ -18,7 +18,7 @@ Coverage (≥10 cases):
 Phase 19 Plan 10: slim app per test (auth + task + ws_ticket routers) driven
 solely by app.dependency_overrides[get_db]. The new
 Depends(authenticated_user) handles auth per-route and
-get_scoped_task_repository_v2 + get_scoped_task_management_service_v2 own
+get_scoped_task_repository + get_scoped_task_management_service own
 scope via the Depends graph — no DualAuthMiddleware, no Container override.
 """
 
@@ -96,7 +96,7 @@ def app_and_container(
 
     Phase 19 Plan 10: dependency_overrides[get_db] is the SOLE DB-binding
     seam. Auth + scope are owned by the new Depends graph
-    (Depends(authenticated_user) + get_scoped_task_repository_v2). Fixture
+    (Depends(authenticated_user) + get_scoped_task_repository). Fixture
     name kept as ``app_and_container`` for backward compat with existing
     test signatures even though the container concept is gone — the
     deprecation rename happens in Plan 13 alongside container.py deletion.
@@ -422,7 +422,7 @@ def test_post_speech_to_text_persists_with_user_id(
 
     Bypasses the full /speech-to-text route (which depends on heavy
     audio-decode + ML), but exercises the SAME wiring the
-    get_scoped_task_repository_v2 dep uses:
+    get_scoped_task_repository dep uses:
     SQLAlchemyTaskRepository(session) + set_user_scope(user.id) + repo.add().
     Proves the scope mechanism injects user_id at write-time without going
     through the container (Phase 19 Plan 10 — container.task_repository()
@@ -432,7 +432,7 @@ def test_post_speech_to_text_persists_with_user_id(
 
     from app.domain.entities.task import Task as DomainTask
 
-    # Build a scoped repo exactly the way get_scoped_task_repository_v2 does:
+    # Build a scoped repo exactly the way get_scoped_task_repository does:
     # one Session per "request", set_user_scope(user.id) on the bound repo.
     with session_factory() as session:
         repo = SQLAlchemyTaskRepository(session)

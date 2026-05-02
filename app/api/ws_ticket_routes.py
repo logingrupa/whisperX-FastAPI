@@ -33,7 +33,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.dependencies import (
     authenticated_user,
     csrf_protected,
-    get_scoped_task_repository_v2,
+    get_scoped_task_repository,
 )
 from app.api.schemas.ws_ticket_schemas import TicketRequest, TicketResponse
 from app.core.services import get_ws_ticket_service
@@ -58,7 +58,7 @@ ws_ticket_router = APIRouter(
 async def issue_ticket(
     body: TicketRequest,
     user: User = Depends(authenticated_user),
-    repository: ITaskRepository = Depends(get_scoped_task_repository_v2),
+    repository: ITaskRepository = Depends(get_scoped_task_repository),
     ticket_service: WsTicketService = Depends(get_ws_ticket_service),
 ) -> TicketResponse:
     """Issue a single-use 60-second WS ticket for the caller's own task.

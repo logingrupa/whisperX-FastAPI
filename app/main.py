@@ -68,15 +68,6 @@ from app.spa_handler import setup_spa_routes  # noqa: E402
 load_dotenv()
 
 
-# Create dependency injection container
-container = Container()
-
-# Set container in dependencies module
-from app.api import dependencies  # noqa: E402
-
-dependencies.set_container(container)
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """

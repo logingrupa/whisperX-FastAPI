@@ -8,15 +8,13 @@ frontend authStore.refresh() and AccountPage.
 SCOPE-06: full-row account delete + 3-step cascade orchestrated by
 AccountService.delete_account; clears auth cookies on success.
 
-Phase 19 — pilot route migration to the Depends auth chain:
-- Auth resolved via the authenticated_user Depends (NOT the deleted legacy
-  middleware request.state lookup).
+Phase 19 — Depends auth chain (single namespace, post Plan 19-13):
+- Auth resolved via the authenticated_user Depends.
 - CSRF enforced router-level via the csrf_protected Depends; csrf_protected
   method-gates so GET /me passes through, DELETEs fire the double-submit
   check.
-- AccountService bound via get_account_service_v2 (chains off get_db ->
-  get_user_repository_v2). Local helper preserved for backward compat
-  callers; switched to the get_db Depends (was get_db_session).
+- AccountService bound via get_account_service (chains off get_db ->
+  get_user_repository).
 
 Constraints honoured:
     DRY  — authenticated_user dependency reused (single resolution
@@ -30,14 +28,12 @@ Constraints honoured:
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy.orm import Session
 
 from app.api._cookie_helpers import clear_auth_cookies
 from app.api.dependencies import (
     authenticated_user,
     csrf_protected,
-    get_account_service_v2,
-    get_db,
+    get_account_service,
 )
 from app.api.schemas.account_schemas import (
     AccountSummaryResponse,
@@ -54,22 +50,10 @@ account_router = APIRouter(
 )
 
 
-def get_account_service(
-    session: Session = Depends(get_db),
-) -> AccountService:
-    """Per-request AccountService factory (binds a fresh DB session).
-
-    Kept for backward compat with any external callers; new routes
-    composes ``get_account_service_v2`` directly. AccountService
-    lazy-constructs the user repository when only ``session`` is passed.
-    """
-    return AccountService(session=session)
-
-
 @account_router.delete("/data", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user_data(
     user: User = Depends(authenticated_user),
-    account_service: AccountService = Depends(get_account_service_v2),
+    account_service: AccountService = Depends(get_account_service),
 ) -> Response:
     """Delete the caller's tasks + uploaded files. User row preserved."""
     account_service.delete_user_data(int(user.id))
@@ -79,7 +63,7 @@ async def delete_user_data(
 @account_router.get("/me", response_model=AccountSummaryResponse)
 async def get_account_me(
     user: User = Depends(authenticated_user),
-    account_service: AccountService = Depends(get_account_service_v2),
+    account_service: AccountService = Depends(get_account_service),
 ) -> AccountSummaryResponse:
     """GET /api/account/me — return account summary for client hydration (UI-07).
 
@@ -105,7 +89,7 @@ async def get_account_me(
 async def delete_account(
     body: DeleteAccountRequest,
     user: User = Depends(authenticated_user),
-    account_service: AccountService = Depends(get_account_service_v2),
+    account_service: AccountService = Depends(get_account_service),
 ) -> Response:
     """DELETE /api/account — cascade delete + clear cookies. SCOPE-06.
 

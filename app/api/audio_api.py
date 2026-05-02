@@ -18,11 +18,11 @@ from fastapi import (
 )
 
 from app.api.dependencies import (
-    get_authenticated_user,
-    get_file_service,
+    authenticated_user,
     get_free_tier_gate,
     get_scoped_task_repository,
 )
+from app.core.services import get_file_service
 from app.audio import get_audio_duration, process_audio_file
 from app.core.exceptions import FileValidationError
 from app.core.logging import logger
@@ -67,7 +67,7 @@ async def speech_to_text(
     callback_url: str | None = Depends(validate_callback_url_dependency),
     repository: ITaskRepository = Depends(get_scoped_task_repository),
     file_service: FileService = Depends(get_file_service),
-    user: User = Depends(get_authenticated_user),
+    user: User = Depends(authenticated_user),
     free_tier_gate: FreeTierGate = Depends(get_free_tier_gate),
 ) -> Response:
     """
@@ -175,7 +175,7 @@ async def speech_to_text_url(
     callback_url: str | None = Depends(validate_callback_url_dependency),
     repository: ITaskRepository = Depends(get_scoped_task_repository),
     file_service: FileService = Depends(get_file_service),
-    user: User = Depends(get_authenticated_user),
+    user: User = Depends(authenticated_user),
     free_tier_gate: FreeTierGate = Depends(get_free_tier_gate),
 ) -> Response:
     """

@@ -84,7 +84,7 @@ def auth_app(tmp_db_url: str) -> Generator[FastAPI, None, None]:
     Phase 19 Plan 10: ``app.dependency_overrides[get_db]`` is the SOLE
     DB-binding seam. The production Depends graph
     (``Depends(authenticated_user)`` for /auth/logout-all,
-    ``Depends(get_auth_service_v2)`` for /auth/register + /auth/login)
+    ``Depends(get_auth_service)`` for /auth/register + /auth/login)
     resolves transitively through the overridden ``get_db`` against the
     tmp SQLite. No middleware mounting — the new Depends chain owns auth
     end-to-end.

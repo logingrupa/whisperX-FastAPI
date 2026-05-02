@@ -160,17 +160,38 @@ def app_and_container(
         return "/tmp/fake.wav", "fake.wav"
 
     def _fake_process_audio_common(params: Any, *_args, **_kwargs) -> None:  # noqa: ARG001
-        """Phase 19 Plan 10: stripped of container reach-in.
+        """Phase 19 Plan 13: release the concurrency slot via a freshly built
+        FreeTierGate (no legacy DI container).
 
-        The legacy stub released the concurrency slot via
-        ``dependencies._container.free_tier_gate().release_concurrency(...)``
-        which is no longer available. The route-level free-tier tests in
-        this file are deferred (DualAuthMiddleware deletion in Plan 11
-        removes the route's request.state.user source); the direct
-        FreeTierGate / UsageEventWriter tests below construct their own
-        service instances and continue to exercise the W1 contract.
+        Builds a per-call FreeTierGate bound to the tmp DB so the W1
+        try/finally semantics are exercised end-to-end without the deleted
+        ``dependencies._container.free_tier_gate()`` reach-in. Tests that
+        chain >1 transcribe per user depend on this release path; tests
+        that hold the slot opt out via ``audio_ctrl.auto_release_slot=False``.
         """
-        return
+        if not audio_ctrl.auto_release_slot:
+            return
+        # Resolve the user that the route just gated; the audio_api route
+        # writes user_id onto the persisted task — read it back via the
+        # tmp session_factory and release the slot.
+        from app.infrastructure.database.models import Task as ORMTask
+        from app.infrastructure.database.repositories.sqlalchemy_user_repository import (
+            SQLAlchemyUserRepository,
+        )
+
+        with session_factory() as session:
+            orm_task = (
+                session.query(ORMTask)
+                .filter(ORMTask.uuid == params.identifier)
+                .one()
+            )
+            user = SQLAlchemyUserRepository(session).get_by_id(orm_task.user_id)
+        if user is None:
+            return
+        gate = FreeTierGate(
+            rate_limit_service=_build_rate_limit_service(session_factory)
+        )
+        gate.release_concurrency(user)
 
     monkeypatch.setattr(audio_api_module, "process_audio_file", _fake_process_audio_file)
     monkeypatch.setattr(audio_api_module, "get_audio_duration", _fake_get_audio_duration)

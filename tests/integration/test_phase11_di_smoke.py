@@ -50,20 +50,20 @@ class TestPhase19DepChain:
         assert isinstance(instance.secret, str)
 
     def test_auth_service_dep_is_callable(self) -> None:
-        """``get_auth_service_v2`` is the per-request Depends factory."""
-        from app.api.dependencies import get_auth_service_v2
+        """``get_auth_service`` is the per-request Depends factory."""
+        from app.api.dependencies import get_auth_service
 
-        assert callable(get_auth_service_v2)
+        assert callable(get_auth_service)
 
     def test_key_service_dep_is_callable(self) -> None:
-        from app.api.dependencies import get_key_service_v2
+        from app.api.dependencies import get_key_service
 
-        assert callable(get_key_service_v2)
+        assert callable(get_key_service)
 
     def test_account_service_dep_is_callable(self) -> None:
-        from app.api.dependencies import get_account_service_v2
+        from app.api.dependencies import get_account_service
 
-        assert callable(get_account_service_v2)
+        assert callable(get_account_service)
 
     def test_phase19_full_dep_chain_resolves(self) -> None:
         """Every locked Phase 19 dep + service is callable in one breath."""
@@ -71,11 +71,11 @@ class TestPhase19DepChain:
             authenticated_user,
             authenticated_user_optional,
             csrf_protected,
-            get_account_service_v2,
-            get_auth_service_v2,
+            get_account_service,
+            get_auth_service,
             get_db,
-            get_key_service_v2,
-            get_scoped_task_repository_v2,
+            get_key_service,
+            get_scoped_task_repository,
         )
         from app.core.services import (
             get_csrf_service,
@@ -88,11 +88,11 @@ class TestPhase19DepChain:
             authenticated_user,
             authenticated_user_optional,
             csrf_protected,
-            get_account_service_v2,
-            get_auth_service_v2,
+            get_account_service,
+            get_auth_service,
             get_db,
-            get_key_service_v2,
-            get_scoped_task_repository_v2,
+            get_key_service,
+            get_scoped_task_repository,
             get_password_service,
             get_csrf_service,
             get_token_service,

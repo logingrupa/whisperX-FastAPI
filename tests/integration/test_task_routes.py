@@ -13,7 +13,7 @@ Coverage:
 
 Phase 19 Plan 10: slim app + dependency_overrides[get_db] only — auth and
 scope are owned by the new Depends graph (Depends(authenticated_user) +
-get_scoped_task_management_service_v2). No DualAuthMiddleware, no Container.
+get_task_management_service). No DualAuthMiddleware, no Container.
 """
 
 from __future__ import annotations

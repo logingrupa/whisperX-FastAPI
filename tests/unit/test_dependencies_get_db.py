@@ -1,16 +1,16 @@
-"""Phase 19 Plan 03 (T-19-03) — RED tests for get_db + chained `_v2` providers.
+"""Phase 19 Plan 13 — unit tests for get_db + chained provider factories.
 
 Locks the D2 lifecycle (CONTEXT.md): ONE Session per HTTP request, closed
 in `get_db`'s `finally`. Repository factories chain off `Depends(get_db)`;
-service factories chain off either repo `_v2` providers or singletons from
+service factories chain off either repo providers or singletons from
 `app.core.services` (Plan 02 lru-cached factories).
 
 Pure unit tests — no FastAPI app, no TestClient. SessionLocal is monkey-
 patched to a fake so we count exactly one `.close()` per generator
 exhaustion (Test 2) and one per exception path (Test 3). Tests 4-5 assert
 factory wiring shape: returned object holds the supplied session/repo.
-Test 6 is the structural invariant — no `_v2` helper reaches into
-`_container` (coexistence guarantee, NOT delegation).
+Test 6 is the structural invariant — no helper reaches into the legacy
+`_container` (which is gone in Plan 13 — file-level greppable invariant).
 
 Tiger-style: assertions at boundaries (pre-call invariant + post-call
 state); flat early returns; self-explanatory names.
@@ -90,47 +90,47 @@ def test_get_db_closes_on_exception(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 4: get_user_repository_v2 returns a repo bound to the supplied session
+# Test 4: repository factories return a repo bound to the supplied session
 # ---------------------------------------------------------------------------
 
 
-def test_get_user_repository_v2_binds_session() -> None:
+def test_get_user_repository_binds_session() -> None:
     fake_session = MagicMock(name="FakeSession")
-    repo = deps_module.get_user_repository_v2(fake_session)
+    repo = deps_module.get_user_repository(fake_session)
     # SQLAlchemyUserRepository stores the session as `.session` attr
     assert getattr(repo, "session", None) is fake_session
 
 
-def test_get_api_key_repository_v2_binds_session() -> None:
+def test_get_api_key_repository_binds_session() -> None:
     fake_session = MagicMock(name="FakeSession")
-    repo = deps_module.get_api_key_repository_v2(fake_session)
+    repo = deps_module.get_api_key_repository(fake_session)
     assert getattr(repo, "session", None) is fake_session
 
 
-def test_get_rate_limit_repository_v2_binds_session() -> None:
+def test_get_rate_limit_repository_binds_session() -> None:
     fake_session = MagicMock(name="FakeSession")
-    repo = deps_module.get_rate_limit_repository_v2(fake_session)
+    repo = deps_module.get_rate_limit_repository(fake_session)
     assert getattr(repo, "session", None) is fake_session
 
 
-def test_get_task_repository_v2_binds_session() -> None:
+def test_get_task_repository_binds_session() -> None:
     fake_session = MagicMock(name="FakeSession")
-    repo = deps_module.get_task_repository_v2(fake_session)
+    repo = deps_module.get_task_repository(fake_session)
     assert getattr(repo, "session", None) is fake_session
 
 
-def test_get_device_fingerprint_repository_v2_binds_session() -> None:
+def test_get_device_fingerprint_repository_binds_session() -> None:
     fake_session = MagicMock(name="FakeSession")
-    repo = deps_module.get_device_fingerprint_repository_v2(fake_session)
+    repo = deps_module.get_device_fingerprint_repository(fake_session)
     assert getattr(repo, "session", None) is fake_session
 
 
 # ---------------------------------------------------------------------------
-# Test 5: get_auth_service_v2 wires injected repo + singleton services
+# Test 5: service factories wire injected repo + singleton services
 # ---------------------------------------------------------------------------
 
 
-def test_get_auth_service_v2_wires_repo_and_singletons(
+def test_get_auth_service_wires_repo_and_singletons(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake_user_repo = MagicMock(name="FakeUserRepo")
@@ -146,41 +146,41 @@ def test_get_auth_service_v2_wires_repo_and_singletons(
         lambda: fake_token,
     )
 
-    service = deps_module.get_auth_service_v2(fake_user_repo)
+    service = deps_module.get_auth_service(fake_user_repo)
 
     assert service.user_repository is fake_user_repo
     assert service.password_service is fake_password
     assert service.token_service is fake_token
 
 
-def test_get_key_service_v2_wires_repo() -> None:
+def test_get_key_service_wires_repo() -> None:
     fake_repo = MagicMock(name="FakeApiKeyRepo")
-    service = deps_module.get_key_service_v2(fake_repo)
+    service = deps_module.get_key_service(fake_repo)
     assert service.repository is fake_repo
 
 
-def test_get_rate_limit_service_v2_wires_repo() -> None:
+def test_get_rate_limit_service_wires_repo() -> None:
     fake_repo = MagicMock(name="FakeRateLimitRepo")
-    service = deps_module.get_rate_limit_service_v2(fake_repo)
+    service = deps_module.get_rate_limit_service(fake_repo)
     assert service.repository is fake_repo
 
 
-def test_get_free_tier_gate_v2_wires_rate_limit_service() -> None:
+def test_get_free_tier_gate_wires_rate_limit_service() -> None:
     fake_rls = MagicMock(name="FakeRateLimitService")
-    gate = deps_module.get_free_tier_gate_v2(fake_rls)
+    gate = deps_module.get_free_tier_gate(fake_rls)
     assert gate.rate_limit_service is fake_rls
 
 
-def test_get_usage_event_writer_v2_binds_session() -> None:
+def test_get_usage_event_writer_binds_session() -> None:
     fake_session = MagicMock(name="FakeSession")
-    writer = deps_module.get_usage_event_writer_v2(fake_session)
+    writer = deps_module.get_usage_event_writer(fake_session)
     assert writer.session is fake_session
 
 
-def test_get_account_service_v2_binds_session_and_repo() -> None:
+def test_get_account_service_binds_session_and_repo() -> None:
     fake_session = MagicMock(name="FakeSession")
     fake_repo = MagicMock(name="FakeUserRepo")
-    service = deps_module.get_account_service_v2(fake_session, fake_repo)
+    service = deps_module.get_account_service(fake_session, fake_repo)
     # AccountService stores session + lazily uses user_repository if supplied
     assert service.session is fake_session
     # Plan 15-03 deviation: service exposes _user_repository when explicit
@@ -188,30 +188,30 @@ def test_get_account_service_v2_binds_session_and_repo() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 6: New _v2 helpers do NOT touch _container (coexistence invariant)
+# Test 6: Helpers do NOT touch the legacy _container (file-level invariant)
 # ---------------------------------------------------------------------------
 
 
-_V2_HELPER_NAMES = (
+_HELPER_NAMES = (
     "get_db",
-    "get_user_repository_v2",
-    "get_api_key_repository_v2",
-    "get_rate_limit_repository_v2",
-    "get_task_repository_v2",
-    "get_device_fingerprint_repository_v2",
-    "get_auth_service_v2",
-    "get_key_service_v2",
-    "get_rate_limit_service_v2",
-    "get_free_tier_gate_v2",
-    "get_usage_event_writer_v2",
-    "get_account_service_v2",
+    "get_user_repository",
+    "get_api_key_repository",
+    "get_rate_limit_repository",
+    "get_task_repository",
+    "get_device_fingerprint_repository",
+    "get_auth_service",
+    "get_key_service",
+    "get_rate_limit_service",
+    "get_free_tier_gate",
+    "get_usage_event_writer",
+    "get_account_service",
 )
 
 
-def test_v2_helpers_never_touch_container() -> None:
-    for name in _V2_HELPER_NAMES:
+def test_helpers_never_touch_legacy_container() -> None:
+    for name in _HELPER_NAMES:
         fn = getattr(deps_module, name)
         source = inspect.getsource(fn)
         assert "_container" not in source, (
-            f"{name} must not reference _container (coexistence invariant)"
+            f"{name} must not reference the legacy _container global"
         )

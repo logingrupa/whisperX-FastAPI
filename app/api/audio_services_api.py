@@ -25,12 +25,14 @@ from app.api.constants import (
     TASK_SCHEDULED_LOG_FORMAT,
 )
 from app.api.dependencies import (
-    get_alignment_service,
-    get_authenticated_user,
-    get_diarization_service,
-    get_file_service,
+    authenticated_user,
     get_free_tier_gate,
     get_scoped_task_repository,
+)
+from app.core.services import (
+    get_alignment_service,
+    get_diarization_service,
+    get_file_service,
     get_speaker_assignment_service,
     get_transcription_service,
 )
@@ -87,7 +89,7 @@ async def transcribe(
     repository: ITaskRepository = Depends(get_scoped_task_repository),
     file_service: FileService = Depends(get_file_service),
     transcription_service: ITranscriptionService = Depends(get_transcription_service),
-    user: User = Depends(get_authenticated_user),
+    user: User = Depends(authenticated_user),
     free_tier_gate: FreeTierGate = Depends(get_free_tier_gate),
 ) -> Response:
     """
@@ -282,7 +284,7 @@ async def diarize(
     diarize_params: DiarizationParams = Depends(),
     file_service: FileService = Depends(get_file_service),
     diarization_service: IDiarizationService = Depends(get_diarization_service),
-    user: User = Depends(get_authenticated_user),
+    user: User = Depends(authenticated_user),
     free_tier_gate: FreeTierGate = Depends(get_free_tier_gate),
 ) -> Response:
     """

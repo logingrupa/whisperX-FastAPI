@@ -39,7 +39,7 @@ from app.api._cookie_helpers import (
 from app.api.dependencies import (
     authenticated_user,
     csrf_protected,
-    get_auth_service_v2,
+    get_auth_service,
 )
 from app.core.services import get_csrf_service
 from app.api.schemas.auth_schemas import AuthResponse, LoginRequest, RegisterRequest
@@ -126,7 +126,7 @@ async def register(
     request: Request,
     response: Response,
     body: RegisterRequest,
-    auth_service: AuthService = Depends(get_auth_service_v2),
+    auth_service: AuthService = Depends(get_auth_service),
     csrf_service: CsrfService = Depends(get_csrf_service),
 ) -> AuthResponse:
     """Register a new user account.
@@ -163,7 +163,7 @@ async def login(
     request: Request,
     response: Response,
     body: LoginRequest,
-    auth_service: AuthService = Depends(get_auth_service_v2),
+    auth_service: AuthService = Depends(get_auth_service),
     csrf_service: CsrfService = Depends(get_csrf_service),
 ) -> AuthResponse:
     """Authenticate and issue session + CSRF cookies.
@@ -203,7 +203,7 @@ async def logout(request: Request) -> Response:
 )
 async def logout_all(
     user: User = Depends(authenticated_user),
-    auth_service: AuthService = Depends(get_auth_service_v2),
+    auth_service: AuthService = Depends(get_auth_service),
 ) -> Response:
     """POST /auth/logout-all — bump token_version + clear cookies. AUTH-06.
 
