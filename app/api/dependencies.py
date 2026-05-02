@@ -39,24 +39,22 @@ def get_task_repository() -> Generator[ITaskRepository, None, None]:
     """
     Provide a task repository implementation for dependency injection.
 
-    This function uses the container to provide a task repository instance
-    with a managed database session. The container ensures proper lifecycle
-    management of both the session and repository.
+    Yields a repository bound to a fresh DB session and closes that session
+    when the request ends. Without the finally close, every request leaks
+    one connection — after pool_size + max_overflow (default 5+10=15) the
+    next checkout blocks for 30s before raising, surfacing as a deceptive
+    401 because SQLAlchemyError is swallowed downstream.
 
     Yields:
         ITaskRepository: A task repository implementation
-
-    Example:
-        >>> @router.post("/tasks")
-        >>> async def create_task(
-        ...     repository: ITaskRepository = Depends(get_task_repository)
-        ... ):
-        ...     task_id = repository.add(task)
-        ...     return {"id": task_id}
     """
     if _container is None:
         raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
-    yield _container.task_repository()
+    repository: ITaskRepository = _container.task_repository()
+    try:
+        yield repository
+    finally:
+        repository.session.close()  # type: ignore[attr-defined]
 
 
 def get_file_service() -> Generator[FileService, None, None]:
@@ -78,15 +76,20 @@ def get_task_management_service() -> Generator[TaskManagementService, None, None
     """
     Provide a TaskManagementService instance for dependency injection.
 
-    The service is initialized with a task repository from the container.
-    Registered as a factory, so a new instance is created for each request.
+    Closes the underlying repository session in the finally clause to
+    prevent connection-pool exhaustion (see get_task_repository docstring
+    for the failure mode).
 
     Yields:
         TaskManagementService: A task management service instance
     """
     if _container is None:
         raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
-    yield _container.task_management_service()
+    service: TaskManagementService = _container.task_management_service()
+    try:
+        yield service
+    finally:
+        service.repository.session.close()  # type: ignore[attr-defined]
 
 
 def get_transcription_service() -> Generator[ITranscriptionService, None, None]:
@@ -221,31 +224,66 @@ def get_current_user_id(request: Request) -> int:
 
 
 def get_csrf_service() -> CsrfService:
-    """Provide the singleton CsrfService for routes issuing CSRF tokens."""
+    """Provide the singleton CsrfService for routes issuing CSRF tokens.
+
+    CsrfService is stateless (no DB session); container registers it as a
+    Singleton so plain return is safe — no lifecycle to manage.
+    """
     if _container is None:
         raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
     return _container.csrf_service()
 
 
-def get_key_service() -> KeyService:
-    """Provide a per-request KeyService (factory; binds a fresh DB session)."""
+def get_key_service() -> Generator[KeyService, None, None]:
+    """Provide a per-request KeyService bound to a managed DB session.
+
+    The container Factory chain (key_service → api_key_repository →
+    db_session_factory) creates a fresh Session per request. Without the
+    finally close, every request leaks one connection — after pool_size
+    + max_overflow (default 5+10=15) the next checkout blocks for 30s
+    before raising QueuePool timeout. The error is silently swallowed by
+    SQLAlchemyUserRepository.get_by_email and surfaces as a deceptive
+    401 Invalid credentials.
+    """
     if _container is None:
         raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
-    return _container.key_service()
+    service: KeyService = _container.key_service()
+    try:
+        yield service
+    finally:
+        service.repository.session.close()  # type: ignore[attr-defined]
 
 
-def get_auth_service() -> AuthService:
-    """Provide a per-request AuthService (factory; binds a fresh DB session)."""
+def get_auth_service() -> Generator[AuthService, None, None]:
+    """Provide a per-request AuthService bound to a managed DB session.
+
+    Closes the user_repository's Session in the finally clause to
+    prevent connection-pool exhaustion (see get_key_service docstring
+    for the exhaustion mechanism).
+    """
     if _container is None:
         raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
-    return _container.auth_service()
+    service: AuthService = _container.auth_service()
+    try:
+        yield service
+    finally:
+        service.user_repository.session.close()  # type: ignore[attr-defined]
 
 
-def get_rate_limit_service() -> RateLimitService:
-    """Provide a per-request RateLimitService (factory; binds a fresh DB session)."""
+def get_rate_limit_service() -> Generator[RateLimitService, None, None]:
+    """Provide a per-request RateLimitService bound to a managed DB session.
+
+    Closes the rate_limit_repository's Session in the finally clause to
+    prevent connection-pool exhaustion (see get_key_service docstring
+    for the exhaustion mechanism).
+    """
     if _container is None:
         raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
-    return _container.rate_limit_service()
+    service: RateLimitService = _container.rate_limit_service()
+    try:
+        yield service
+    finally:
+        service.repository.session.close()  # type: ignore[attr-defined]
 
 
 # ---------------------------------------------------------------
@@ -299,6 +337,7 @@ def get_scoped_task_repository(
         yield repository
     finally:
         repository.set_user_scope(None)
+        repository.session.close()  # type: ignore[attr-defined]
 
 
 def get_scoped_task_management_service(
@@ -321,6 +360,7 @@ def get_scoped_task_management_service(
         yield service
     finally:
         repository.set_user_scope(None)
+        repository.session.close()  # type: ignore[attr-defined]
 
 
 def get_db_session() -> Generator[Session, None, None]:
@@ -349,14 +389,32 @@ def get_db_session() -> Generator[Session, None, None]:
 
 def get_free_tier_gate() -> Generator[FreeTierGate, None, None]:
     """Provide a per-request FreeTierGate (factory; binds fresh
-    RateLimitService -> fresh repo -> fresh DB session)."""
+    RateLimitService -> fresh repo -> fresh DB session).
+
+    Closes the underlying rate_limit_repository's Session in the finally
+    clause to prevent connection-pool exhaustion (see get_key_service
+    docstring for the exhaustion mechanism).
+    """
     if _container is None:
         raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
-    yield _container.free_tier_gate()
+    gate: FreeTierGate = _container.free_tier_gate()
+    try:
+        yield gate
+    finally:
+        gate.rate_limit_service.repository.session.close()  # type: ignore[attr-defined]
 
 
 def get_usage_event_writer() -> Generator[UsageEventWriter, None, None]:
-    """Provide a per-request UsageEventWriter (factory; fresh DB session)."""
+    """Provide a per-request UsageEventWriter (factory; fresh DB session).
+
+    Closes the writer's Session in the finally clause to prevent
+    connection-pool exhaustion (see get_key_service docstring for the
+    exhaustion mechanism).
+    """
     if _container is None:
         raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
-    yield _container.usage_event_writer()
+    writer: UsageEventWriter = _container.usage_event_writer()
+    try:
+        yield writer
+    finally:
+        writer.session.close()
