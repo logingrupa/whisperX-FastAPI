@@ -49,6 +49,31 @@ describe('authStore', () => {
     expect(useAuthStore.getState().user).toBe(null);
   });
 
+  it('login 401 does NOT mutate window.location.href (debug fix login-stuck-loading)', async () => {
+    // Regression: a 401 from /auth/login (wrong password) MUST NOT trigger
+    // apiClient.redirectTo401(). The form is the legitimate auth surface;
+    // a redirect-to-/login here causes a full reload-loop and lands on a
+    // boot probe that may hang ("stuck at Loading…").
+    window.location.href = 'http://localhost/login';
+    await expect(
+      useAuthStore.getState().login('alice@example.com', 'wrong'),
+    ).rejects.toThrow();
+    expect(window.location.href).toBe('http://localhost/login');
+  });
+
+  it('register 401 does NOT mutate window.location.href (debug fix login-stuck-loading)', async () => {
+    server.use(
+      http.post('/auth/register', () =>
+        HttpResponse.json({ detail: 'Conflict' }, { status: 401 }),
+      ),
+    );
+    window.location.href = 'http://localhost/register';
+    await expect(
+      useAuthStore.getState().register('bob@example.com', 'password123'),
+    ).rejects.toThrow();
+    expect(window.location.href).toBe('http://localhost/register');
+  });
+
   it('register sets user from /auth/register response', async () => {
     await useAuthStore.getState().register('bob@example.com', 'password123');
     expect(useAuthStore.getState().user!.email).toBe('bob@example.com');

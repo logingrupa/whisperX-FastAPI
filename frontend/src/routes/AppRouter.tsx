@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import { TranscribePage } from './TranscribePage';
 import { RequireAuth } from './RequireAuth';
+import { RedirectIfAuthed } from './RedirectIfAuthed';
 import { RouteErrorBoundary } from './RouteErrorBoundary';
 import { AppShell } from '@/components/layout/AppShell';
 
@@ -37,9 +38,11 @@ function PageWrap({ children }: { children: ReactNode }) {
 export function AppRouter() {
   return (
     <Routes>
-      {/* Public routes — no AppShell, no auth */}
-      <Route path="/login" element={<PageWrap><LoginPage /></PageWrap>} />
-      <Route path="/register" element={<PageWrap><RegisterPage /></PageWrap>} />
+      {/* Public routes — no AppShell, redirect away if already signed in */}
+      <Route element={<RedirectIfAuthed />}>
+        <Route path="/login" element={<PageWrap><LoginPage /></PageWrap>} />
+        <Route path="/register" element={<PageWrap><RegisterPage /></PageWrap>} />
+      </Route>
 
       {/* Root — TranscribePage (UI-10) — auth-required, full-bleed (no AppShell) */}
       <Route element={<RequireAuth />}>

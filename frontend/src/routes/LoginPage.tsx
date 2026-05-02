@@ -44,10 +44,18 @@ export function LoginPage() {
         return;
       }
       if (err instanceof ApiClientError) {
-        setSubmitError('Login failed. Check your credentials.');
+        // Anti-enumeration (T-14-12): identical message for unknown-email and
+        // wrong-password. Mirrors backend body "Invalid email or password."
+        // 5xx/network errors get a server-down message instead.
+        const isCredentialFailure = err.status === 401 || err.status === 400;
+        setSubmitError(
+          isCredentialFailure
+            ? 'Wrong email or password.'
+            : 'Sign-in service unavailable. Please try again.',
+        );
         return;
       }
-      setSubmitError('Login failed. Please try again.');
+      setSubmitError('Sign-in service unavailable. Please try again.');
     }
   });
 

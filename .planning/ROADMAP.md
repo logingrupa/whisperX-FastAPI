@@ -4,7 +4,7 @@
 
 - [x] **v1.0 Frontend UI** — Phases 1-6 (shipped 2026-01-29)
 - [x] **v1.1 Chunked Uploads** — Phases 7-9 (shipped through phase 9, 2026-02-05; phase 10 Cloudflare deferred to v1.3)
-- [ ] **v1.2 Multi-User Auth + API Keys + Billing-Ready** — Phases 10-18 (in progress)
+- [ ] **v1.2 Multi-User Auth + API Keys + Billing-Ready** — Phases 10-19 (in progress)
 
 ## Overview
 
@@ -27,6 +27,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - [x] **Phase 16: Verification + Cross-User Matrix + E2E** — Cross-user tests + JWT attack tests + WS ticket reuse + CSRF mismatch + migration smoke against records.db (completed 2026-04-30)
 - [x] **Phase 17: Docs + Migration Runbook + Operator Guide** — `.env.example`, README auth flow, migration runbook, OpenAPI updates (completed 2026-05-01)
 - [x] **Phase 18: Stretch (Optional)** — hCaptcha enable, HaveIBeenPwned check, per-key scopes UI, per-key expiration (closed empty 2026-05-01 — no observed need; features deferred to v1.3+)
+- [ ] **Phase 19: Auth + DI Structural Refactor** — Drop `dependency_injector`; move auth to `Depends`; kill `AUTH_V2_ENABLED` flag + `DualAuthMiddleware` + `BearerAuthMiddleware` + `CsrfMiddleware`; one Session per request; structurally eliminate the leak class that produced commits `0f7bb09` + `61c9d61`. DRT, SRP, tiger-style. Frontend untouched. Phase 13 lock waived by user 2026-05-02 (see `.planning/DEVIATIONS.md`).
 
 ## Phase Details
 
@@ -182,9 +183,40 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
   4. If per-key expiration enabled: expired key returns 401 even before user-driven revocation
 **Plans**: TBD (gated on observed need; may close empty)
 
+### Phase 19: Auth + DI Structural Refactor
+**Goal**: Eliminate the architectural anti-pattern (`dependency_injector` Factory + middleware-direct `_container.X()` calls) that produced two consecutive session-leak fix commits (`0f7bb09`, `61c9d61`). After this phase: ZERO direct `_container.X()` calls outside `app/core/container.py` (which is itself deleted), ZERO manual `session.close()` boilerplate (one centralized in `get_db`), ONE `Session` per HTTP request, ONE auth resolution path (`Depends(authenticated_user)`), ONE auth middleware stack (V2 only — flag deleted). Frontend HTTP contract is byte-identical pre/post. DRT + SRP + tiger-style applied: assertions at boundaries, no nested-if, self-explanatory names, no dead code on phase exit.
+**Depends on**: Phase 17 (Phase 18 closed empty; Phase 19 builds on the post-Phase-17 codebase)
+**Supersedes lock**: Phase 13 atomic-cutover lock (waived by user 2026-05-02; deviation recorded in `.planning/DEVIATIONS.md`)
+**Requirements**: REFACTOR-01 (zero `_container.` callsites), REFACTOR-02 (zero manual `session.close()` outside `get_db`), REFACTOR-03 (single auth path via `Depends`), REFACTOR-04 (`AUTH_V2_ENABLED` + `BearerAuthMiddleware` deleted), REFACTOR-05 (`dependency_injector` dependency removed), REFACTOR-06 (no test count regression vs phase-start baseline), REFACTOR-07 (Set-Cookie attributes byte-identical pre/post — Playwright e2e gate)
+**Success Criteria** (what must be TRUE):
+  1. `grep -rn '_container\.' app/` returns ZERO matches; `app/core/container.py` no longer exists; `grep -rn 'dependency_injector' app/` returns ZERO matches
+  2. `grep -rn 'session\.close()' app/` returns exactly TWO matches: one inside `get_db` in `app/api/dependencies.py`, one inside the `with SessionLocal()` block of `app/services/whisperx_wrapper_service.py` (background path, no request scope)
+  3. `grep -rn 'AUTH_V2_ENABLED\|is_auth_v2_enabled\|BearerAuthMiddleware\|DualAuthMiddleware\|CsrfMiddleware' app/` returns ZERO matches; the production fail-loud guard at `app/main.py:257-262` is deleted
+  4. `tests/integration/test_no_session_leak.py` exists, fires 50 sequential authed `GET /api/account/me` calls via `TestClient`, asserts every call completes < 100ms; passes in CI
+  5. `pytest --collect-only` count at phase end is ≥ baseline snapshot committed in `tests/baseline_phase19.txt` at T-19-01; no test name from baseline missing in post-refactor collection; `bun run test` and `bun run test:e2e` from `frontend/` both green (any frontend red treated as a backend HTTP-contract regression)
+**Plans**: 17 plans (11 waves) — Plan 15 has a human-verify checkpoint after frontend e2e — autonomous: false
+- [ ] 19-01-PLAN.md — Baseline snapshot + DEVIATIONS.md commit (Wave 0)
+- [ ] 19-02-PLAN.md — app/core/services.py with @lru_cache(maxsize=1) singletons (Wave 1)
+- [ ] 19-03-PLAN.md — get_db generator + chained repo/service _v2 providers (Wave 1)
+- [ ] 19-04-PLAN.md — authenticated_user + authenticated_user_optional + scoped task repo Depends + Set-Cookie attr lock (Wave 2)
+- [ ] 19-05-PLAN.md — csrf_protected Depends factory (Wave 2)
+- [ ] 19-06-PLAN.md — Pilot route migration: /api/account/me + DELETE /api/account[/data] (Wave 3)
+- [ ] 19-07-PLAN.md — Route sweep: auth/key/billing/task/ws_ticket routers to Depends chain (Wave 4)
+- [ ] 19-08-PLAN.md — WebSocket migration: SessionLocal context-manager + ws_ticket_service singleton (Wave 5)
+- [ ] 19-09-PLAN.md — Background task migration: whisperx_wrapper_service single SessionLocal block + flat-guard helper (Wave 5)
+- [ ] 19-10-PLAN.md — Integration test fixture migration to dependency_overrides[get_db] (14 files) (Wave 6 — MUST land before module deletions)
+- [ ] 19-11-PLAN.md — Delete DualAuthMiddleware + BearerAuthMiddleware + AUTH_V2_ENABLED flag + obsolete unit tests (Wave 7)
+- [ ] 19-12-PLAN.md — Delete CsrfMiddleware class + obsolete unit test (Wave 7)
+- [ ] 19-13-PLAN.md — Delete app/core/container.py + drop dependency-injector + propagate _v2 → no-suffix rename across all routers (Wave 8)
+- [ ] 19-14-PLAN.md — No-leak regression test: 50-iter authed GET /me < 100ms each (Wave 9)
+- [ ] 19-15-PLAN.md — Frontend test + Playwright e2e + autouse fixture safety net (Wave 10, has human-verify checkpoint, autonomous: false)
+- [ ] 19-16-PLAN.md — Dead code sweep: PUBLIC_ALLOWLIST + inline session.close() boilerplate + reconcile gate 2 wording (Wave 10)
+- [ ] 19-17-PLAN.md — Final 21-gate verification + 19-VERIFICATION.md (Wave 11)
+**Reference**: `.planning/phases/19-auth-di-refactor/19-CONTEXT.md` — full mission, locked architectural decisions (D1-D6), enumerated callsite scope table, 21-gate verification matrix, 16-step suggested execution order, rollback procedure.
+
 ## Progress
 
-**Execution Order:** 10 → 11 → 12 → 13+14 (atomic pair) → 15 → 16 → 17 → 18 (optional)
+**Execution Order:** 10 → 11 → 12 → 13+14 (atomic pair) → 15 → 16 → 17 → 18 (optional, closed empty) → 19 (refactor)
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -197,9 +229,10 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | 16. Verification + Cross-User Matrix + E2E | v1.2 | 6/6 | Complete   | 2026-04-30 |
 | 17. Docs + Migration Runbook + Operator Guide | v1.2 | 3/3 | Complete   | 2026-05-01 |
 | 18. Stretch (Optional) | v1.2 | 0/0 | Closed empty | 2026-05-01 |
+| 19. Auth + DI Structural Refactor | v1.2 | 0/17 | Planning Complete | — |
 
 **Total Plans:** TBD (refined during plan-phase per phase)
-**Requirements Coverage:** 95/95 mapped (v1.2 only)
+**Requirements Coverage:** 95/95 mapped (v1.2 entry set); Phase 19 adds REFACTOR-01..07 (post-entry, addresses observed structural defect)
 
 ---
 *Roadmap created: 2026-01-29 (v1.0)*
@@ -208,3 +241,4 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 *Updated: 2026-04-29 (Phase 13 plans finalized — 10 plans across 4 waves)*
 *Updated: 2026-04-29 (Phase 15 plans finalized — 6 plans across 4 waves)*
 *Updated: 2026-04-30 (Phase 16 plans finalized — 6 plans across 2 waves)*
+*Updated: 2026-05-02 (Phase 19 added — auth + DI structural refactor; Phase 13 lock waived; CONTEXT.md ready for plan-phase)*

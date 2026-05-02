@@ -1059,12 +1059,12 @@ app.dependency_overrides[get_csrf_service] = override_csrf_service
 | A7 | `dependency-injector` 4.41.0 has no other transitive consumer in the repo (only `app/core/container.py`) | Stack section | If wrong, removing the package from `pyproject.toml` breaks an importer. **Mitigation:** verifier `grep -rn 'dependency_injector' app/ tests/` after package-removal commit catches. [VERIFIED: existing grep — only `app/core/container.py:1` and `tests/fixtures/test_container.py:3` reference it; both deleted.] |
 | A8 | The existing `app/core/feature_flags.py` has no other consumers besides `is_auth_v2_enabled` | D3 | If wrong, deleting `is_auth_v2_enabled` breaks importers. **Mitigation:** verifier grep catches. [VERIFIED: codebase grep — only `app/main.py:61, 198, 247, 257` consume it.] |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `app/core/services.py` import ML services lazily?**
    - What we know: Phase 12 CLI commands and migrations don't load ML models — they avoid touching ML services entirely. With `@lru_cache(maxsize=1)`, the model load defers to first call, which is fine.
    - What's unclear: import-time side effects in `app.infrastructure.ml.__init__.py` could still fire when `app/core/services.py` imports `WhisperXTranscriptionService`. Need to verify.
-   - Recommendation: import lazily inside the factory function:
+   - RESOLVED: import lazily inside the factory function:
      ```python
      @lru_cache(maxsize=1)
      def get_transcription_service():
@@ -1076,12 +1076,12 @@ app.dependency_overrides[get_csrf_service] = override_csrf_service
 2. **What happens to the `tests/fixtures/test_container.py` `MockTranscriptionService` etc.?**
    - What we know: `TestContainer` subclass overrides ML services with mocks. Once `Container` is gone, this file is dead.
    - What's unclear: which existing tests rely on the mock ML services via `test_container` fixture vs which use direct `app.dependency_overrides`. Audit needed in T-19-NN per-test migration.
-   - Recommendation: at T-19-NN per-test migration, replace `test_container` fixture usage with `app.dependency_overrides[get_transcription_service] = lambda: MockTranscriptionService()` style. Move mock classes to `tests/mocks/` (already exists per file listing — minor reorg). DELETE `test_container.py` at end-of-phase.
+   - RESOLVED: at T-19-NN per-test migration, replace `test_container` fixture usage with `app.dependency_overrides[get_transcription_service] = lambda: MockTranscriptionService()` style. Move mock classes to `tests/mocks/` (already exists per file listing — minor reorg). DELETE `test_container.py` at end-of-phase.
 
 3. **Should `_resolve_authenticated_user_id` (current helper at `dependencies.py:306`) be deleted or kept?**
    - What we know: it's used by `get_scoped_task_repository` (`dependencies.py:333`) and `get_scoped_task_management_service` (`dependencies.py:355`) for per-user scoping defence-in-depth.
    - What's unclear: in the new world, the route signs `user: User = Depends(authenticated_user), repo: ITaskRepository = Depends(get_task_repository)` and the route itself calls `repo.set_user_scope(user.id)` — explicit, no defence-in-depth needed. OR: keep a `get_scoped_task_repository` helper that takes `user: User = Depends(authenticated_user)` and applies the scope automatically.
-   - Recommendation: keep `get_scoped_task_repository` and `get_scoped_task_management_service` post-refactor — they're idiomatic Depends chains in the new world. Drop `_resolve_authenticated_user_id` since `Depends(authenticated_user)` IS the resolution. Effective sig:
+   - RESOLVED: keep `get_scoped_task_repository` and `get_scoped_task_management_service` post-refactor — they're idiomatic Depends chains in the new world. Drop `_resolve_authenticated_user_id` since `Depends(authenticated_user)` IS the resolution. Effective sig:
      ```python
      def get_scoped_task_repository(
          user: User = Depends(authenticated_user),
@@ -1094,7 +1094,7 @@ app.dependency_overrides[get_csrf_service] = override_csrf_service
 
 4. **`/billing/webhook` is "public" today (Stripe HMAC, no auth) — how should this be modeled?**
    - What we know: today it's in `PUBLIC_ALLOWLIST`. After Phase 19, public means "doesn't include `Depends(authenticated_user)`" — naturally satisfied. Stripe HMAC verification is a v1.3 concern (currently a stub).
-   - Recommendation: route stays auth-free; T-19-15 sweep verifies it doesn't accidentally inherit a router-level `Depends(authenticated_user)`. Add an explicit `# Stripe webhook — auth via HMAC (v1.3)` comment at the route declaration.
+   - RESOLVED: route stays auth-free; T-19-15 sweep verifies it doesn't accidentally inherit a router-level `Depends(authenticated_user)`. Add an explicit `# Stripe webhook — auth via HMAC (v1.3)` comment at the route declaration.
 
 ## Environment Availability
 

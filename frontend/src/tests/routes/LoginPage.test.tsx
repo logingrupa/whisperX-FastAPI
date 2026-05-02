@@ -51,7 +51,7 @@ describe('LoginPage', () => {
     await user.type(screen.getByLabelText(/email/i), 'alice@example.com');
     await user.type(screen.getByLabelText(/password/i), 'wrong');
     await user.click(screen.getByRole('button', { name: /sign in/i }));
-    expect(await screen.findByText(/login failed.*credentials/i)).toBeInTheDocument();
+    expect(await screen.findByText(/wrong email or password/i)).toBeInTheDocument();
     expect(useAuthStore.getState().user).toBe(null);
   });
 

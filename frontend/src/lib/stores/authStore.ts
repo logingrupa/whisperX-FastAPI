@@ -16,6 +16,14 @@
  * Hydration on reload: refresh() called once at module load from main.tsx.
  * isHydrating gates RequireAuth so the boot probe doesn't redirect-flash to /login.
  *
+ * 401-on-login policy (debug fix login-stuck-loading):
+ *   POSTs to /auth/login and /auth/register MUST set suppress401Redirect=true.
+ *   The default apiClient 401 path mutates window.location.href to /login?next=…
+ *   which on the login page triggers a full reload-loop ("submit -> 401 ->
+ *   reload -> stuck on slow boot probe"). The login form is the legitimate
+ *   authentication surface; a 401 here is "wrong credentials," NOT "session
+ *   expired, send to /login." Same reasoning for register.
+ *
  * SRP: store does state only. Pages do UI only. apiClient does HTTP only.
  */
 
@@ -102,22 +110,26 @@ export const useAuthStore = create<AuthState>((set) => {
     isHydrating: true,
 
     login: async (email, password) => {
-      const response = await apiClient.post<AuthLoginResponse>('/auth/login', {
-        email,
-        password,
-      });
+      const response = await apiClient.post<AuthLoginResponse>(
+        '/auth/login',
+        { email, password },
+        { suppress401Redirect: true },
+      );
       const user = toAuthUser(response, email);
-      set({ user });
+      // login is itself an authoritative auth answer — flip isHydrating false
+      // so any in-flight boot probe no longer gates the UI behind Loading.
+      set({ user, isHydrating: false });
       broadcast({ type: 'login', userId: user.id, planTier: user.planTier, email });
     },
 
     register: async (email, password) => {
-      const response = await apiClient.post<AuthLoginResponse>('/auth/register', {
-        email,
-        password,
-      });
+      const response = await apiClient.post<AuthLoginResponse>(
+        '/auth/register',
+        { email, password },
+        { suppress401Redirect: true },
+      );
       const user = toAuthUser(response, email);
-      set({ user });
+      set({ user, isHydrating: false });
       broadcast({ type: 'login', userId: user.id, planTier: user.planTier, email });
     },
 

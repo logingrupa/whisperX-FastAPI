@@ -11,8 +11,8 @@ info:
     \ Align the transcript to the audio/video file.\n    3. Diarize: Diarize an audio/video\
     \ file into speakers.\n    4. Combine Transcript and Diarization: Combine the\
     \ transcript and diarization results.\n\n    ## Supported file extensions:\n \
-    \   AUDIO_EXTENSIONS = {'.m4a', '.wma', '.amr', '.mp3', '.aac', '.oga', '.wav',\
-    \ '.ogg', '.awb'}\n\n    VIDEO_EXTENSIONS = {'.wmv', '.mov', '.mp4', '.avi', '.mkv'}\n\
+    \   AUDIO_EXTENSIONS = {'.awb', '.amr', '.aac', '.mp3', '.wma', '.ogg', '.wav',\
+    \ '.m4a', '.oga'}\n\n    VIDEO_EXTENSIONS = {'.wmv', '.avi', '.mp4', '.mov', '.mkv'}\n\
     \n    ## Language-Specific Model Overrides:\n\n    Some languages have fine-tuned\
     \ models that are automatically used when that language is selected.\n    The\
     \ server-side `LANGUAGE_MODEL_OVERRIDES` configuration maps language codes to\
@@ -1484,7 +1484,7 @@ paths:
         schema:
           $ref: '#/components/schemas/Device'
           description: Device to use for PyTorch inference
-          default: cuda
+          default: cpu
         description: Device to use for PyTorch inference
       - name: align_model
         in: query
@@ -1555,7 +1555,7 @@ paths:
         schema:
           $ref: '#/components/schemas/Device'
           description: Device to use for PyTorch inference
-          default: cuda
+          default: cpu
         description: Device to use for PyTorch inference
       - name: min_speakers
         in: query

@@ -27,12 +27,26 @@ function redirectBareSpaRoutes(routes: readonly string[]): Plugin {
         if (req.method !== 'GET') return next()
         const url = req.url ?? '/'
         const [pathname] = url.split('?')
-        if (!matchSet.has(pathname)) return next()
         const queryIndex = url.indexOf('?')
         const search = queryIndex >= 0 ? url.slice(queryIndex) : ''
-        res.statusCode = 302
-        res.setHeader('Location', `/ui${pathname}${search}`)
-        res.end()
+
+        // /ui (no trailing slash) -> /ui/
+        if (pathname === '/ui') {
+          res.statusCode = 302
+          res.setHeader('Location', `/ui/${search}`)
+          res.end()
+          return
+        }
+
+        // Bare SPA routes (e.g. /login) -> /ui/login
+        if (matchSet.has(pathname)) {
+          res.statusCode = 302
+          res.setHeader('Location', `/ui${pathname}${search}`)
+          res.end()
+          return
+        }
+
+        next()
       })
     },
   }

@@ -76,10 +76,18 @@ export function RegisterPage() {
         return;
       }
       if (err instanceof ApiClientError) {
-        setSubmitError('Registration failed.');
+        // Anti-enumeration (T-14-12): single generic message regardless of
+        // backend reason (disposable email, duplicate, weak password).
+        // 5xx/network gets a server-down message instead.
+        const isClientFailure = err.status >= 400 && err.status < 500;
+        setSubmitError(
+          isClientFailure
+            ? 'Registration failed. Please try a different email or password.'
+            : 'Sign-up service unavailable. Please try again.',
+        );
         return;
       }
-      setSubmitError('Registration failed. Please try again.');
+      setSubmitError('Sign-up service unavailable. Please try again.');
     }
   });
 
