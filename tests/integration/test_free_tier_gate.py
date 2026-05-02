@@ -39,7 +39,6 @@ from typing import Any
 
 import numpy as np
 import pytest
-from dependency_injector import providers
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from slowapi.errors import RateLimitExceeded
@@ -58,8 +57,6 @@ from app.api.exception_handlers import (
     trial_expired_handler,
     validation_error_handler,
 )
-from app.core.container import Container
-from app.core.dual_auth import DualAuthMiddleware
 from app.core.exceptions import (
     ConcurrencyLimitError,
     FreeTierViolationError,
@@ -71,6 +68,10 @@ from app.core.exceptions import (
 from app.core.rate_limiter import limiter, rate_limit_handler
 from app.infrastructure.database.models import Base
 from app.infrastructure.database.models import User as ORMUser
+from app.infrastructure.database.repositories.sqlalchemy_rate_limit_repository import (
+    SQLAlchemyRateLimitRepository,
+)
+from app.services.auth.rate_limit_service import RateLimitService
 from app.services.free_tier_gate import (
     FREE_POLICY,
     PRO_POLICY,
@@ -126,12 +127,17 @@ def app_and_container(
     session_factory: Any,
     audio_ctrl: _AudioDurationController,
     monkeypatch: pytest.MonkeyPatch,
-) -> Generator[tuple[FastAPI, Container], None, None]:
-    """Slim FastAPI app: auth + stt routers + free-tier handlers."""
-    container = Container()
-    container.db_session_factory.override(providers.Factory(session_factory))
-    dependencies.set_container(container)
+) -> Generator[FastAPI, None, None]:
+    """Slim FastAPI app: auth + stt routers + free-tier handlers.
 
+    Phase 19 Plan 10: dependency_overrides[get_db] is the SOLE DB-binding
+    seam for /auth routes. The legacy stt_router still uses
+    ``Depends(get_authenticated_user)`` (request.state.user), which would
+    require DualAuthMiddleware — that middleware is being deleted in
+    Plan 11, so this file's free-tier route tests are deferred. Direct
+    FreeTierGate / UsageEventWriter unit-style cases below construct
+    their own service instances via session_factory (no container).
+    """
     limiter.reset()
 
     # Patch heavy audio pipeline within audio_api module (the route
@@ -154,50 +160,17 @@ def app_and_container(
         return "/tmp/fake.wav", "fake.wav"
 
     def _fake_process_audio_common(params: Any, *_args, **_kwargs) -> None:  # noqa: ARG001
-        """Test stub mirroring W1 contract: release the concurrency slot
-        as if transcription completed. Production code does the same in
-        try/finally — this stub keeps integration tests free of heavy
-        ML deps while still exercising the slot lifecycle.
+        """Phase 19 Plan 10: stripped of container reach-in.
 
-        Tests that assert "slot stays held" set
-        ``audio_ctrl.auto_release_slot = False`` to skip the release.
+        The legacy stub released the concurrency slot via
+        ``dependencies._container.free_tier_gate().release_concurrency(...)``
+        which is no longer available. The route-level free-tier tests in
+        this file are deferred (DualAuthMiddleware deletion in Plan 11
+        removes the route's request.state.user source); the direct
+        FreeTierGate / UsageEventWriter tests below construct their own
+        service instances and continue to exercise the W1 contract.
         """
-        if not audio_ctrl.auto_release_slot:
-            return
-
-        from app.api.dependencies import _container as c
-        from app.domain.entities.user import User as DUser
-
-        # Best-effort: skip if container missing or user_id unknown
-        if c is None:
-            return
-        try:
-            sess = c.db_session_factory()
-            try:
-                from sqlalchemy import text as _t
-
-                row = sess.execute(
-                    _t(
-                        "SELECT u.id, u.email, u.password_hash, u.plan_tier "
-                        "FROM tasks t JOIN users u ON u.id = t.user_id "
-                        "WHERE t.uuid = :u"
-                    ),
-                    {"u": params.identifier},
-                ).first()
-                if row is None:
-                    return
-                user = DUser(
-                    id=int(row[0]),
-                    email=row[1],
-                    password_hash=row[2],
-                    plan_tier=row[3],
-                )
-                gate = c.free_tier_gate()
-                gate.release_concurrency(user)
-            finally:
-                sess.close()
-        except Exception:  # pragma: no cover — defensive
-            return
+        return
 
     monkeypatch.setattr(audio_api_module, "process_audio_file", _fake_process_audio_file)
     monkeypatch.setattr(audio_api_module, "get_audio_duration", _fake_get_audio_duration)
@@ -227,19 +200,40 @@ def app_and_container(
     app.add_exception_handler(ConcurrencyLimitError, concurrency_limit_handler)
     app.include_router(auth_router)
     app.include_router(stt_router)
-    app.add_middleware(DualAuthMiddleware, container=container)
 
-    yield app, container
+    def _override_get_db():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
 
-    container.unwire()
-    container.db_session_factory.reset_override()
+    app.dependency_overrides[dependencies.get_db] = _override_get_db
+
+    yield app
+
+    app.dependency_overrides.clear()
     limiter.reset()
 
 
+def _build_rate_limit_service(session_factory: Any) -> RateLimitService:
+    """Phase 19 Plan 10 helper: build a RateLimitService bound to the tmp DB.
+
+    Replaces the legacy ``container.rate_limit_service()`` call. The repo
+    holds the session for the lifetime of the service; tests own their
+    cleanup (the per-test SQLite file is a tmp_path artifact).
+    """
+    return RateLimitService(repository=SQLAlchemyRateLimitRepository(session_factory()))
+
+
+def _build_usage_event_writer(session_factory: Any) -> UsageEventWriter:
+    """Phase 19 Plan 10 helper: build a UsageEventWriter bound to the tmp DB."""
+    return UsageEventWriter(session=session_factory())
+
+
 @pytest.fixture
-def client(app_and_container: tuple[FastAPI, Container]) -> TestClient:
-    app, _ = app_and_container
-    return TestClient(app)
+def client(app_and_container: FastAPI) -> TestClient:
+    return TestClient(app_and_container)
 
 
 # ---------------------------------------------------------------
@@ -383,7 +377,7 @@ def test_free_user_daily_audio_cap(
     # exercises the gate directly via FreeTierGate
     from app.domain.entities.user import User
 
-    rls = dependencies._container.rate_limit_service()  # type: ignore[union-attr]
+    rls = _build_rate_limit_service(session_factory)
     gate = FreeTierGate(rls)
     user = User(id=user_id, email="diana@x.com", password_hash="x", plan_tier="free")
 
@@ -513,11 +507,11 @@ def test_concurrency_limit_429(
 
 @pytest.mark.integration
 def test_concurrency_slot_released_on_success(
-    app_and_container: tuple[FastAPI, Container],
+    app_and_container: FastAPI,
     session_factory: Any,
 ) -> None:
     """W1: after a successful release_concurrency, next consume succeeds."""
-    _, container = app_and_container
+    app = app_and_container
     user_id = 9001
     with session_factory() as s:
         s.add(
@@ -533,7 +527,7 @@ def test_concurrency_slot_released_on_success(
     from app.domain.entities.user import User as DUser
 
     user = DUser(id=user_id, email="kate@x.com", password_hash="x", plan_tier="free")
-    rls = container.rate_limit_service()
+    rls = _build_rate_limit_service(session_factory)
     gate = FreeTierGate(rls)
 
     # 1. Acquire (consume slot)
@@ -549,7 +543,7 @@ def test_concurrency_slot_released_on_success(
 
 @pytest.mark.integration
 def test_concurrency_slot_released_on_failure(
-    app_and_container: tuple[FastAPI, Container],
+    app_and_container: FastAPI,
     session_factory: Any,
 ) -> None:
     """W1: release runs from finally even when transcription raises.
@@ -557,7 +551,7 @@ def test_concurrency_slot_released_on_failure(
     Mirrors process_audio_common's try/finally contract: the slot is
     released regardless of success/failure path.
     """
-    _, container = app_and_container
+    app = app_and_container
     user_id = 9002
     with session_factory() as s:
         s.add(
@@ -573,7 +567,7 @@ def test_concurrency_slot_released_on_failure(
     from app.domain.entities.user import User as DUser
 
     user = DUser(id=user_id, email="leo@x.com", password_hash="x", plan_tier="free")
-    rls = container.rate_limit_service()
+    rls = _build_rate_limit_service(session_factory)
     gate = FreeTierGate(rls)
 
     # 1. Acquire
@@ -593,11 +587,11 @@ def test_concurrency_slot_released_on_failure(
 
 @pytest.mark.integration
 def test_usage_events_row_per_completion(
-    app_and_container: tuple[FastAPI, Container],
+    app_and_container: FastAPI,
     session_factory: Any,
 ) -> None:
     """A single record() call writes exactly one usage_events row."""
-    _, container = app_and_container
+    app = app_and_container
     with session_factory() as s:
         s.add(
             ORMUser(
@@ -609,7 +603,7 @@ def test_usage_events_row_per_completion(
         )
         s.commit()
 
-    writer: UsageEventWriter = container.usage_event_writer()
+    writer: UsageEventWriter = _build_usage_event_writer(session_factory)
     writer.record(
         user_id=11,
         task_uuid="task-end-to-end",
@@ -631,11 +625,11 @@ def test_usage_events_row_per_completion(
 
 @pytest.mark.integration
 def test_usage_events_idempotency(
-    app_and_container: tuple[FastAPI, Container],
+    app_and_container: FastAPI,
     session_factory: Any,
 ) -> None:
     """Replay protection: duplicate completion fires no extra row."""
-    _, container = app_and_container
+    app = app_and_container
     with session_factory() as s:
         s.add(
             ORMUser(
@@ -648,7 +642,7 @@ def test_usage_events_idempotency(
         s.commit()
 
     # Two writers (per request) but same task uuid -> same idempotency_key
-    writer1: UsageEventWriter = container.usage_event_writer()
+    writer1: UsageEventWriter = _build_usage_event_writer(session_factory)
     writer1.record(
         user_id=12,
         task_uuid="task-replay",
@@ -656,7 +650,7 @@ def test_usage_events_idempotency(
         file_seconds=30.0,
         model="tiny",
     )
-    writer2: UsageEventWriter = container.usage_event_writer()
+    writer2: UsageEventWriter = _build_usage_event_writer(session_factory)
     writer2.record(
         user_id=12,
         task_uuid="task-replay",
@@ -698,12 +692,12 @@ def test_429_response_has_retry_after_header(
 
 @pytest.mark.integration
 def test_concurrency_bucket_key_uses_user_id(
-    app_and_container: tuple[FastAPI, Container],
+    app_and_container: FastAPI,
     session_factory: Any,
 ) -> None:
     """concurrency_bucket_key isolates buckets per-user (defence)."""
-    _, container = app_and_container
-    rls = container.rate_limit_service()
+    app = app_and_container
+    rls = _build_rate_limit_service(session_factory)
     rls.check_and_consume(
         concurrency_bucket_key(7),
         tokens_needed=1,
@@ -722,12 +716,12 @@ def test_concurrency_bucket_key_uses_user_id(
 
 @pytest.mark.integration
 def test_pro_diarize_route_passes_pro_blocks_free(
-    app_and_container: tuple[FastAPI, Container],
+    app_and_container: FastAPI,
     session_factory: Any,
 ) -> None:
     """check_diarize_route: pro passes, free raises 403."""
-    _, container = app_and_container
-    rls = container.rate_limit_service()
+    app = app_and_container
+    rls = _build_rate_limit_service(session_factory)
     gate = FreeTierGate(rls)
 
     from app.domain.entities.user import User as DUser

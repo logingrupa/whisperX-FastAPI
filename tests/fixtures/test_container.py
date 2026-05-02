@@ -1,4 +1,20 @@
-"""Test container with mock implementations for testing."""
+"""Test container — DEPRECATED, deletion targeted in Phase 19 Plan 13.
+
+Phase 19 Plan 10: this module is being phased out alongside the legacy
+``app/core/container.py``. The 14 integration test fixtures previously
+used ``Container().db_session_factory.override(...)`` + custom subclass
+overrides; they migrated to ``app.dependency_overrides[get_db]`` in this
+plan. The remaining importers
+(``tests/fixtures/__init__.py``, ``tests/conftest.py``,
+``tests/unit/core/test_container.py``) keep this stub callable so
+collection succeeds at every commit between Plan 10 and Plan 13. Plan 13
+``git rm``'s this file alongside ``app/core/container.py``.
+
+Mock ML services are still wired here for the unit-level
+``tests/unit/core/test_container.py`` cases that exercise the legacy
+Container resolution surface; those cases are also queued for deletion
+in Plan 13.
+"""
 
 from dependency_injector import providers
 from sqlalchemy import create_engine
@@ -13,26 +29,10 @@ from tests.mocks import (
 
 
 class TestContainer(Container):
-    """
-    Test container that overrides production services with mocks.
+    """Subclass of the legacy Container with mock ML services.
 
-    This container extends the production Container and overrides:
-    - ML services with fast, deterministic mocks (no GPU, no network)
-    - Database with in-memory SQLite for isolated testing
-    - All other services remain the same (repositories, file service, etc.)
-
-    Usage in tests:
-        >>> test_container = TestContainer()
-        >>> test_container.wire(modules=["app.api.dependencies"])
-        >>> # Run tests with mocked services
-        >>> test_container.unwire()
-
-    Example with pytest fixture:
-        >>> @pytest.fixture
-        >>> def test_container():
-        ...     container = TestContainer()
-        ...     yield container
-        ...     # Cleanup happens automatically
+    DEPRECATED — this class is the last user of the legacy DI graph; once
+    Plan 13 deletes ``app/core/container.py``, this subclass goes with it.
     """
 
     # Override database with in-memory SQLite for test isolation

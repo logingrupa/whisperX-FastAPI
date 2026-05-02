@@ -15,11 +15,10 @@ Tiger-style:
 - assertions at boundaries (cookies present pre-call, status post-call).
 - flat early-return helpers; no nested-if.
 
-Coexistence: DualAuthMiddleware + CsrfMiddleware are still mounted while the
-new dep runs. The middleware's PUBLIC_ALLOWLIST is monkeypatched to include
-the test endpoints so DualAuth lets unauthenticated calls fall through to
-the new dep, AND CsrfMiddleware is mounted so /api/keys (used to seat a
-bearer key) still passes its own CSRF check via the cookie-issued token.
+Phase 19 Plan 10 fixture migration: dependency_overrides[get_db] is the SOLE
+DB-binding seam. The new Depends(csrf_protected) sub-resolves
+Depends(authenticated_user) — auth runs first via the dep graph, no
+middleware required. The Plan-05 ASGI ordering coexistence note is OBSOLETE.
 """
 
 from __future__ import annotations
@@ -28,7 +27,6 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
-from dependency_injector import providers
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.testclient import TestClient
 from slowapi.errors import RateLimitExceeded
@@ -42,9 +40,6 @@ from app.api.exception_handlers import (
     validation_error_handler,
 )
 from app.api.key_routes import key_router
-from app.core.container import Container
-from app.core.csrf_middleware import CsrfMiddleware
-from app.core.dual_auth import DualAuthMiddleware
 from app.core.exceptions import InvalidCredentialsError, ValidationError
 from app.core.rate_limiter import limiter, rate_limit_handler
 from app.infrastructure.database.models import Base
@@ -106,23 +101,12 @@ def app_and_factory(
 ) -> Generator[tuple[FastAPI, sessionmaker], None, None]:
     """FastAPI app: auth_router + key_router + /test-csrf + /test-csrf-get.
 
-    DualAuthMiddleware + CsrfMiddleware coexist with the new dep (Plan 05
-    explicitly states CsrfMiddleware is NOT deleted yet). PUBLIC_ALLOWLIST
-    is extended with the test endpoints so DualAuth lets unauthenticated
-    calls reach the dep instead of 401-ing at the middleware layer.
+    Phase 19 Plan 10: dependency_overrides[get_db] is the SOLE DB-binding
+    seam. The new Depends(csrf_protected) sub-resolves
+    Depends(authenticated_user) — auth runs first via the dep graph, no
+    middleware required. The Plan-05 ASGI ordering note is OBSOLETE.
     """
-    from app.core import dual_auth as dual_auth_mod
-
-    container = Container()
-    container.db_session_factory.override(providers.Factory(session_factory))
-    deps_module.set_container(container)
-
     limiter.reset()
-
-    extended_allowlist = dual_auth_mod.PUBLIC_ALLOWLIST + (
-        "/test-csrf", "/test-csrf-get",
-    )
-    monkeypatch.setattr(dual_auth_mod, "PUBLIC_ALLOWLIST", extended_allowlist)
 
     app = FastAPI()
     app.state.limiter = limiter
@@ -132,9 +116,6 @@ def app_and_factory(
     app.include_router(auth_router)
     app.include_router(key_router)
     app.include_router(_build_csrf_probe_router())
-    # ASGI reversal: register Csrf FIRST so it dispatches AFTER DualAuth.
-    app.add_middleware(CsrfMiddleware, container=container)
-    app.add_middleware(DualAuthMiddleware, container=container)
 
     def _override_get_db() -> Generator[Session, None, None]:
         db = session_factory()
@@ -148,8 +129,6 @@ def app_and_factory(
     yield app, session_factory
 
     app.dependency_overrides.clear()
-    container.unwire()
-    container.db_session_factory.reset_override()
     limiter.reset()
 
 

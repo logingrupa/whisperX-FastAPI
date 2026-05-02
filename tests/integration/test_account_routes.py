@@ -14,11 +14,10 @@ Phase 19 Plan 10 fixture migration:
   - app.dependency_overrides[get_db] is the SOLE DB-binding seam — drives
     the production Depends(authenticated_user) + Depends(csrf_protected) chain
     through the tmp SQLite without any middleware stack.
-  - DualAuthMiddleware / Container().db_session_factory.override(...) /
-    dependencies.set_container(container) are GONE — Plans 11-13 delete
-    those modules; this plan switches the fixture surface ahead of those
-    deletions so the atomic-commit invariant holds (collection succeeds at
-    every commit).
+  - DualAuthMiddleware + the legacy DI container are GONE — Plans 11-13
+    delete those modules; this plan switches the fixture surface ahead of
+    those deletions so the atomic-commit invariant holds (collection
+    succeeds at every commit).
   - monkey-patches UPLOAD_DIR / TUS_UPLOAD_DIR on account_service module
 """
 

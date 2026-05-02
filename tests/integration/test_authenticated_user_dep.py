@@ -32,7 +32,6 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
-from dependency_injector import providers
 from fastapi import APIRouter, Depends, FastAPI, Request, Response
 from fastapi.testclient import TestClient
 from slowapi.errors import RateLimitExceeded
@@ -47,9 +46,6 @@ from app.api.exception_handlers import (
     validation_error_handler,
 )
 from app.core.config import get_settings
-from app.core.container import Container
-from app.core.csrf_middleware import CsrfMiddleware
-from app.core.dual_auth import DualAuthMiddleware
 from app.core.exceptions import InvalidCredentialsError, ValidationError
 from app.core.rate_limiter import limiter, rate_limit_handler
 from app.domain.entities.user import User
@@ -118,31 +114,14 @@ def app_and_factory(
 ) -> Generator[tuple[FastAPI, sessionmaker], None, None]:
     """FastAPI app: auth_router + key_router + protected/optional routes.
 
-    DualAuthMiddleware + CsrfMiddleware are mounted because /auth/register
-    and POST /api/keys (used to seat cookies/bearers) require them. The
-    middleware lets unauthenticated requests through on PUBLIC_ALLOWLIST
-    paths; we extend the allowlist with /protected and /optional so the
-    new authenticated_user dep runs end-to-end without the legacy
-    middleware short-circuiting tests 1, 5, 6, 7, 8, 9, 10, 12.
-
-    Coexistence target (Plan 04): the new dep must work even WHILE
-    DualAuthMiddleware is still installed (Plan 11 deletes it).
+    Phase 19 Plan 10: dependency_overrides[get_db] is the SOLE DB-binding
+    seam. The new Depends(authenticated_user) handles auth per-route via
+    the dep graph — DualAuthMiddleware + CsrfMiddleware mounting + the
+    PUBLIC_ALLOWLIST monkeypatch are all gone. /api/keys CSRF check
+    composes through Depends(csrf_protected) on the router; bearer-seating
+    helpers attach X-CSRF-Token directly so cookie-auth POSTs pass.
     """
-    from app.core import dual_auth as dual_auth_mod
-
-    container = Container()
-    container.db_session_factory.override(providers.Factory(session_factory))
-    deps_module.set_container(container)
-
     limiter.reset()
-
-    # Add the test routes to the public allowlist so DualAuthMiddleware lets
-    # unauthenticated calls fall through to the dep instead of 401-ing at
-    # the middleware layer. Real prod routes that adopt the new dep will
-    # also be removed from PUBLIC_ALLOWLIST checks in Plan 11; until then
-    # this monkeypatch isolates the dep under test.
-    extended_allowlist = dual_auth_mod.PUBLIC_ALLOWLIST + ("/protected", "/optional")
-    monkeypatch.setattr(dual_auth_mod, "PUBLIC_ALLOWLIST", extended_allowlist)
 
     app = FastAPI()
     app.state.limiter = limiter
@@ -152,12 +131,6 @@ def app_and_factory(
     app.include_router(auth_router)
     app.include_router(key_router)
     app.include_router(_build_protected_router())
-    # ASGI reversal: register Csrf FIRST so it dispatches AFTER DualAuth
-    # (DualAuth populates request.state.auth_method which Csrf reads).
-    # Required so /api/keys CSRF check passes when seating bearer keys via
-    # cookie+csrf in helper functions.
-    app.add_middleware(CsrfMiddleware, container=container)
-    app.add_middleware(DualAuthMiddleware, container=container)
 
     def _override_get_db() -> Generator[Session, None, None]:
         db = session_factory()
@@ -171,8 +144,6 @@ def app_and_factory(
     yield app, session_factory
 
     app.dependency_overrides.clear()
-    container.unwire()
-    container.db_session_factory.reset_override()
     limiter.reset()
 
 

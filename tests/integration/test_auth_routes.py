@@ -32,10 +32,10 @@ Phase 19 Plan 10 fixture migration:
     Phase-15-02 ``auth_full_app`` middleware-mounting variant collapses into
     the same shape because the new Depends graph runs the auth gate per-route
     (not via middleware).
-  - DualAuthMiddleware mounting + Container().db_session_factory.override(...)
-    + dependencies.set_container(...) are GONE — Plans 11-13 delete those
-    modules; the fixture surface migrates ahead of the deletions so the
-    atomic-commit invariant holds (collection succeeds at every commit).
+  - DualAuthMiddleware mounting + the legacy DI container are GONE — Plans
+    11-13 delete those modules; the fixture surface migrates ahead of the
+    deletions so the atomic-commit invariant holds (collection succeeds at
+    every commit).
 """
 
 from __future__ import annotations

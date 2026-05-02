@@ -22,7 +22,6 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
-from dependency_injector import providers
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from slowapi.errors import RateLimitExceeded
@@ -35,7 +34,6 @@ from app.api.exception_handlers import (
     invalid_credentials_handler,
     validation_error_handler,
 )
-from app.core.container import Container
 from app.core.exceptions import InvalidCredentialsError, ValidationError
 from app.core.rate_limiter import limiter, rate_limit_handler
 from app.infrastructure.database.models import Base
@@ -59,14 +57,12 @@ def session_factory(tmp_db_url: str):
 
 @pytest.fixture
 def client(session_factory) -> Generator[TestClient, None, None]:
-    """Slim FastAPI app with auth_router only — no auth middleware needed.
+    """Slim FastAPI app with auth_router only — Phase 19 Plan 10 dep override.
 
     /auth/register and /auth/login set cookies via _set_auth_cookies inside
     auth_routes.py; the wire shape is independent of any middleware stack.
+    dependency_overrides[get_db] binds the auth service chain to the tmp DB.
     """
-    container = Container()
-    container.db_session_factory.override(providers.Factory(session_factory))
-    deps_module.set_container(container)
     limiter.reset()
 
     app = FastAPI()
@@ -76,10 +72,18 @@ def client(session_factory) -> Generator[TestClient, None, None]:
     app.add_exception_handler(ValidationError, validation_error_handler)
     app.include_router(auth_router)
 
+    def _override_get_db():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    app.dependency_overrides[deps_module.get_db] = _override_get_db
+
     yield TestClient(app)
 
-    container.unwire()
-    container.db_session_factory.reset_override()
+    app.dependency_overrides.clear()
     limiter.reset()
 
 
