@@ -205,7 +205,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 - [x] 19-08-PLAN.md — WebSocket migration: SessionLocal context-manager + ws_ticket_service singleton (Wave 5)
 - [x] 19-09-PLAN.md — Background task migration: whisperx_wrapper_service single SessionLocal block + flat-guard helper (Wave 5)
 - [x] 19-10-PLAN.md — Integration test fixture migration to dependency_overrides[get_db] (14 files) (Wave 6 — MUST land before module deletions)
-- [ ] 19-11-PLAN.md — Delete DualAuthMiddleware + BearerAuthMiddleware + AUTH_V2_ENABLED flag + obsolete unit tests (Wave 7)
+- [x] 19-11-PLAN.md — Delete DualAuthMiddleware + BearerAuthMiddleware + AUTH_V2_ENABLED flag + obsolete unit tests (Wave 7)
 - [ ] 19-12-PLAN.md — Delete CsrfMiddleware class + obsolete unit test (Wave 7)
 - [ ] 19-13-PLAN.md — Delete app/core/container.py + drop dependency-injector + propagate _v2 → no-suffix rename across all routers (Wave 8)
 - [ ] 19-14-PLAN.md — No-leak regression test: 50-iter authed GET /me < 100ms each (Wave 9)
@@ -229,7 +229,7 @@ v1.2 converts the trusted-deploy single-user app into a multi-tenant SaaS. Bolt-
 | 16. Verification + Cross-User Matrix + E2E | v1.2 | 6/6 | Complete   | 2026-04-30 |
 | 17. Docs + Migration Runbook + Operator Guide | v1.2 | 3/3 | Complete   | 2026-05-01 |
 | 18. Stretch (Optional) | v1.2 | 0/0 | Closed empty | 2026-05-01 |
-| 19. Auth + DI Structural Refactor | v1.2 | 10/17 | In Progress|  |
+| 19. Auth + DI Structural Refactor | v1.2 | 11/17 | In Progress|  |
 
 **Total Plans:** TBD (refined during plan-phase per phase)
 **Requirements Coverage:** 95/95 mapped (v1.2 entry set); Phase 19 adds REFACTOR-01..07 (post-entry, addresses observed structural defect)

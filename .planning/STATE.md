@@ -4,14 +4,14 @@ milestone: v1.2
 milestone_name: milestone
 status: executing
 stopped_at: Completed 19-01-PLAN.md
-last_updated: "2026-05-02T19:43:34.834Z"
+last_updated: "2026-05-02T19:59:28.954Z"
 last_activity: 2026-05-02
 progress:
   total_phases: 10
   completed_phases: 8
   total_plans: 62
-  completed_plans: 56
-  percent: 90
+  completed_plans: 57
+  percent: 92
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 19 (Auth + DI Structural Refactor) — EXECUTING
-Plan: 8 of 17 (next: 19-02 services.py @lru_cache singletons)
+Plan: 12 of 17 (next: 19-12 delete CsrfMiddleware class + obsolete unit test)
 Status: Ready to execute
 Last activity: 2026-05-02
 
@@ -105,6 +105,7 @@ Prior position: Phase 17 complete 2026-05-01; Phase 18 closed empty 2026-05-01.
 | Phase Phase 19 PP05 | 9min | 2 tasks (TDD) tasks | 2 files files |
 | Phase Phase 19 PP06 | 8min | 1 tasks | 2 files |
 | Phase Phase 19 PP10 | 28min | 1 multi-group tasks | 17 files files |
+| Phase 19 P11 | 10m | 1 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -317,6 +318,9 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [19-06]: Pilot route migration complete — account_router migrated to Depends(authenticated_user) + router-level Depends(csrf_protected); local get_account_service helper preserved (backward compat) but switched to Depends(get_db); routes use get_account_service_v2 directly. Rule 3 additive fixture fix: app.dependency_overrides[get_db] + X-CSRF-Token plumbing in _register helper (NOT full Plan 10 migration). Docstring grep-gate tax recurred 4th time (19-02, 15-02, 19-05, 19-06) — keep verifier-grep tokens code-only on first write.
 - [Phase ?]: [19-10]: 14 integration test fixtures + 3 deps tests + tests/fixtures/test_container.py migrated from container.override + set_container to app.dependency_overrides[get_db] as the SOLE DB-binding seam; DualAuth+Csrf middleware mounting dropped; Phase-16-04 ASGI ordering invariant retired; Plan 09 baseline 80/80 GREEN preserved; test_set_cookie_attrs latent failure resolved
 - [Phase ?]: [19-10]: docstring grep-gate hygiene — verifier-grep counts docstring + code matches (5th recurrence: 19-02/15-02/19-05/19-06/19-10). Keep verifier-grep tokens code-only on first write; paraphrase comments using 'the legacy DI container' or similar
+- [Phase ?]: [19-11]: Atomic deletion of DualAuthMiddleware + BearerAuthMiddleware modules + AUTH_V2_ENABLED flag + 23 obsolete unit tests in single commit (8e1a3cf); 4 source files deleted (438 LOC removed); single auth path D2 invariant + V2-only D3 invariant locked structurally; production fail-loud guard at main.py:257-262 deleted
+- [Phase ?]: [19-11]: docstring-grep-tax recurrence #6 — comment + docstring cleanup is in scope when plan acceptance gate is literal-token grep; 8 historical comments in app/api/dependencies.py + 6 other files paraphrased to satisfy structural-invariant gate; should be lifted to PATTERNS.md as cross-plan rule
+- [Phase ?]: [19-11]: test_phase13_e2e_smoke.py V2_OFF tests deleted (Rule 3) — server_v2_off fixture + test_v2_disabled_routes_not_registered exercised V2_ENABLED=false + BearerAuthMiddleware behavior that no longer exists; pre-flight test inventory check caught the under-scoped deletion list; pytest collection 540→516 (-24 = 15 dual_auth + 8 container + 1 v2-off)
 
 ### Pending Todos
 
@@ -332,6 +336,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-05-02T19:43:26.911Z
-Stopped at: Completed 19-01-PLAN.md
+Last session: 2026-05-02T19:58:59.988Z
+Stopped at: Completed 19-11-PLAN.md
 Resume file: None
