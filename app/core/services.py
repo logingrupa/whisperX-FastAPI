@@ -1,9 +1,10 @@
 """Module-level lru-cached singleton factories for stateless services.
 
-Phase 19 Plan 02 (T-19-02). Replaces the `dependency_injector` Singleton/
-Factory providers in `app/core/container.py` for stateless services. Plans
-03..12 incrementally rewire callsites; this plan only adds the new module
-so existing `Container` keeps working.
+Phase 19 Plan 02 (T-19-02). Replaces the legacy DI library Singleton /
+Factory providers in the deleted ``app/core/container.py`` for stateless
+services. Plans 03..13 incrementally rewired callsites; Plan 13 deleted
+the legacy container + library entirely — this module is now the sole
+source of stateless-service singletons.
 
 Decision lock (19-RESEARCH §Q3): functools.lru_cache over bare module
 globals — gives lazy init for ML services AND a `cache_clear()` handle

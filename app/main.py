@@ -44,7 +44,6 @@ from app.api.exception_handlers import (  # noqa: E402
     validation_error_handler,
 )
 from app.core.config import Config, get_settings  # noqa: E402
-from app.core.container import Container  # noqa: E402  (Plan 19-13 deletes)
 from app.core.exceptions import (  # noqa: E402
     ConcurrencyLimitError,
     DomainError,
