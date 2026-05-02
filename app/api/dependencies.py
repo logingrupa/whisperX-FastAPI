@@ -764,3 +764,53 @@ def get_task_management_service_v2(
 ) -> TaskManagementService:
     """Return a TaskManagementService wrapping the user-scoped task repo."""
     return TaskManagementService(repository=repository)
+
+
+# ===========================================================================
+# Phase 19 Plan 05 — csrf_protected Depends factory (D4)
+#
+# Replaces CsrfMiddleware (app/core/csrf_middleware.py) with a per-router
+# Depends. Composes with authenticated_user — auth resolves first (FastAPI
+# Depends order), CSRF check runs second. Bearer auth bypasses CSRF
+# (Authorization: Bearer prefix detected before cookie check).
+#
+# Coexistence: CsrfMiddleware stays installed in app/main.py until Plan 12
+# deletes it; Plans 06-07 migrate routers off the middleware to
+# dependencies=[Depends(csrf_protected)] one wave at a time.
+#
+# Tiger-style: four flat early-returns / raises; zero nested-if; cookie /
+# header tokens use self-explanatory names (cookie_token, header_token).
+# csrf_service accessed via the module-level lru-cache singleton (NOT the
+# legacy DI container) — single source per the D1 lock.
+# ===========================================================================
+
+
+def csrf_protected(
+    request: Request,
+    user: User = Depends(authenticated_user),  # auth runs first (DRT)
+) -> None:
+    """Enforce CSRF double-submit on cookie-auth state-mutating requests.
+
+    Mirrors CsrfMiddleware semantics 1:1 (verifier-checked by
+    tests/integration/test_csrf_protected_dep.py — 5 cases):
+        - GET / HEAD / OPTIONS         -> early-return (no CSRF check)
+        - Authorization: Bearer ...    -> early-return (bearer skips CSRF)
+        - cookie-auth state-mutating
+          - X-CSRF-Token absent        -> 403 "CSRF token missing"
+          - X-CSRF-Token != csrf cookie-> 403 "CSRF token mismatch"
+          - X-CSRF-Token == csrf cookie-> return None (request proceeds)
+
+    The two distinct 403 detail strings ("CSRF token missing" / "CSRF
+    token mismatch") match Phase 16 test_csrf_enforcement assertions —
+    do NOT collapse to a single string.
+    """
+    if request.method not in STATE_MUTATING_METHODS:
+        return
+    if request.headers.get("authorization", "").startswith(BEARER_PREFIX):
+        return
+    cookie_token = request.cookies.get("csrf_token", "")
+    header_token = request.headers.get("x-csrf-token", "")
+    if not header_token:
+        raise HTTPException(status_code=403, detail="CSRF token missing")
+    if not core_services.get_csrf_service().verify(cookie_token, header_token):
+        raise HTTPException(status_code=403, detail="CSRF token mismatch")
