@@ -12,9 +12,10 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.api.dependencies import (
-    get_authenticated_user,
-    get_auth_service,
-    get_key_service,
+    authenticated_user,
+    csrf_protected,
+    get_auth_service_v2,
+    get_key_service_v2,
 )
 from app.api.schemas.key_schemas import (
     CreateKeyRequest,
@@ -26,7 +27,11 @@ from app.services.auth import AuthService, KeyService
 
 logger = logging.getLogger(__name__)
 
-key_router = APIRouter(prefix="/api/keys", tags=["API Keys"])
+key_router = APIRouter(
+    prefix="/api/keys",
+    tags=["API Keys"],
+    dependencies=[Depends(csrf_protected)],
+)
 
 
 def _to_list_item(api_key) -> ListKeyItem:
@@ -43,9 +48,9 @@ def _to_list_item(api_key) -> ListKeyItem:
 @key_router.post("", status_code=status.HTTP_201_CREATED, response_model=CreateKeyResponse)
 async def create_key(
     body: CreateKeyRequest,
-    user: User = Depends(get_authenticated_user),
-    key_service: KeyService = Depends(get_key_service),
-    auth_service: AuthService = Depends(get_auth_service),
+    user: User = Depends(authenticated_user),
+    key_service: KeyService = Depends(get_key_service_v2),
+    auth_service: AuthService = Depends(get_auth_service_v2),
 ) -> CreateKeyResponse:
     """Create a new API key. Plaintext shown ONCE."""
     plaintext, api_key = key_service.create_key(int(user.id), body.name)
@@ -64,8 +69,8 @@ async def create_key(
 
 @key_router.get("", response_model=list[ListKeyItem])
 async def list_keys(
-    user: User = Depends(get_authenticated_user),
-    key_service: KeyService = Depends(get_key_service),
+    user: User = Depends(authenticated_user),
+    key_service: KeyService = Depends(get_key_service_v2),
 ) -> list[ListKeyItem]:
     """List all keys (active + revoked) for the authenticated user."""
     keys = key_service.list_for_user(int(user.id))
@@ -75,8 +80,8 @@ async def list_keys(
 @key_router.delete("/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_key(
     key_id: int,
-    user: User = Depends(get_authenticated_user),
-    key_service: KeyService = Depends(get_key_service),
+    user: User = Depends(authenticated_user),
+    key_service: KeyService = Depends(get_key_service_v2),
 ) -> Response:
     """Soft-delete (revoke) an API key. Cross-user requests return 404 opaque."""
     # Cross-user check: list user's keys, scope to this id

@@ -21,6 +21,7 @@ from app.api import (  # noqa: E402
     account_router,
     auth_router,
     billing_router,
+    billing_webhook_router,
     key_router,
     service_router,
     stt_router,
@@ -249,6 +250,7 @@ if is_auth_v2_enabled():
     app.include_router(key_router)
     app.include_router(account_router)
     app.include_router(billing_router)
+    app.include_router(billing_webhook_router)
     app.include_router(ws_ticket_router)
 
 # Fail-loud production safety guard — refuse to boot in production with the

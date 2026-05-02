@@ -94,8 +94,21 @@ def keys_app(
     # DualAuthMiddleware: cookie + bearer auth resolution
     app.add_middleware(DualAuthMiddleware, container=container)
 
+    # Phase 19 Plan 07 additive override (Rule 3): wire app.dependency_overrides
+    # for get_db so authenticated_user + csrf_protected resolve against the
+    # tmp SQLite. Plan 10 owns the full fixture migration.
+    def _override_get_db():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    app.dependency_overrides[dependencies.get_db] = _override_get_db
+
     yield app, container
 
+    app.dependency_overrides.clear()
     container.unwire()
     container.db_session_factory.reset_override()
     limiter.reset()
@@ -108,9 +121,19 @@ def client(keys_app: tuple[FastAPI, Container]) -> TestClient:
 
 
 def _register(client: TestClient, email: str, password: str = "supersecret123") -> dict:
-    """Register a user via /auth/register; returns the response body."""
+    """Register a user via /auth/register; returns the response body.
+
+    Phase 19 Plan 07 additive: key_router applies router-level
+    Depends(csrf_protected), so cookie-auth POST/DELETEs require
+    X-CSRF-Token. Plumb the csrf_token cookie value as a default header on
+    the client jar so subsequent state-mutating calls pass the
+    double-submit check; legacy test bodies stay untouched.
+    """
     response = client.post("/auth/register", json={"email": email, "password": password})
     assert response.status_code == 201, response.text
+    csrf = client.cookies.get("csrf_token")
+    assert csrf is not None, "csrf_token cookie missing after /auth/register"
+    client.headers["X-CSRF-Token"] = csrf
     return response.json()
 
 

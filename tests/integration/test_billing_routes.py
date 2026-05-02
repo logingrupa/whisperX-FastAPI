@@ -28,6 +28,7 @@ from sqlalchemy.orm import sessionmaker
 from app.api import dependencies
 from app.api.auth_routes import auth_router
 from app.api.billing_routes import billing_router
+from app.api.billing_webhook_routes import billing_webhook_router
 from app.api.exception_handlers import (
     invalid_credentials_handler,
     validation_error_handler,
@@ -82,10 +83,25 @@ def billing_app(
     app.add_exception_handler(ValidationError, validation_error_handler)
     app.include_router(auth_router)
     app.include_router(billing_router)
+    app.include_router(billing_webhook_router)
     app.add_middleware(DualAuthMiddleware, container=container)
+
+    # Phase 19 Plan 07 additive override (Rule 3): wire app.dependency_overrides
+    # for get_db so authenticated_user + csrf_protected resolve against the tmp
+    # SQLite. Plan 10 owns the full container-override -> dependency_overrides
+    # cutover.
+    def _override_get_db():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    app.dependency_overrides[dependencies.get_db] = _override_get_db
 
     yield app, container
 
+    app.dependency_overrides.clear()
     container.unwire()
     container.db_session_factory.reset_override()
     limiter.reset()
@@ -98,8 +114,19 @@ def client(billing_app: tuple[FastAPI, Container]) -> TestClient:
 
 
 def _register(client: TestClient, email: str, password: str = "supersecret123") -> None:
+    """Register a user; plumb X-CSRF-Token onto the client for state-mutating calls.
+
+    Phase 19 Plan 07 additive: billing_router applies router-level
+    Depends(csrf_protected), so cookie-auth POSTs (e.g. /billing/checkout)
+    require X-CSRF-Token. Stamp the csrf_token cookie value as a default
+    header on the client after register so subsequent POSTs pass the
+    double-submit check; this preserves the legacy test bodies untouched.
+    """
     response = client.post("/auth/register", json={"email": email, "password": password})
     assert response.status_code == 201, response.text
+    csrf = client.cookies.get("csrf_token")
+    assert csrf is not None, "csrf_token cookie missing after /auth/register"
+    client.headers["X-CSRF-Token"] = csrf
 
 
 # ---------------------------------------------------------------
@@ -178,11 +205,19 @@ def test_webhook_malformed_signature_returns_400(
 
 @pytest.mark.integration
 def test_stripe_imported_no_runtime_calls() -> None:
-    """BILL-07: stripe imports at module-load; module exposes no runtime calls."""
+    """BILL-07: stripe imports at module-load; module exposes no runtime calls.
+
+    Phase 19-07 split: ``_STRIPE_SIG_PATTERN`` lives on the
+    ``app.api.billing_webhook_routes`` module (the webhook moved to its own
+    auth-free / CSRF-free router so ``billing_router`` can apply
+    router-level CSRF cleanly).
+    """
     import app.api.billing_routes as br
+    import app.api.billing_webhook_routes as bwr
     import stripe  # type: ignore[import-untyped]
     assert stripe is not None
     # Module-load import is enough — verifier-checked grep enforces zero
     # runtime stripe.* calls in app/. Here we just exercise the import.
     assert hasattr(br, "billing_router")
-    assert hasattr(br, "_STRIPE_SIG_PATTERN")
+    assert hasattr(bwr, "_STRIPE_SIG_PATTERN")
+    assert hasattr(bwr, "billing_webhook_router")

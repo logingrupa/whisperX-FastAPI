@@ -98,8 +98,21 @@ def auth_full_app(
     app.add_middleware(CsrfMiddleware, container=container)
     app.add_middleware(DualAuthMiddleware, container=container)
 
+    # Phase 19 Plan 07 additive override (Rule 3): wire app.dependency_overrides
+    # for get_db so authenticated_user + the v2 auth/key service chain resolve
+    # against the tmp SQLite. Plan 10 owns the full fixture migration.
+    def _override_get_db():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    app.dependency_overrides[dependencies.get_db] = _override_get_db
+
     yield app, container
 
+    app.dependency_overrides.clear()
     container.unwire()
     container.db_session_factory.reset_override()
     limiter.reset()

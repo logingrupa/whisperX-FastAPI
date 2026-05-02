@@ -102,8 +102,22 @@ def auth_app(tmp_db_url: str) -> Generator[FastAPI, None, None]:
     app.add_exception_handler(ValidationError, validation_error_handler)
     app.include_router(auth_router)
 
+    # Phase 19 Plan 07 additive override (Rule 3): wire app.dependency_overrides
+    # for get_db so the new /register + /login Depends(get_auth_service_v2)
+    # chain resolves against the tmp SQLite. Plan 10 owns the full fixture
+    # migration to dependency_overrides only.
+    def _override_get_db():
+        session = TestSession()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    app.dependency_overrides[dependencies.get_db] = _override_get_db
+
     yield app
 
+    app.dependency_overrides.clear()
     container.unwire()
     container.db_session_factory.reset_override()
     test_engine.dispose()
@@ -151,8 +165,21 @@ def auth_full_app(
     app.include_router(auth_router)
     app.add_middleware(DualAuthMiddleware, container=container)
 
+    # Phase 19 Plan 07 additive override (Rule 3): wire app.dependency_overrides
+    # for get_db so authenticated_user + csrf_protected + the v2 service chain
+    # resolve against the tmp SQLite. Plan 10 owns the full fixture migration.
+    def _override_get_db():
+        session = auth_full_session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    app.dependency_overrides[dependencies.get_db] = _override_get_db
+
     yield app, container
 
+    app.dependency_overrides.clear()
     container.unwire()
     container.db_session_factory.reset_override()
     limiter.reset()
@@ -170,11 +197,20 @@ def auth_full_client(
 def _register(
     client: TestClient, email: str, password: str = "supersecret123"
 ) -> int:
-    """Register a user via /auth/register; return the user_id (cookies seated)."""
+    """Register a user via /auth/register; return the user_id (cookies seated).
+
+    Phase 19 Plan 07 additive: /auth/logout-all carries route-level
+    Depends(csrf_protected); plumb the csrf_token cookie value as a default
+    X-CSRF-Token header so subsequent state-mutating calls pass the
+    double-submit check; legacy test bodies stay untouched.
+    """
     response = client.post(
         "/auth/register", json={"email": email, "password": password}
     )
     assert response.status_code == 201, response.text
+    csrf = client.cookies.get("csrf_token")
+    assert csrf is not None, "csrf_token cookie missing after /auth/register"
+    client.headers["X-CSRF-Token"] = csrf
     return int(response.json()["user_id"])
 
 
