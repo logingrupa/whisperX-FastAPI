@@ -4,14 +4,14 @@ milestone: v1.2
 milestone_name: milestone
 status: executing
 stopped_at: Completed 19-12-PLAN.md
-last_updated: "2026-05-02T20:17:26.444Z"
+last_updated: "2026-05-02T20:39:04.346Z"
 last_activity: 2026-05-02
 progress:
   total_phases: 10
   completed_phases: 8
   total_plans: 62
-  completed_plans: 58
-  percent: 94
+  completed_plans: 59
+  percent: 95
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 19 (Auth + DI Structural Refactor) — EXECUTING
-Plan: 13 of 17 (next: 19-13 delete container + dependency_injector + drop _v2 namespace)
+Plan: 14 of 17 (next: 19-13 delete container + dependency_injector + drop _v2 namespace)
 Status: Ready to execute
 Last activity: 2026-05-02
 
@@ -107,6 +107,7 @@ Prior position: Phase 17 complete 2026-05-01; Phase 18 closed empty 2026-05-01.
 | Phase Phase 19 PP10 | 28min | 1 multi-group tasks | 17 files files |
 | Phase 19 P11 | 10m | 1 tasks | 13 files |
 | Phase 19 P12 | 14m | 1 tasks | 5 files |
+| Phase 19 P13 | 14m | 2 tasks | 26 files |
 
 ## Accumulated Context
 
@@ -325,6 +326,9 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase 19]: [19-12]: CsrfMiddleware class + obsolete unit test deleted atomically (commit bb41522); final middleware stack collapsed to CORSMiddleware only — len(app.user_middleware) == 1 — CSRF defence now lives exclusively in Depends(csrf_protected) on every cookie-auth state-mutating router; Phase 16-04 + Plan 19-05 CSRF integration tests stay GREEN
 - [Phase 19]: [19-12]: Rule 2 deviation — TestGetAuthenticatedUser (3 cases) relocated to tests/unit/api/test_dependencies_request_state.py BEFORE deleting tests/unit/core/test_csrf_middleware.py; helpers get_authenticated_user / get_current_user_id are still consumed by audio_api.py:70/178 + audio_services_api.py:90/285 (Plan 19-13 sweeps the callsites). Plan-prescribed blind delete would have dropped unit coverage for live code; relocation preserves coverage 1:1
 - [Phase 19]: [19-12]: docstring-grep-tax recurrence #7 (after 19-02/15-02/19-05/19-06/19-10/19-11) — literal `CsrfMiddleware` token stripped from 4 docstrings/comments in app/main.py + app/api/dependencies.py to satisfy `grep -rn CsrfMiddleware app/` == 0 acceptance gate; pattern should be lifted to PATTERNS.md as a cross-plan rule next recurrence
+- [Phase ?]: [19-13]: D1 final closure — single-namespace Depends chain in dependencies.py + dependency_injector library + Container module deleted; CLI helpers migrated to _CliContainer dataclass facade backed by SessionLocal + lru-cached singletons (preserves test seam shape across the refactor)
+- [Phase ?]: [19-13]: Pre-existing test failure resolution via plan-scope migration — Plan 12 SUMMARY noted test_free_user_6th_transcribe_returns_429_with_retry_after as failing because the route used helpers Plan 13 was scheduled to delete; rebuilding the route + the test stub during Plan 13 resolved it organically (cross-plan failure baton-pass)
+- [Phase ?]: [19-13]: docstring-grep-tax recurrence #8 (after 19-02/15-02/19-05/19-06/19-10/19-11/19-12) — verifier-grep counts docstring + code matches; app/core/services.py docstring rephrased to drop literal dependency_injector token. Pattern should be lifted to PATTERNS.md as a cross-plan rule next recurrence
 
 ### Pending Todos
 
@@ -340,6 +344,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-05-02T20:17:26.437Z
+Last session: 2026-05-02T20:38:55.673Z
 Stopped at: Completed 19-12-PLAN.md
 Resume file: None
