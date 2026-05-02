@@ -24,10 +24,19 @@ from app.domain.services.diarization_service import IDiarizationService
 from app.domain.services.speaker_assignment_service import ISpeakerAssignmentService
 from app.domain.services.transcription_service import ITranscriptionService
 from app.infrastructure.database.connection import SessionLocal
+from app.infrastructure.database.repositories.sqlalchemy_rate_limit_repository import (
+    SQLAlchemyRateLimitRepository,
+)
 from app.infrastructure.database.repositories.sqlalchemy_task_repository import (
     SQLAlchemyTaskRepository,
 )
+from app.infrastructure.database.repositories.sqlalchemy_user_repository import (
+    SQLAlchemyUserRepository,
+)
 from app.infrastructure.websocket import get_progress_emitter
+from app.services.auth.rate_limit_service import RateLimitService
+from app.services.free_tier_gate import FreeTierGate
+from app.services.usage_event_writer import UsageEventWriter
 from app.schemas import (
     AlignedTranscription,
     ComputeType,
@@ -290,33 +299,27 @@ def align_whisper_output(
     return result  # type: ignore[no-any-return]
 
 
-def _resolve_user_for_task(task_user_id: int | None) -> User | None:
-    """Look up the User domain entity for a completed task (W1 release path).
+def _release_slot_if_authed(
+    repo: SQLAlchemyTaskRepository,
+    user_repo: SQLAlchemyUserRepository,
+    identifier: str,
+    free_tier_gate: FreeTierGate,
+) -> None:
+    """Release the concurrency slot iff the task has an authenticated owner.
 
-    Returns None if the task has no owner (legacy unscoped path) or if
-    DI/container is unavailable — in those cases there's no concurrency
-    slot to release (free-tier gate never consumed one).
+    Tiger-style flat-guard: each precondition early-returns; no nested if.
+    Phase 19-09 — replaces the previous nested-if in process_audio_common
+    finally block. Module-scope so it is greppable and unit-testable.
     """
-    if task_user_id is None:
-        return None
-    try:
-        from app.api.dependencies import _container
-
-        if _container is None:
-            return None
-        # Factory-provided repo owns a fresh DB Session — close in finally
-        # to keep the engine pool alive (see app/api/dependencies.py
-        # ::get_task_repository for the failure mode).
-        user_repo = _container.user_repository()
-        try:
-            return user_repo.get_by_id(task_user_id)
-        finally:
-            user_repo.session.close()
-    except Exception as exc:  # pragma: no cover — defensive
-        logger.warning(
-            "Failed to resolve user for task user_id=%s: %s", task_user_id, exc
-        )
-        return None
+    completed_task = repo.get_by_id(identifier)
+    if completed_task is None:
+        return
+    if completed_task.user_id is None:
+        return
+    user = user_repo.get_by_id(completed_task.user_id)
+    if user is None:
+        return
+    free_tier_gate.release_concurrency(user)
 
 
 def process_audio_common(
@@ -360,284 +363,266 @@ def process_audio_common(
     )
     speaker_svc = speaker_service or WhisperXSpeakerAssignmentService()
 
-    # Create repository for this background task
-    session = SessionLocal()
-    repository: ITaskRepository = SQLAlchemyTaskRepository(session)
-
-    # Phase 13-08 — resolve DI services for usage_events + slot release.
-    # Best-effort: if container is unavailable (test bypass) we degrade
-    # gracefully. The W1 finally block tolerates None.
-    free_tier_gate = None
-    usage_writer = None
-    try:
-        from app.api.dependencies import _container
-
-        if _container is not None:
-            free_tier_gate = _container.free_tier_gate()
-            usage_writer = _container.usage_event_writer()
-    except Exception as exc:
-        logger.warning("DI unavailable in process_audio_common: %s", exc)
-
-    # Track success-only state for usage_events write
-    transcription_succeeded = False
-    duration_observed: float = 0.0
-    task_user_id: int | None = None
-    task_uuid: str = ""
-    task_audio_duration: float = 0.0
-    task_model: str = "unknown"
-
-    # Initial progress: queued
-    _update_progress(repository, params.identifier, TaskProgressStage.queued, 0)
-
-    try:
-        start_time = datetime.now()
-        logger.info(
-            "Starting speech-to-text processing for identifier: %s",
-            params.identifier,
+    # Phase 19-09 — single SessionLocal context-manager owns the worker
+    # session lifecycle. Legacy DI lookups removed. Repositories +
+    # services constructed inline; FreeTierGate + UsageEventWriter share
+    # the same Session (DRY) and finalise together on context-manager exit.
+    with SessionLocal() as db:
+        repository: ITaskRepository = SQLAlchemyTaskRepository(db)
+        user_repo = SQLAlchemyUserRepository(db)
+        rate_limit_service = RateLimitService(
+            repository=SQLAlchemyRateLimitRepository(db)
         )
+        free_tier_gate = FreeTierGate(rate_limit_service=rate_limit_service)
+        usage_writer = UsageEventWriter(session=db)
 
-        # Progress: starting transcription
-        _update_progress(repository, params.identifier, TaskProgressStage.transcribing, 10)
+        # Track success-only state for usage_events write
+        transcription_succeeded = False
+        duration_observed: float = 0.0
+        task_user_id: int | None = None
+        task_uuid: str = ""
+        task_audio_duration: float = 0.0
+        task_model: str = "unknown"
 
-        logger.debug(
-            "Transcription parameters - task: %s, language: %s, batch_size: %d, chunk_size: %d, model: %s, device: %s, device_index: %d, compute_type: %s, threads: %d",
-            params.whisper_model_params.task.value,
-            params.whisper_model_params.language,
-            params.whisper_model_params.batch_size,
-            params.whisper_model_params.chunk_size,
-            params.whisper_model_params.model.value,
-            params.whisper_model_params.device.value,
-            params.whisper_model_params.device_index,
-            params.whisper_model_params.compute_type.value,
-            params.whisper_model_params.threads,
-        )
+        # Initial progress: queued
+        _update_progress(repository, params.identifier, TaskProgressStage.queued, 0)
 
-        segments_before_alignment = transcription_svc.transcribe(
-            audio=params.audio,
-            task=params.whisper_model_params.task.value,
-            asr_options=params.asr_options.model_dump(),
-            vad_options=params.vad_options.model_dump(),
-            language=params.whisper_model_params.language,
-            batch_size=params.whisper_model_params.batch_size,
-            chunk_size=params.whisper_model_params.chunk_size,
-            model=params.whisper_model_params.model.value,
-            device=params.whisper_model_params.device.value,
-            device_index=params.whisper_model_params.device_index,
-            compute_type=params.whisper_model_params.compute_type.value,
-            threads=params.whisper_model_params.threads,
-        )
-
-        # Progress: transcription complete, starting alignment
-        _update_progress(repository, params.identifier, TaskProgressStage.aligning, 40)
-
-        logger.debug(
-            "Alignment parameters - align_model: %s, interpolate_method: %s, return_char_alignments: %s, language_code: %s",
-            params.alignment_params.align_model,
-            params.alignment_params.interpolate_method,
-            params.alignment_params.return_char_alignments,
-            segments_before_alignment["language"],
-        )
-        segments_transcript = alignment_svc.align(
-            transcript=segments_before_alignment["segments"],
-            audio=params.audio,
-            language_code=segments_before_alignment["language"],
-            device=params.whisper_model_params.device.value,
-            align_model=params.alignment_params.align_model,
-            interpolate_method=params.alignment_params.interpolate_method,
-            return_char_alignments=params.alignment_params.return_char_alignments,
-        )
-        transcript = AlignedTranscription(**segments_transcript)
-        # removing words within each segment that have missing start, end, or score values
-        filtered_transcript = filter_aligned_transcription(transcript)
-        transcript_dict = filtered_transcript.model_dump()
-
-        # Progress: alignment complete, starting diarization
-        _update_progress(repository, params.identifier, TaskProgressStage.diarizing, 60)
-
-        logger.debug(
-            "Diarization parameters - device: %s, min_speakers: %s, max_speakers: %s",
-            params.whisper_model_params.device.value,
-            params.diarization_params.min_speakers,
-            params.diarization_params.max_speakers,
-        )
-        diarization_segments = diarization_svc.diarize(
-            audio=params.audio,
-            device=params.whisper_model_params.device.value,
-            min_speakers=params.diarization_params.min_speakers,
-            max_speakers=params.diarization_params.max_speakers,
-        )
-
-        # Progress: diarization complete, combining results
-        _update_progress(repository, params.identifier, TaskProgressStage.diarizing, 80)
-
-        logger.debug("Starting to combine transcript with diarization results")
-        result = speaker_svc.assign_speakers(diarization_segments, transcript_dict)
-
-        logger.debug("Completed combining transcript with diarization results")
-
-        end_time = datetime.now()
-        duration = (end_time - start_time).total_seconds()
-        logger.info(
-            "Completed speech-to-text processing for identifier: %s. Duration: %ss",
-            params.identifier,
-            duration,
-        )
-
-        # Progress: complete
-        _update_progress(repository, params.identifier, TaskProgressStage.complete, 100)
-
-        repository.update(
-            identifier=params.identifier,
-            update_data={
-                "status": TaskStatus.completed,
-                "result": result,
-                "duration": duration,
-                "start_time": start_time,
-                "end_time": end_time,
-            },
-        )
-
-        # Phase 13-08 success-path snapshot — usage_events written in finally
-        transcription_succeeded = True
-        duration_observed = duration
-
-    except (RuntimeError, ValueError, KeyError) as e:
-        logger.error(
-            "Speech-to-text processing failed for identifier: %s. Error: %s",
-            params.identifier,
-            str(e),
-        )
-        # Emit error to WebSocket clients
-        progress_emitter = get_progress_emitter()
-        progress_emitter.emit_error(
-            params.identifier,
-            error_code="PROCESSING_FAILED",
-            user_message="Transcription processing failed. Please try again.",
-            technical_detail=str(e),
-        )
-        repository.update(
-            identifier=params.identifier,
-            update_data={
-                "status": TaskStatus.failed,
-                "error": str(e),
-            },
-        )
-
-    except MemoryError as e:
-        logger.error(
-            f"Task failed for identifier {params.identifier} due to out of memory. Error: {str(e)}"
-        )
-        # Emit error to WebSocket clients
-        progress_emitter = get_progress_emitter()
-        progress_emitter.emit_error(
-            params.identifier,
-            error_code="PROCESSING_FAILED",
-            user_message="Transcription processing failed due to memory constraints. Please try with a smaller file.",
-            technical_detail=str(e),
-        )
-        repository.update(
-            identifier=params.identifier,
-            update_data={"status": TaskStatus.failed, "error": str(e)},
-        )
-
-    finally:
-        # Capture per-task data needed for usage_events + slot release.
-        # Single repo lookup serves callback + W1 release paths (DRT).
-        completed_task = None
         try:
-            completed_task = repository.get_by_id(params.identifier)
-        except Exception as exc:  # pragma: no cover — defensive
-            logger.warning(
-                "Failed to load completed task %s: %s",
+            start_time = datetime.now()
+            logger.info(
+                "Starting speech-to-text processing for identifier: %s",
                 params.identifier,
-                exc,
             )
 
-        if completed_task is not None:
-            task_user_id = completed_task.user_id
-            task_uuid = completed_task.uuid
-            task_audio_duration = completed_task.audio_duration or 0.0
-            params_dict = completed_task.task_params or {}
-            model_value = params_dict.get("model", "unknown")
-            task_model = (
-                model_value.value if hasattr(model_value, "value") else str(model_value)
+            # Progress: starting transcription
+            _update_progress(repository, params.identifier, TaskProgressStage.transcribing, 10)
+
+            logger.debug(
+                "Transcription parameters - task: %s, language: %s, batch_size: %d, chunk_size: %d, model: %s, device: %s, device_index: %d, compute_type: %s, threads: %d",
+                params.whisper_model_params.task.value,
+                params.whisper_model_params.language,
+                params.whisper_model_params.batch_size,
+                params.whisper_model_params.chunk_size,
+                params.whisper_model_params.model.value,
+                params.whisper_model_params.device.value,
+                params.whisper_model_params.device_index,
+                params.whisper_model_params.compute_type.value,
+                params.whisper_model_params.threads,
             )
 
-        # Existing callback path — unchanged behavior, reusing completed_task.
-        try:
-            if params.callback_url and completed_task is not None:
-                metadata = Metadata(
-                    task_type=completed_task.task_type,
-                    task_params=completed_task.task_params,
-                    language=completed_task.language,
-                    file_name=completed_task.file_name,
-                    url=completed_task.url,
-                    callback_url=completed_task.callback_url,
-                    duration=completed_task.duration,
-                    audio_duration=completed_task.audio_duration,
-                    start_time=completed_task.start_time,
-                    end_time=completed_task.end_time,
-                )
-                result_payload = Result(
-                    status=completed_task.status,
-                    result=completed_task.result,
-                    metadata=metadata,
-                    error=completed_task.error,
-                )
-                post_task_callback(params.callback_url, result_payload.model_dump())
-        except Exception as e:
+            segments_before_alignment = transcription_svc.transcribe(
+                audio=params.audio,
+                task=params.whisper_model_params.task.value,
+                asr_options=params.asr_options.model_dump(),
+                vad_options=params.vad_options.model_dump(),
+                language=params.whisper_model_params.language,
+                batch_size=params.whisper_model_params.batch_size,
+                chunk_size=params.whisper_model_params.chunk_size,
+                model=params.whisper_model_params.model.value,
+                device=params.whisper_model_params.device.value,
+                device_index=params.whisper_model_params.device_index,
+                compute_type=params.whisper_model_params.compute_type.value,
+                threads=params.whisper_model_params.threads,
+            )
+
+            # Progress: transcription complete, starting alignment
+            _update_progress(repository, params.identifier, TaskProgressStage.aligning, 40)
+
+            logger.debug(
+                "Alignment parameters - align_model: %s, interpolate_method: %s, return_char_alignments: %s, language_code: %s",
+                params.alignment_params.align_model,
+                params.alignment_params.interpolate_method,
+                params.alignment_params.return_char_alignments,
+                segments_before_alignment["language"],
+            )
+            segments_transcript = alignment_svc.align(
+                transcript=segments_before_alignment["segments"],
+                audio=params.audio,
+                language_code=segments_before_alignment["language"],
+                device=params.whisper_model_params.device.value,
+                align_model=params.alignment_params.align_model,
+                interpolate_method=params.alignment_params.interpolate_method,
+                return_char_alignments=params.alignment_params.return_char_alignments,
+            )
+            transcript = AlignedTranscription(**segments_transcript)
+            # removing words within each segment that have missing start, end, or score values
+            filtered_transcript = filter_aligned_transcription(transcript)
+            transcript_dict = filtered_transcript.model_dump()
+
+            # Progress: alignment complete, starting diarization
+            _update_progress(repository, params.identifier, TaskProgressStage.diarizing, 60)
+
+            logger.debug(
+                "Diarization parameters - device: %s, min_speakers: %s, max_speakers: %s",
+                params.whisper_model_params.device.value,
+                params.diarization_params.min_speakers,
+                params.diarization_params.max_speakers,
+            )
+            diarization_segments = diarization_svc.diarize(
+                audio=params.audio,
+                device=params.whisper_model_params.device.value,
+                min_speakers=params.diarization_params.min_speakers,
+                max_speakers=params.diarization_params.max_speakers,
+            )
+
+            # Progress: diarization complete, combining results
+            _update_progress(repository, params.identifier, TaskProgressStage.diarizing, 80)
+
+            logger.debug("Starting to combine transcript with diarization results")
+            result = speaker_svc.assign_speakers(diarization_segments, transcript_dict)
+
+            logger.debug("Completed combining transcript with diarization results")
+
+            end_time = datetime.now()
+            duration = (end_time - start_time).total_seconds()
+            logger.info(
+                "Completed speech-to-text processing for identifier: %s. Duration: %ss",
+                params.identifier,
+                duration,
+            )
+
+            # Progress: complete
+            _update_progress(repository, params.identifier, TaskProgressStage.complete, 100)
+
+            repository.update(
+                identifier=params.identifier,
+                update_data={
+                    "status": TaskStatus.completed,
+                    "result": result,
+                    "duration": duration,
+                    "start_time": start_time,
+                    "end_time": end_time,
+                },
+            )
+
+            # Phase 13-08 success-path snapshot — usage_events written in finally
+            transcription_succeeded = True
+            duration_observed = duration
+
+        except (RuntimeError, ValueError, KeyError) as e:
             logger.error(
-                "Failed to send callback for identifier %s: %s",
+                "Speech-to-text processing failed for identifier: %s. Error: %s",
                 params.identifier,
                 str(e),
             )
+            # Emit error to WebSocket clients
+            progress_emitter = get_progress_emitter()
+            progress_emitter.emit_error(
+                params.identifier,
+                error_code="PROCESSING_FAILED",
+                user_message="Transcription processing failed. Please try again.",
+                technical_detail=str(e),
+            )
+            repository.update(
+                identifier=params.identifier,
+                update_data={
+                    "status": TaskStatus.failed,
+                    "error": str(e),
+                },
+            )
 
-        # Phase 13-08 — write usage_events row on success-only path
-        # (idempotent: duplicate task_uuid replays are silent no-ops).
-        if (
-            transcription_succeeded
-            and usage_writer is not None
-            and task_user_id is not None
-            and task_uuid
-        ):
+        except MemoryError as e:
+            logger.error(
+                f"Task failed for identifier {params.identifier} due to out of memory. Error: {str(e)}"
+            )
+            # Emit error to WebSocket clients
+            progress_emitter = get_progress_emitter()
+            progress_emitter.emit_error(
+                params.identifier,
+                error_code="PROCESSING_FAILED",
+                user_message="Transcription processing failed due to memory constraints. Please try with a smaller file.",
+                technical_detail=str(e),
+            )
+            repository.update(
+                identifier=params.identifier,
+                update_data={"status": TaskStatus.failed, "error": str(e)},
+            )
+
+        finally:
+            # Capture per-task data needed for usage_events + slot release.
+            # Single repo lookup serves callback + W1 release paths (DRT).
+            completed_task = None
             try:
-                usage_writer.record(
-                    user_id=task_user_id,
-                    task_uuid=task_uuid,
-                    gpu_seconds=duration_observed,
-                    file_seconds=task_audio_duration,
-                    model=task_model,
-                )
-            except Exception as exc:
+                completed_task = repository.get_by_id(params.identifier)
+            except Exception as exc:  # pragma: no cover — defensive
                 logger.warning(
-                    "Failed to record usage_events for task %s: %s",
+                    "Failed to load completed task %s: %s",
                     params.identifier,
                     exc,
                 )
 
-        # Phase 13-08 W1 — ALWAYS release the concurrency slot (success
-        # OR failure). Slot was consumed at transcribe-start by
-        # FreeTierGate.check; without this release the user is locked
-        # out of further transcribes until the bucket resets.
-        if free_tier_gate is not None and task_user_id is not None:
-            user_for_release = _resolve_user_for_task(task_user_id)
-            if user_for_release is not None:
+            if completed_task is not None:
+                task_user_id = completed_task.user_id
+                task_uuid = completed_task.uuid
+                task_audio_duration = completed_task.audio_duration or 0.0
+                params_dict = completed_task.task_params or {}
+                model_value = params_dict.get("model", "unknown")
+                task_model = (
+                    model_value.value if hasattr(model_value, "value") else str(model_value)
+                )
+
+            # Existing callback path — unchanged behavior, reusing completed_task.
+            try:
+                if params.callback_url and completed_task is not None:
+                    metadata = Metadata(
+                        task_type=completed_task.task_type,
+                        task_params=completed_task.task_params,
+                        language=completed_task.language,
+                        file_name=completed_task.file_name,
+                        url=completed_task.url,
+                        callback_url=completed_task.callback_url,
+                        duration=completed_task.duration,
+                        audio_duration=completed_task.audio_duration,
+                        start_time=completed_task.start_time,
+                        end_time=completed_task.end_time,
+                    )
+                    result_payload = Result(
+                        status=completed_task.status,
+                        result=completed_task.result,
+                        metadata=metadata,
+                        error=completed_task.error,
+                    )
+                    post_task_callback(params.callback_url, result_payload.model_dump())
+            except Exception as e:
+                logger.error(
+                    "Failed to send callback for identifier %s: %s",
+                    params.identifier,
+                    str(e),
+                )
+
+            # Phase 13-08 — write usage_events row on success-only path
+            # (idempotent: duplicate task_uuid replays are silent no-ops).
+            if transcription_succeeded and task_user_id is not None and task_uuid:
                 try:
-                    free_tier_gate.release_concurrency(user_for_release)
+                    usage_writer.record(
+                        user_id=task_user_id,
+                        task_uuid=task_uuid,
+                        gpu_seconds=duration_observed,
+                        file_seconds=task_audio_duration,
+                        model=task_model,
+                    )
                 except Exception as exc:
                     logger.warning(
-                        "Failed to release concurrency slot user_id=%s task=%s: %s",
-                        task_user_id,
+                        "Failed to record usage_events for task %s: %s",
                         params.identifier,
                         exc,
                     )
 
-        # Close every Session checked out via Factory providers. Without
-        # these closes the engine pool exhausts after a handful of
-        # transcribe jobs (see app/api/dependencies.py::get_task_repository
-        # for the failure mode).
-        if free_tier_gate is not None:
-            free_tier_gate.rate_limit_service.repository.session.close()
-        if usage_writer is not None:
-            usage_writer.session.close()
-        session.close()
+            # Phase 13-08 W1 — ALWAYS release the concurrency slot (success
+            # OR failure). Slot was consumed at transcribe-start by
+            # FreeTierGate.check; without this release the user is locked
+            # out of further transcribes until the bucket resets.
+            # Phase 19-09: flat-guard helper at module scope replaces the
+            # previous nested-if; a single try/except wraps it so a slot-
+            # release crash never blocks the context-manager exit.
+            try:
+                _release_slot_if_authed(
+                    repository, user_repo, params.identifier, free_tier_gate
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to release concurrency slot task=%s: %s",
+                    params.identifier,
+                    exc,
+                )
+
