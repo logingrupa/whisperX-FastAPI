@@ -15,10 +15,9 @@ Coverage (≥10 cases per plan 13-04):
 11. test_create_key_requires_auth — POST without auth → 401
 12. test_bearer_auth_can_create_key — bearer auth path issues key
 
-Slim FastAPI app per test (mirror 13-03 pattern):
-  - mounts auth_router for cookie-acquisition + key_router for /api/keys/*
-  - mounts DualAuthMiddleware for both bearer + cookie resolution
-  - per-test Container override against tmp SQLite DB
+Phase 19 Plan 10: slim app + dependency_overrides[get_db] only — the new
+Depends(authenticated_user) + Depends(csrf_protected) chain handles cookie
++ bearer auth via the dep graph; no DualAuthMiddleware, no Container.
 """
 
 from __future__ import annotations
@@ -27,7 +26,6 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
-from dependency_injector import providers
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from slowapi.errors import RateLimitExceeded
@@ -41,8 +39,6 @@ from app.api.exception_handlers import (
     validation_error_handler,
 )
 from app.api.key_routes import key_router
-from app.core.container import Container
-from app.core.dual_auth import DualAuthMiddleware
 from app.core.exceptions import InvalidCredentialsError, ValidationError
 from app.core.rate_limiter import limiter, rate_limit_handler
 from app.infrastructure.database.models import ApiKey as ORMApiKey
@@ -76,12 +72,14 @@ def session_factory(tmp_db_url: str):
 @pytest.fixture
 def keys_app(
     tmp_db_url: str, session_factory
-) -> Generator[tuple[FastAPI, Container], None, None]:
-    """Slim FastAPI app: auth_router + key_router + DualAuthMiddleware."""
-    container = Container()
-    container.db_session_factory.override(providers.Factory(session_factory))
-    dependencies.set_container(container)
+) -> Generator[FastAPI, None, None]:
+    """Slim FastAPI app: auth_router + key_router driven via dep overrides.
 
+    Phase 19 Plan 10: dependency_overrides[get_db] is the SOLE DB-binding
+    seam. The new Depends(authenticated_user) handles cookie + bearer auth
+    per-route, and Depends(csrf_protected) on key_router handles CSRF —
+    no middleware mounting needed.
+    """
     limiter.reset()
 
     app = FastAPI()
@@ -91,12 +89,7 @@ def keys_app(
     app.add_exception_handler(ValidationError, validation_error_handler)
     app.include_router(auth_router)
     app.include_router(key_router)
-    # DualAuthMiddleware: cookie + bearer auth resolution
-    app.add_middleware(DualAuthMiddleware, container=container)
 
-    # Phase 19 Plan 07 additive override (Rule 3): wire app.dependency_overrides
-    # for get_db so authenticated_user + csrf_protected resolve against the
-    # tmp SQLite. Plan 10 owns the full fixture migration.
     def _override_get_db():
         session = session_factory()
         try:
@@ -106,18 +99,15 @@ def keys_app(
 
     app.dependency_overrides[dependencies.get_db] = _override_get_db
 
-    yield app, container
+    yield app
 
     app.dependency_overrides.clear()
-    container.unwire()
-    container.db_session_factory.reset_override()
     limiter.reset()
 
 
 @pytest.fixture
-def client(keys_app: tuple[FastAPI, Container]) -> TestClient:
-    app, _ = keys_app
-    return TestClient(app)
+def client(keys_app: FastAPI) -> TestClient:
+    return TestClient(keys_app)
 
 
 def _register(client: TestClient, email: str, password: str = "supersecret123") -> dict:
@@ -283,10 +273,10 @@ def test_delete_key_soft_deletes(client: TestClient) -> None:
 
 @pytest.mark.integration
 def test_delete_key_cross_user_returns_404(
-    keys_app: tuple[FastAPI, Container],
+    keys_app: FastAPI,
 ) -> None:
     """User B attempting to DELETE User A's key gets opaque 404 (T-13-15)."""
-    app, _container = keys_app
+    app = keys_app
     # User A registers + creates key — keep cookie jar separate
     client_a = TestClient(app)
     _register(client_a, "alice@a.com")
@@ -316,9 +306,9 @@ def test_delete_unknown_key_returns_404(client: TestClient) -> None:
 
 
 @pytest.mark.integration
-def test_create_key_requires_auth(keys_app: tuple[FastAPI, Container]) -> None:
+def test_create_key_requires_auth(keys_app: FastAPI) -> None:
     """POST /api/keys without cookie/bearer returns 401."""
-    app, _ = keys_app
+    app = keys_app
     client_no_auth = TestClient(app)
     response = client_no_auth.post("/api/keys", json={"name": "anon"})
     assert response.status_code == 401
@@ -327,10 +317,10 @@ def test_create_key_requires_auth(keys_app: tuple[FastAPI, Container]) -> None:
 
 @pytest.mark.integration
 def test_bearer_auth_can_create_key(
-    keys_app: tuple[FastAPI, Container],
+    keys_app: FastAPI,
 ) -> None:
     """Authorization: Bearer whsk_<plaintext> creates a new key for that user."""
-    app, _ = keys_app
+    app = keys_app
     # Register + obtain plaintext key via cookie-auth path
     cookie_client = TestClient(app)
     _register(cookie_client, "kev@example.com")

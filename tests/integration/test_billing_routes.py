@@ -9,7 +9,10 @@ Coverage (≥5 cases per plan 13-05):
 5. test_webhook_malformed_signature_returns_400 — garbage header → 400
 6. test_stripe_imported_no_runtime_calls — module-load import succeeds (BILL-07)
 
-Slim FastAPI app per test mirrors 13-03/13-04 patterns.
+Phase 19 Plan 10: slim app + dependency_overrides[get_db] only — no
+DualAuthMiddleware, no Container().override; the new
+Depends(authenticated_user) + Depends(csrf_protected) chain on
+billing_router resolves transitively against the tmp SQLite.
 """
 
 from __future__ import annotations
@@ -18,7 +21,6 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
-from dependency_injector import providers
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from slowapi.errors import RateLimitExceeded
@@ -33,8 +35,6 @@ from app.api.exception_handlers import (
     invalid_credentials_handler,
     validation_error_handler,
 )
-from app.core.container import Container
-from app.core.dual_auth import DualAuthMiddleware
 from app.core.exceptions import InvalidCredentialsError, ValidationError
 from app.core.rate_limiter import limiter, rate_limit_handler
 from app.infrastructure.database.models import Base
@@ -68,12 +68,14 @@ def session_factory(tmp_db_url: str):
 @pytest.fixture
 def billing_app(
     tmp_db_url: str, session_factory
-) -> Generator[tuple[FastAPI, Container], None, None]:
-    """Slim FastAPI app: auth_router + billing_router + DualAuthMiddleware."""
-    container = Container()
-    container.db_session_factory.override(providers.Factory(session_factory))
-    dependencies.set_container(container)
+) -> Generator[FastAPI, None, None]:
+    """Slim FastAPI app: auth + billing + billing_webhook routers.
 
+    Phase 19 Plan 10: dependency_overrides[get_db] is the SOLE DB-binding
+    seam — no DualAuthMiddleware, no Container.override; the production
+    Depends(authenticated_user) + Depends(csrf_protected) chain on
+    billing_router resolves transitively through the overridden get_db.
+    """
     limiter.reset()
 
     app = FastAPI()
@@ -84,12 +86,7 @@ def billing_app(
     app.include_router(auth_router)
     app.include_router(billing_router)
     app.include_router(billing_webhook_router)
-    app.add_middleware(DualAuthMiddleware, container=container)
 
-    # Phase 19 Plan 07 additive override (Rule 3): wire app.dependency_overrides
-    # for get_db so authenticated_user + csrf_protected resolve against the tmp
-    # SQLite. Plan 10 owns the full container-override -> dependency_overrides
-    # cutover.
     def _override_get_db():
         session = session_factory()
         try:
@@ -99,18 +96,15 @@ def billing_app(
 
     app.dependency_overrides[dependencies.get_db] = _override_get_db
 
-    yield app, container
+    yield app
 
     app.dependency_overrides.clear()
-    container.unwire()
-    container.db_session_factory.reset_override()
     limiter.reset()
 
 
 @pytest.fixture
-def client(billing_app: tuple[FastAPI, Container]) -> TestClient:
-    app, _ = billing_app
-    return TestClient(app)
+def client(billing_app: FastAPI) -> TestClient:
+    return TestClient(billing_app)
 
 
 def _register(client: TestClient, email: str, password: str = "supersecret123") -> None:
@@ -147,9 +141,9 @@ def test_checkout_stub_returns_501(client: TestClient) -> None:
 
 
 @pytest.mark.integration
-def test_checkout_requires_auth(billing_app: tuple[FastAPI, Container]) -> None:
+def test_checkout_requires_auth(billing_app: FastAPI) -> None:
     """POST /billing/checkout without cookie/bearer → 401."""
-    app, _ = billing_app
+    app = billing_app
     client_no_auth = TestClient(app)
     response = client_no_auth.post("/billing/checkout", json={"plan": "pro"})
     assert response.status_code == 401
@@ -158,10 +152,10 @@ def test_checkout_requires_auth(billing_app: tuple[FastAPI, Container]) -> None:
 
 @pytest.mark.integration
 def test_webhook_valid_signature_schema_returns_501(
-    billing_app: tuple[FastAPI, Container],
+    billing_app: FastAPI,
 ) -> None:
     """Valid Stripe-Signature schema → 501 + StubResponse (no auth needed)."""
-    app, _ = billing_app
+    app = billing_app
     client_no_auth = TestClient(app)
     response = client_no_auth.post(
         "/billing/webhook",
@@ -177,10 +171,10 @@ def test_webhook_valid_signature_schema_returns_501(
 
 @pytest.mark.integration
 def test_webhook_missing_signature_returns_400(
-    billing_app: tuple[FastAPI, Container],
+    billing_app: FastAPI,
 ) -> None:
     """No Stripe-Signature header → 400."""
-    app, _ = billing_app
+    app = billing_app
     client_no_auth = TestClient(app)
     response = client_no_auth.post("/billing/webhook", json={})
     assert response.status_code == 400
@@ -189,10 +183,10 @@ def test_webhook_missing_signature_returns_400(
 
 @pytest.mark.integration
 def test_webhook_malformed_signature_returns_400(
-    billing_app: tuple[FastAPI, Container],
+    billing_app: FastAPI,
 ) -> None:
     """Garbage Stripe-Signature header → 400."""
-    app, _ = billing_app
+    app = billing_app
     client_no_auth = TestClient(app)
     response = client_no_auth.post(
         "/billing/webhook",
