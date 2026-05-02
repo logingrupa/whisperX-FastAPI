@@ -769,14 +769,10 @@ def get_task_management_service_v2(
 # ===========================================================================
 # Phase 19 Plan 05 — csrf_protected Depends factory (D4)
 #
-# Replaces CsrfMiddleware (app/core/csrf_middleware.py) with a per-router
-# Depends. Composes with authenticated_user — auth resolves first (FastAPI
-# Depends order), CSRF check runs second. Bearer auth bypasses CSRF
-# (Authorization: Bearer prefix detected before cookie check).
-#
-# Coexistence: CsrfMiddleware stays installed in app/main.py until Plan 12
-# deletes it; Plans 06-07 migrate routers off the middleware to
-# dependencies=[Depends(csrf_protected)] one wave at a time.
+# Per-router CSRF dep. Replaced the legacy middleware (deleted in Plan 19-12).
+# Composes with authenticated_user — auth resolves first (FastAPI Depends
+# order), CSRF check runs second. Bearer auth bypasses (Authorization: Bearer
+# prefix detected before cookie check).
 #
 # Tiger-style: four flat early-returns / raises; zero nested-if; cookie /
 # header tokens use self-explanatory names (cookie_token, header_token).
@@ -791,7 +787,7 @@ def csrf_protected(
 ) -> None:
     """Enforce CSRF double-submit on cookie-auth state-mutating requests.
 
-    Mirrors CsrfMiddleware semantics 1:1 (verifier-checked by
+    Mirrors the legacy middleware semantics 1:1 (verifier-checked by
     tests/integration/test_csrf_protected_dep.py — 5 cases):
         - GET / HEAD / OPTIONS         -> early-return (no CSRF check)
         - Authorization: Bearer ...    -> early-return (bearer skips CSRF)

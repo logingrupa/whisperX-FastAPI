@@ -45,7 +45,6 @@ from app.api.exception_handlers import (  # noqa: E402
 )
 from app.core.config import Config, get_settings  # noqa: E402
 from app.core.container import Container  # noqa: E402  (Plan 19-13 deletes)
-from app.core.csrf_middleware import CsrfMiddleware  # noqa: E402  (Plan 19-12 deletes)
 from app.core.exceptions import (  # noqa: E402
     ConcurrencyLimitError,
     DomainError,
@@ -186,16 +185,14 @@ TUS_HEADERS: list[str] = [
 ]
 
 # Phase 19 single-stack middleware — auth lives in Depends(authenticated_user)
-# (D2 lock); the legacy auth middleware modules are gone. CsrfMiddleware stays
-# until Plan 19-12 confirms every state-mutating cookie-auth route opts into
-# Depends(csrf_protected). CORS is locked to FRONTEND_URL (never wildcard) per
-# ANTI-06 / T-13-42.
+# (D2 lock); CSRF lives in Depends(csrf_protected) on every state-mutating
+# cookie-auth router (Plan 19-12 deleted the legacy CSRF middleware). The
+# middleware stack now contains only CORSMiddleware. CORS is locked to
+# FRONTEND_URL (never wildcard) per ANTI-06 / T-13-42.
 settings = get_settings()
 
 # slowapi state — required for @limiter.limit decorators on routes.
 app.state.limiter = limiter
-
-app.add_middleware(CsrfMiddleware, container=container)
 
 # CORS — locked to FRONTEND_URL allowlist with credentials enabled (ANTI-06).
 # Single-origin (or comma-separated allowlist) — NEVER use wildcard origins
