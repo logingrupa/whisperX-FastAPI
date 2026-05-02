@@ -115,8 +115,21 @@ def ws_app(
     app.include_router(websocket_router)
     app.add_middleware(DualAuthMiddleware, container=container)
 
+    # Phase 19 Plan 07 additive override (Rule 3): wire app.dependency_overrides
+    # for get_db so authenticated_user + get_scoped_task_repository_v2 resolve
+    # against the tmp SQLite. Plan 10 owns the full fixture migration.
+    def _override_get_db():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    app.dependency_overrides[dependencies.get_db] = _override_get_db
+
     yield app, container
 
+    app.dependency_overrides.clear()
     container.unwire()
     container.db_session_factory.reset_override()
     limiter.reset()
@@ -136,10 +149,20 @@ def _issue_ticket(client: TestClient, task_uuid: str) -> str:
     """Issue a fresh WS ticket for ``task_uuid``; return the token string.
 
     Mirrors test_ws_ticket_flow.py:182-188 — POST /api/ws/ticket with cookie
-    auth (set by prior _register call on the same client jar). No CSRF header
-    needed because ws_app omits CsrfMiddleware.
+    auth (set by prior _register call on the same client jar). Phase 19-07:
+    ws_ticket_router applies router-level Depends(csrf_protected); attach
+    the csrf_token cookie value as X-CSRF-Token so the double-submit check
+    passes. The shared `_register` helper in `_phase16_helpers` does NOT
+    plumb this header by default (Phase 16 CSRF tests rely on its absence),
+    so we plumb it here on the call site.
     """
-    response = client.post("/api/ws/ticket", json={"task_id": task_uuid})
+    csrf = client.cookies.get("csrf_token")
+    assert csrf is not None, "csrf_token cookie missing — call _register first"
+    response = client.post(
+        "/api/ws/ticket",
+        json={"task_id": task_uuid},
+        headers={"X-CSRF-Token": csrf},
+    )
     assert response.status_code == 201, response.text
     return response.json()["ticket"]
 

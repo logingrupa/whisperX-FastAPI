@@ -101,7 +101,12 @@ def _register(
     """Register a user via ``POST /auth/register``; return ``user_id``.
 
     Side effect: ``session`` + ``csrf_token`` cookies are seated on the
-    given client's jar (auth_routes.py sets both on 201).
+    given client's jar (auth_routes.py sets both on 201). NOTE this helper
+    deliberately does NOT plumb the X-CSRF-Token header — Phase 16 CSRF
+    tests rely on the header being absent by default so the missing-header
+    leg surfaces. Tests that want pre-plumbed CSRF should set
+    ``client.headers["X-CSRF-Token"] = client.cookies.get("csrf_token")``
+    after calling this helper (test_security_matrix follows that pattern).
     """
     response = client.post(
         "/auth/register", json={"email": email, "password": password}

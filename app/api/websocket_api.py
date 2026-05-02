@@ -68,7 +68,16 @@ async def websocket_task_progress(
     """
     # WS scope is not dispatched through ``BaseHTTPMiddleware``, so we reach
     # into the module-level container reference.
+    # Phase 19-07: ticket service moved to the lru-cached singleton in
+    # ``app.core.services`` so HTTP issue-path (ws_ticket_routes) and WS
+    # consume-path (here) agree on the SAME instance. The legacy
+    # ``_container.ws_ticket_service()`` Singleton is a different object —
+    # mixing them silently broke ticket reuse in tests. Plan 19-08 owns the
+    # full websocket_api refactor (replace _container.task_repository() with
+    # ``with SessionLocal() as db:`` block); for now keep the legacy task
+    # repo path so coexistence holds.
     from app.api import dependencies
+    from app.core.services import get_ws_ticket_service
 
     if not ticket:
         await websocket.close(code=WS_POLICY_VIOLATION)
@@ -78,7 +87,7 @@ async def websocket_task_progress(
         await websocket.close(code=WS_POLICY_VIOLATION)
         return
 
-    ticket_service = dependencies._container.ws_ticket_service()
+    ticket_service = get_ws_ticket_service()
     # task_repository is a Factory — it owns a fresh DB Session that MUST
     # be closed in finally or the engine pool exhausts (see
     # app/api/dependencies.py::get_task_repository for the failure mode).

@@ -2,7 +2,10 @@
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.dependencies import get_scoped_task_management_service
+from app.api.dependencies import (
+    csrf_protected,
+    get_task_management_service_v2,
+)
 from app.api.mappers.task_mapper import TaskMapper
 from app.api.schemas.task_schemas import TaskListResponse
 from app.core.exceptions import TaskNotFoundError
@@ -10,7 +13,7 @@ from app.core.logging import logger
 from app.schemas import Metadata, Response, Result, TaskProgress
 from app.services.task_management_service import TaskManagementService
 
-task_router = APIRouter()
+task_router = APIRouter(dependencies=[Depends(csrf_protected)])
 
 
 @task_router.get("/task/all", tags=["Tasks Management"])
@@ -29,7 +32,7 @@ async def get_all_tasks_status(
     page_size: int = Query(
         50, ge=1, le=200, description="Items per page (1..200)"
     ),
-    service: TaskManagementService = Depends(get_scoped_task_management_service),
+    service: TaskManagementService = Depends(get_task_management_service_v2),
 ) -> TaskListResponse:
     """
     Retrieve a paginated, optionally filtered list of tasks (Plan 15-ux).
@@ -68,7 +71,7 @@ async def get_all_tasks_status(
 @task_router.get("/task/{identifier}", tags=["Tasks Management"])
 async def get_transcription_status(
     identifier: str,
-    service: TaskManagementService = Depends(get_scoped_task_management_service),
+    service: TaskManagementService = Depends(get_task_management_service_v2),
 ) -> Result:
     """
     Retrieve the status of a specific task by its identifier.
@@ -113,7 +116,7 @@ async def get_transcription_status(
 @task_router.delete("/task/{identifier}/delete", tags=["Tasks Management"])
 async def delete_task(
     identifier: str,
-    service: TaskManagementService = Depends(get_scoped_task_management_service),
+    service: TaskManagementService = Depends(get_task_management_service_v2),
 ) -> Response:
     """
     Delete a specific task by its identifier.
@@ -146,7 +149,7 @@ async def delete_task(
 )
 async def get_task_progress(
     identifier: str,
-    service: TaskManagementService = Depends(get_scoped_task_management_service),
+    service: TaskManagementService = Depends(get_task_management_service_v2),
 ) -> TaskProgress:
     """
     Get current progress for a task.

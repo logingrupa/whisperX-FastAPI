@@ -106,8 +106,21 @@ def ws_app(
     # endpoint, not the middleware).
     app.add_middleware(DualAuthMiddleware, container=container)
 
+    # Phase 19 Plan 07 additive override (Rule 3): wire app.dependency_overrides
+    # for get_db so authenticated_user + get_scoped_task_repository_v2 resolve
+    # against the tmp SQLite. Plan 10 owns the full fixture migration.
+    def _override_get_db():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    app.dependency_overrides[dependencies.get_db] = _override_get_db
+
     yield app, container
 
+    app.dependency_overrides.clear()
     container.unwire()
     container.db_session_factory.reset_override()
     limiter.reset()
@@ -129,12 +142,18 @@ def _register(
 ) -> int:
     """Register a user via /auth/register; return the user_id.
 
-    Cookies set on the TestClient jar by the response.
+    Cookies set on the TestClient jar by the response. Phase 19 Plan 07
+    additive: ws_ticket_router applies router-level Depends(csrf_protected);
+    plumb the csrf_token cookie value as a default X-CSRF-Token header so
+    POST /api/ws/ticket passes the double-submit check.
     """
     response = client.post(
         "/auth/register", json={"email": email, "password": password}
     )
     assert response.status_code == 201, response.text
+    csrf = client.cookies.get("csrf_token")
+    assert csrf is not None, "csrf_token cookie missing after /auth/register"
+    client.headers["X-CSRF-Token"] = csrf
     return int(response.json()["user_id"])
 
 

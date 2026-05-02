@@ -7,16 +7,21 @@ viable — the ticket is the locked path.
 
 Locked rules
 ------------
-* DRT  — auth resolved via shared ``Depends(get_authenticated_user)``;
-         repository via shared ``Depends(get_scoped_task_repository)``
-         (Plan 13-07 — scope auto-applied); ticket service via
-         singleton container provider.
+* DRT  — auth resolved via the shared authenticated_user Depends;
+         repository via the shared scoped task repo Depends (Plan 19-04
+         — scope auto-applied); ticket service via the lru-cached
+         singleton in ``app.core.services``.
 * SRP  — route does HTTP only; ``WsTicketService`` owns ticket lifecycle;
          ``ITaskRepository`` owns persistence.
 * /tiger-style — flat early-returns; cross-user task → opaque 404
          (NEVER 403 — no enumeration of foreign tasks, T-13-24); ticket
          value never logged.
 * No nested-if — ``grep -cE "^\s+if .*\bif\b"`` returns 0.
+
+Phase 19-07: dropped the inline ``get_ws_ticket_service`` factory that
+reached into ``dependencies._container``; replaced with a direct import
+from ``app.core.services``. Router-level ``Depends(csrf_protected)``
+applied (POST /api/ws/ticket is state-mutating in the cookie-auth flow).
 """
 
 from __future__ import annotations
@@ -25,36 +30,24 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.api.constants import CONTAINER_NOT_INITIALIZED_ERROR
 from app.api.dependencies import (
-    get_authenticated_user,
-    get_scoped_task_repository,
+    authenticated_user,
+    csrf_protected,
+    get_scoped_task_repository_v2,
 )
 from app.api.schemas.ws_ticket_schemas import TicketRequest, TicketResponse
+from app.core.services import get_ws_ticket_service
 from app.domain.entities.user import User
 from app.domain.repositories.task_repository import ITaskRepository
 from app.services.ws_ticket_service import WsTicketService
 
 logger = logging.getLogger(__name__)
 
-ws_ticket_router = APIRouter(prefix="/api/ws", tags=["WebSocket"])
-
-
-def get_ws_ticket_service() -> WsTicketService:
-    """Provide the singleton ``WsTicketService`` from the global container.
-
-    Lives next to the route (rather than in ``app.api.dependencies``) because
-    no other module needs it — Plan 13-09 may relocate this once
-    ``websocket_api.py`` also depends on it via FastAPI ``Depends`` instead
-    of a direct container reach-in.
-    """
-    # Imported lazily so test suites can monkey-patch ``dependencies._container``
-    # without import-cycle hassle.
-    from app.api import dependencies
-
-    if dependencies._container is None:
-        raise RuntimeError(CONTAINER_NOT_INITIALIZED_ERROR)
-    return dependencies._container.ws_ticket_service()
+ws_ticket_router = APIRouter(
+    prefix="/api/ws",
+    tags=["WebSocket"],
+    dependencies=[Depends(csrf_protected)],
+)
 
 
 @ws_ticket_router.post(
@@ -64,8 +57,8 @@ def get_ws_ticket_service() -> WsTicketService:
 )
 async def issue_ticket(
     body: TicketRequest,
-    user: User = Depends(get_authenticated_user),
-    repository: ITaskRepository = Depends(get_scoped_task_repository),
+    user: User = Depends(authenticated_user),
+    repository: ITaskRepository = Depends(get_scoped_task_repository_v2),
     ticket_service: WsTicketService = Depends(get_ws_ticket_service),
 ) -> TicketResponse:
     """Issue a single-use 60-second WS ticket for the caller's own task.
