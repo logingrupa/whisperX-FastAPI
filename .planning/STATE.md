@@ -4,14 +4,14 @@ milestone: v1.2
 milestone_name: milestone
 status: executing
 stopped_at: Completed 19-12-PLAN.md
-last_updated: "2026-05-02T20:43:48.920Z"
+last_updated: "2026-05-02T20:54:49.015Z"
 last_activity: 2026-05-02
 progress:
   total_phases: 10
   completed_phases: 8
   total_plans: 62
-  completed_plans: 60
-  percent: 97
+  completed_plans: 61
+  percent: 98
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 19 (Auth + DI Structural Refactor) — EXECUTING
-Plan: 15 of 17 (next: 19-13 delete container + dependency_injector + drop _v2 namespace)
+Plan: 16 of 17 (next: 19-13 delete container + dependency_injector + drop _v2 namespace)
 Status: Ready to execute
 Last activity: 2026-05-02
 
@@ -109,6 +109,7 @@ Prior position: Phase 17 complete 2026-05-01; Phase 18 closed empty 2026-05-01.
 | Phase 19 P12 | 14m | 1 tasks | 5 files |
 | Phase 19 P13 | 14m | 2 tasks | 26 files |
 | Phase Phase 19 PP14 | 8m | - tasks | - files |
+| Phase 19 P15 | 8min | 2 tasks tasks | 1 files files |
 
 ## Accumulated Context
 
@@ -332,6 +333,8 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [19-13]: docstring-grep-tax recurrence #8 (after 19-02/15-02/19-05/19-06/19-10/19-11/19-12) — verifier-grep counts docstring + code matches; app/core/services.py docstring rephrased to drop literal dependency_injector token. Pattern should be lifted to PATTERNS.md as a cross-plan rule next recurrence
 - [Phase ?]: [19-14]: tests/integration/test_no_session_leak.py CI gate added — 50-iter authed GET /api/account/me via production app.main:app + app.dependency_overrides[get_db]; per-iter < 100ms + p95 < 100ms; companion to scripts/verify_session_leak_fix.py per D6 (script kept until CI green for 2 weeks AND grep -rn '_container.' app/ stays at 0)
 - [Phase ?]: [19-14]: limiter.reset() bookends fixture setup AND teardown (Rule 3 blocking-issue fix) — slowapi 3/hr cap on /auth/register is a module-level singleton; reset prevents prior integration tests from 429-ing this test in CI; mirrors test_set_cookie_attrs + test_auth_routes + 13 other integration tests
+- [Phase ?]: [19-15]: Two autouse cleanup fixtures (_clear_dependency_overrides + _clear_lru_caches) appended to tests/conftest.py — belt-and-suspenders pair with Plan 10 per-fixture teardown; lazy imports in body keep import cost low; explicit cache_clear() per factory (no for-loop magic, audit-friendly)
+- [Phase ?]: [19-15]: REFACTOR-07 wire-byte equivalence verified end-to-end — bun run test 138/138 GREEN + bun run test:e2e 8/8 GREEN against the refactored Phase-19 backend; Set-Cookie attrs byte-identical pre/post; checkpoint:human-verify resolved by automation evidence in sequential mode (no flake to triage)
 
 ### Pending Todos
 
@@ -347,6 +350,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-05-02T20:43:43.367Z
+Last session: 2026-05-02T20:54:27.411Z
 Stopped at: Completed 19-12-PLAN.md
 Resume file: None
