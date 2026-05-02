@@ -32,7 +32,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
-from dependency_injector import providers
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from slowapi.errors import RateLimitExceeded
@@ -48,8 +47,6 @@ from app.api.exception_handlers import (
 )
 from app.api.websocket_api import websocket_router
 from app.api.ws_ticket_routes import ws_ticket_router
-from app.core.container import Container
-from app.core.dual_auth import DualAuthMiddleware
 from app.core.exceptions import InvalidCredentialsError, ValidationError
 from app.core.rate_limiter import limiter, rate_limit_handler
 from app.infrastructure.database.models import Base
@@ -87,22 +84,15 @@ def session_factory(tmp_db_url: str):
 @pytest.fixture
 def ws_app(
     tmp_db_url: str, session_factory
-) -> Generator[tuple[FastAPI, Container], None, None]:
-    """Slim FastAPI app: auth + ws_ticket + websocket routers + DualAuthMiddleware.
+) -> Generator[FastAPI, None, None]:
+    """Slim FastAPI app: auth + ws_ticket + websocket routers.
 
-    A fresh ``Container`` is wired against a per-test SQLite DB and installed
-    into ``app.api.dependencies._container`` so the route helpers (and the
-    WS endpoint's reach-in to ``dependencies._container``) both observe the
-    same instance.
-
-    NOTE: CsrfMiddleware is NOT mounted — WS handshake doesn't trigger HTTP
-    CSRF and the ticket flow IS the WS auth. ``POST /api/ws/ticket`` succeeds
-    without ``X-CSRF-Token`` because no CSRF guard exists in this stack.
+    Phase 19 Plan 10: dependency_overrides[get_db] is the SOLE DB-binding
+    seam. The WS endpoint patches ``websocket_api.SessionLocal`` so the
+    ``with SessionLocal() as db:`` block (Plan 08) reaches the tmp DB.
+    csrf_protected on /api/ws/ticket is satisfied via the X-CSRF-Token
+    header set by the test helper — same as production.
     """
-    container = Container()
-    container.db_session_factory.override(providers.Factory(session_factory))
-    dependencies.set_container(container)
-
     limiter.reset()
 
     app = FastAPI()
@@ -113,11 +103,7 @@ def ws_app(
     app.include_router(auth_router)
     app.include_router(ws_ticket_router)
     app.include_router(websocket_router)
-    app.add_middleware(DualAuthMiddleware, container=container)
 
-    # Phase 19 Plan 07 additive override (Rule 3): wire app.dependency_overrides
-    # for get_db so authenticated_user + get_scoped_task_repository_v2 resolve
-    # against the tmp SQLite. Plan 10 owns the full fixture migration.
     def _override_get_db():
         session = session_factory()
         try:
@@ -135,12 +121,10 @@ def ws_app(
     original_session_local = _ws_api.SessionLocal
     _ws_api.SessionLocal = session_factory
 
-    yield app, container
+    yield app
 
     _ws_api.SessionLocal = original_session_local
     app.dependency_overrides.clear()
-    container.unwire()
-    container.db_session_factory.reset_override()
     limiter.reset()
 
 
@@ -184,7 +168,7 @@ def _issue_ticket(client: TestClient, task_uuid: str) -> str:
 @pytest.mark.integration
 def test_reused_ticket_close_1008(ws_app, session_factory) -> None:
     """Same ticket consumed twice — second connect closes 1008 (atomic single-use)."""
-    app, _ = ws_app
+    app = ws_app
     client = TestClient(app)
     user_id = _register(client, "ws-reuse@phase16.example.com")
     task_uuid = _insert_task(session_factory, user_id=user_id)
@@ -215,7 +199,7 @@ def test_expired_ticket_close_1008(
     binding governs that comparison. Function-scoped: monkeypatch.setattr
     auto-reverts after the test.
     """
-    app, _ = ws_app
+    app = ws_app
     client = TestClient(app)
     user_id = _register(client, "ws-expired@phase16.example.com")
     task_uuid = _insert_task(session_factory, user_id=user_id)
@@ -254,7 +238,7 @@ def test_cross_user_ticket_close_1008(ws_app, session_factory) -> None:
     round-trip). Each ``TestClient`` keeps its own cookie jar so User A's
     ticket-issuing session does not collide with User B's seed registration.
     """
-    app, _ = ws_app
+    app = ws_app
     client_a = TestClient(app)
     client_b = TestClient(app)
     user_id_a = _register(client_a, "ws-crossuser-a@phase16.example.com")

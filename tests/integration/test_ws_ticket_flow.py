@@ -14,8 +14,11 @@ Coverage (≥10 cases):
 10. test_ws_reject_unknown_task_id              — non-existent task close 1008
 11. test_ws_reject_unknown_ticket_token         — random token close 1008
 
-Builds a slim FastAPI app per test (NOT app/main.py) — keeps tests
-isolated from the legacy middleware stack.
+Phase 19 Plan 10: slim app + dependency_overrides[get_db] only — auth on
+POST /api/ws/ticket is owned by Depends(authenticated_user); the WS
+endpoint itself uses an explicit `with SessionLocal() as db` block
+(Plan 08), and we monkeypatch the module-level SessionLocal so the WS
+scope reaches the tmp SQLite the same way the HTTP scope does.
 """
 
 from __future__ import annotations
@@ -25,7 +28,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
-from dependency_injector import providers
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from slowapi.errors import RateLimitExceeded
@@ -41,8 +43,6 @@ from app.api.exception_handlers import (
 )
 from app.api.websocket_api import websocket_router
 from app.api.ws_ticket_routes import ws_ticket_router
-from app.core.container import Container
-from app.core.dual_auth import DualAuthMiddleware
 from app.core.exceptions import InvalidCredentialsError, ValidationError
 from app.core.rate_limiter import limiter, rate_limit_handler
 from app.infrastructure.database.models import Base
@@ -78,18 +78,14 @@ def session_factory(tmp_db_url: str):
 @pytest.fixture
 def ws_app(
     tmp_db_url: str, session_factory
-) -> Generator[tuple[FastAPI, Container], None, None]:
-    """Slim FastAPI app: auth + ws_ticket + websocket routers + DualAuthMiddleware.
+) -> Generator[FastAPI, None, None]:
+    """Slim FastAPI app: auth + ws_ticket + websocket routers.
 
-    A fresh ``Container`` is wired against a per-test SQLite DB and installed
-    into ``app.api.dependencies._container`` so the route helpers (and the
-    WS endpoint's reach-in to ``dependencies._container``) both observe the
-    same instance.
+    Phase 19 Plan 10: dependency_overrides[get_db] is the SOLE DB-binding
+    seam for HTTP routes. The WS endpoint has no Depends, so we
+    monkey-patch the module-level ``websocket_api.SessionLocal`` to point
+    at the tmp DB session_factory (same shape as production SessionLocal).
     """
-    container = Container()
-    container.db_session_factory.override(providers.Factory(session_factory))
-    dependencies.set_container(container)
-
     limiter.reset()
 
     app = FastAPI()
@@ -100,15 +96,7 @@ def ws_app(
     app.include_router(auth_router)
     app.include_router(ws_ticket_router)
     app.include_router(websocket_router)
-    # NOTE: DualAuthMiddleware is wrapped in a BaseHTTPMiddleware which only
-    # dispatches HTTP scopes; WS scopes pass through to the endpoint
-    # unchanged (verified in code: ws_ticket consume happens inside the
-    # endpoint, not the middleware).
-    app.add_middleware(DualAuthMiddleware, container=container)
 
-    # Phase 19 Plan 07 additive override (Rule 3): wire app.dependency_overrides
-    # for get_db so authenticated_user + get_scoped_task_repository_v2 resolve
-    # against the tmp SQLite. Plan 10 owns the full fixture migration.
     def _override_get_db():
         session = session_factory()
         try:
@@ -127,19 +115,16 @@ def ws_app(
     original_session_local = _ws_api.SessionLocal
     _ws_api.SessionLocal = session_factory
 
-    yield app, container
+    yield app
 
     _ws_api.SessionLocal = original_session_local
     app.dependency_overrides.clear()
-    container.unwire()
-    container.db_session_factory.reset_override()
     limiter.reset()
 
 
 @pytest.fixture
-def client(ws_app: tuple[FastAPI, Container]) -> TestClient:
-    app, _ = ws_app
-    return TestClient(app)
+def client(ws_app: FastAPI) -> TestClient:
+    return TestClient(ws_app)
 
 
 # ---------------------------------------------------------------
