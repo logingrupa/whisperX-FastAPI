@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: executing
-stopped_at: Completed 17-03-PLAN.md
-last_updated: "2026-05-02T15:11:25.349Z"
-last_activity: 2026-05-02 -- Phase 19 planning complete
+stopped_at: Completed 19-01-PLAN.md
+last_updated: "2026-05-02T15:19:00Z"
+last_activity: 2026-05-02 -- Phase 19 Plan 01 baseline + DEVIATIONS waiver committed
 progress:
   total_phases: 10
   completed_phases: 8
-  total_plans: 62
-  completed_plans: 46
-  percent: 74
+  total_plans: 79
+  completed_plans: 47
+  percent: 59
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-29)
 
 **Core value:** Users can sign up, get API keys, and use WhisperX via browser or external API with free-tier limits and Stripe-ready billing
-**Current focus:** Phase 19 — Auth + DI Structural Refactor (CONTEXT.md ready; awaiting `/gsd-plan-phase`)
+**Current focus:** Phase 19 — Auth + DI Structural Refactor
 
 ## Current Position
 
-Phase: 19 (Auth + DI Structural Refactor) — READY FOR PLAN
-Plan: 0 of TBD (refined during plan-phase)
-Status: Ready to execute
-Last activity: 2026-05-02 -- Phase 19 planning complete
+Phase: 19 (Auth + DI Structural Refactor) — EXECUTING
+Plan: 2 of 17 (next: 19-02 services.py @lru_cache singletons)
+Status: Executing Phase 19 — Wave 0 complete (T-19-01 baseline pinned)
+Last activity: 2026-05-02 -- Phase 19 Plan 01 baseline + DEVIATIONS waiver committed (b83d3d8)
 
 Prior position: Phase 17 complete 2026-05-01; Phase 18 closed empty 2026-05-01.
 
@@ -98,6 +98,7 @@ Prior position: Phase 17 complete 2026-05-01; Phase 18 closed empty 2026-05-01.
 | Phase 17 P01 | 3min | 1 tasks | 1 files |
 | Phase 17 P02 | 1min | 1 tasks | 1 files |
 | Phase 17 P03 | 4min | 1 tasks | 1 files |
+| Phase 19 P01 | 8min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -297,6 +298,9 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [17-01]: docs/migration-v1.2.md locked 9-section skeleton (Purpose / Pre-flight / Command / Expected output / Verify / Failure mode per section); step ordering 1:1 mirrors test_migration_smoke.py (VERIFY-08 executable proof); revision IDs listed once in Section 1 chain table (DRY); Windows getpass-piping limitation kept inline in Section 5; Rollback split flat option-A (alembic downgrade chain) vs option-B (full backup restore)
 - [Phase ?]: [17-02]: bare env var names in .env.example match ROADMAP success criterion 2 verbatim; AUTH__ prefix translation per existing Notes block (DRT — single-source operator-facing surface)
 - [Phase ?]: [17-03]: README.md gains `## Authentication & API Keys (v1.2)` top-level section between Web UI block and v1.0 prose; PLAN-prescribed locked block honored verbatim (text flow diagram + 5 subheadings + 3 curl snippets + free-vs-Pro 5-row table + mailto:hey@logingrupa.lv reset link + cross-link to docs/migration-v1.2.md); DRY enforced cross-file (zero migration command bodies, zero env-var declarations in README); insert-only edit preserves existing structure byte-for-byte; OPS-05 closed; Phase 17 closes (OPS-03/04/05 all delivered)
+- [Phase 19]: [19-01]: pytest --collect-only must use -qq (not -q) on pytest 9.0.3 — only -qq emits flat path::Class::method nodeids; -q emits hierarchical <Module>/<Function> tree. Baseline filter regex anchors `^[A-Za-z0-9_./\\-]+\.py::[A-Za-z0-9_:\\-]+(\[.+\])?$` keeps parametrized cases.
+- [Phase 19]: [19-01]: factory-boy 3.3.3 missing from .venv even though declared in pyproject.toml:63 — installed at execution time so 4 test modules (test_task_lifecycle, test_task, test_task_mapper, test_sqlalchemy_task_repository) collect; baseline rose from 455+4errors to 500 collected. Operator/CI must `uv sync` to pick up.
+- [Phase 19]: [19-01]: DEVIATIONS.md was already committed in plan-phase commit 2e89924; T-19-01 commits the baseline file alone (single commit b83d3d8). Plan's `git log -1 --name-only shows both files in the same commit` gate is inapplicable; logical pair is intact across two commits, individual gates (>=500 lines + grep waiver entry) both pass.
 
 ### Pending Todos
 
@@ -312,6 +316,6 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 
 ## Session Continuity
 
-Last session: 2026-05-01T16:43:30.000Z
-Stopped at: Completed 17-03-PLAN.md
+Last session: 2026-05-02T15:19:00Z
+Stopped at: Completed 19-01-PLAN.md
 Resume file: None
