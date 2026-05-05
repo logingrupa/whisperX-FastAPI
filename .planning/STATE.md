@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 Phase: 19 (Auth + DI Structural Refactor) — VERIFICATION COMPLETE (human_needed)
 Plan: 17 of 17 — DONE (final 21-gate verification recorded in 19-VERIFICATION.md)
 Status: Phase 19 implementation complete; phase-exit gated on 2 manual browser verifications (hard-reload + 20 sequential logins per 19-VALIDATION.md "Manual-Only Verifications")
-Last activity: 2026-05-05
+Last activity: 2026-05-06 - Completed quick task 260505-l2w: GET /api/usage endpoint + Usage dashboard wire-up
 
 Prior position: Phase 17 complete 2026-05-01; Phase 18 closed empty 2026-05-01.
 
@@ -41,6 +41,12 @@ Prior position: Phase 17 complete 2026-05-01; Phase 18 closed empty 2026-05-01.
   2. DevTools Network: 20 sequential logins all complete < 1s
 - All 7 REFACTOR-01..07 requirement IDs verified.
 - 27 pre-existing test failures unchanged from `deferred-items.md` (out-of-scope; resolution = future test-housekeeping plan).
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Status | Directory |
+|---|-------------|------|--------|--------|-----------|
+| 260505-l2w | GET /api/usage endpoint + Usage dashboard wire-up | 2026-05-06 | ea68eca | Verified | [260505-l2w-get-api-usage-endpoint-usage-dashboard-w](./quick/260505-l2w-get-api-usage-endpoint-usage-dashboard-w/) |
 
 ## Performance Metrics
 
