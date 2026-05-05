@@ -38,6 +38,7 @@ const ACCOUNT_DELETE = '**/api/account';
 const LOGOUT_ALL = '**/auth/logout-all';
 const BILLING_CHECKOUT = '**/billing/checkout';
 const KEYS_LIST = '**/api/keys';
+const USAGE_SUMMARY = '**/api/usage';
 
 function fulfillJson(route: Route, status: number, body: unknown): Promise<void> {
   return route.fulfill({
@@ -112,6 +113,45 @@ export async function mockKeysEmpty(page: Page): Promise<void> {
   await page.route(KEYS_LIST, (route) => {
     if (route.request().method() !== 'GET') return route.fallback();
     return fulfillJson(route, 200, []);
+  });
+}
+
+export interface UsageSummaryE2EFixture {
+  plan_tier: 'free' | 'trial' | 'pro' | 'team';
+  trial_started_at: string | null;
+  trial_expires_at: string | null;
+  hour_count: number;
+  hour_limit: number;
+  daily_minutes_used: number;
+  daily_minutes_limit: number;
+  window_resets_at: string;
+  day_resets_at: string;
+}
+
+export const DEFAULT_USAGE_SUMMARY_E2E: UsageSummaryE2EFixture = {
+  plan_tier: 'trial',
+  trial_started_at: '2026-05-01T12:00:00Z',
+  trial_expires_at: '2026-05-08T12:00:00Z',
+  hour_count: 2,
+  hour_limit: 5,
+  daily_minutes_used: 7.5,
+  daily_minutes_limit: 30.0,
+  window_resets_at: '2026-05-05T15:00:00Z',
+  day_resets_at: '2026-05-06T00:00:00Z',
+};
+
+/**
+ * Mock GET /api/usage with the given summary fixture (default = trial,
+ * low usage). Mirrors mockAccountSummary semantics — single-method gate
+ * via route.fallback() on non-GET so other handlers compose cleanly.
+ */
+export async function mockUsageSummary(
+  page: Page,
+  summary: UsageSummaryE2EFixture = DEFAULT_USAGE_SUMMARY_E2E,
+): Promise<void> {
+  await page.route(USAGE_SUMMARY, (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    return fulfillJson(route, 200, summary);
   });
 }
 
