@@ -1,8 +1,10 @@
 """This module provides functions for processing audio files."""
 
+import os
 import shutil
 import subprocess
 from functools import lru_cache
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
 
@@ -16,13 +18,27 @@ from app.files import VIDEO_EXTENSIONS, check_file_extension
 
 @lru_cache(maxsize=1)
 def _ffmpeg_path() -> str | None:
+    """Resolve ffmpeg executable.
+
+    Resolution order: env var FFMPEG_BINARY (absolute path) → PATH lookup.
+    Side effect: when FFMPEG_BINARY resolves, prepend its directory to
+    os.environ["PATH"] so subprocesses spawned by third-party libs
+    (whisperx.audio.load_audio) that hardcode bare "ffmpeg" also resolve.
+    """
+    env_binary = os.environ.get("FFMPEG_BINARY", "").strip()
+    if env_binary and Path(env_binary).is_file():
+        bin_dir = str(Path(env_binary).parent)
+        current_path = os.environ.get("PATH", "")
+        if bin_dir not in current_path.split(os.pathsep):
+            os.environ["PATH"] = bin_dir + os.pathsep + current_path
+        return env_binary
     return shutil.which("ffmpeg")
 
 
 def _require_ffmpeg() -> None:
     if _ffmpeg_path() is None:
         raise InfrastructureError(
-            "ffmpeg binary not found on PATH; install ffmpeg and restart the server",
+            "ffmpeg binary not found; set FFMPEG_BINARY in .env or install ffmpeg on PATH and restart the server",
             code="FFMPEG_MISSING",
         )
 
