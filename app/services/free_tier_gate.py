@@ -2,9 +2,13 @@
 
 Per Phase 13 CONTEXT §137-145 (locked):
 
-  Free policy:  5 req/hr, 5min file, 30min/day, tiny+small models, no diarize, 1 concurrent
-  Pro policy:   100 req/hr, 60min file, 600min/day, all models, diarize OK, 3 concurrent
+  Free policy:  hourly cap + file duration + daily cap + tiny/small models, no diarize, 1 concurrent
+  Pro policy:   hourly cap + 60min file + 600min/day, all models, diarize OK, 3 concurrent
   Trial policy: identical to free; expires at trial_started_at + 7 days -> 402
+
+Plan-tier limit values live in ``app.core.plan_tiers`` (single source of
+truth, DRY) — do NOT hardcode magic numbers here; both this gate and the
+read-only UsageQueryService consume the same module.
 
 Concurrency slot lifecycle (W1 fix):
   - check() consumes 1 token from `user:{id}:concurrent` (capacity=max_concurrent, rate=0)
@@ -17,7 +21,6 @@ SRP: gating only. Persistence + bucket math live in RateLimitService.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from app.core.exceptions import (
@@ -26,55 +29,28 @@ from app.core.exceptions import (
     RateLimitExceededError,
     TrialExpiredError,
 )
+from app.core.plan_tiers import (
+    FREE_POLICY,
+    PRO_POLICY,
+    TRIAL_DAYS,
+    TierPolicy,
+    policy_for,
+)
 from app.domain.entities.user import User
 from app.services.auth.rate_limit_service import RateLimitService
 
 logger = logging.getLogger(__name__)
 
-TRIAL_DAYS = 7
-
-
-@dataclass(frozen=True)
-class TierPolicy:
-    """Immutable per-tier policy values.
-
-    Attributes:
-        max_per_hour: Hourly transcribe cap (token bucket capacity).
-        max_file_seconds: Max single-file duration in seconds.
-        max_daily_seconds: Max cumulative audio per day in seconds.
-        allowed_models: Whisper model names permitted on this tier.
-        diarization_allowed: Whether diarize=True is allowed on this tier.
-        max_concurrent: Max simultaneous transcriptions per user.
-    """
-
-    max_per_hour: int
-    max_file_seconds: int
-    max_daily_seconds: int
-    allowed_models: frozenset[str]
-    diarization_allowed: bool
-    max_concurrent: int
-
-
-FREE_POLICY = TierPolicy(
-    max_per_hour=5,
-    max_file_seconds=5 * 60,
-    max_daily_seconds=30 * 60,
-    allowed_models=frozenset({"tiny", "small"}),
-    diarization_allowed=False,
-    max_concurrent=1,
-)
-
-
-PRO_POLICY = TierPolicy(
-    max_per_hour=100,
-    max_file_seconds=60 * 60,
-    max_daily_seconds=600 * 60,
-    allowed_models=frozenset(
-        {"tiny", "base", "small", "medium", "large", "large-v2", "large-v3"}
-    ),
-    diarization_allowed=True,
-    max_concurrent=3,
-)
+# Re-export DRY-imported names so legacy callers that still
+# `from app.services.free_tier_gate import FREE_POLICY` keep working.
+__all__ = [
+    "FreeTierGate",
+    "FREE_POLICY",
+    "PRO_POLICY",
+    "TRIAL_DAYS",
+    "TierPolicy",
+    "concurrency_bucket_key",
+]
 
 
 def concurrency_bucket_key(user_id: int) -> str:
@@ -99,9 +75,7 @@ class FreeTierGate:
     # ------------------------------------------------------------------
 
     def _policy_for(self, user: User) -> TierPolicy:
-        if user.plan_tier == "pro":
-            return PRO_POLICY
-        return FREE_POLICY
+        return policy_for(user.plan_tier)
 
     # ------------------------------------------------------------------
     # Public API
@@ -118,13 +92,13 @@ class FreeTierGate:
         """Run all 6 fail-fast gates. Raises on first failure.
 
         Order (CONTEXT §138):
-          1. trial expiry              -> TrialExpiredError (402)
-          2. hourly transcribe rate    -> RateLimitExceededError (429 + Retry-After)
-          3. file duration             -> FreeTierViolationError (403)
-          4. allowed model             -> FreeTierViolationError (403)
-          5. diarization allowed       -> FreeTierViolationError (403)
-          6. daily audio min cap       -> RateLimitExceededError (429 + Retry-After)
-          7. concurrency slot acquired -> ConcurrencyLimitError (429 + Retry-After)
+          - trial expiry              -> TrialExpiredError (402)
+          - hourly transcribe rate    -> RateLimitExceededError (429 + Retry-After)
+          - file duration             -> FreeTierViolationError (403)
+          - allowed model             -> FreeTierViolationError (403)
+          - diarization allowed       -> FreeTierViolationError (403)
+          - daily audio min cap       -> RateLimitExceededError (429 + Retry-After)
+          - concurrency slot acquired -> ConcurrencyLimitError (429 + Retry-After)
         """
         policy = self._policy_for(user)
         user_id = int(user.id)  # type: ignore[arg-type]
