@@ -1,5 +1,5 @@
 import path from 'path'
-import { defineConfig, loadEnv, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type HttpProxy, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -78,13 +78,18 @@ export default defineConfig(({ mode }) => {
   // Forward dev origin to tuspyserver so Location response header points back
   // through the Vite proxy (same-origin) instead of leaking the backend host
   // (which would force the browser to cross-origin direct requests for PATCH).
+  //
+  // ProxyServer type is sourced from Vite's bundled `HttpProxy` namespace
+  // (Vite re-exports its internal http-proxy-3 types) — avoids a phantom
+  // dep on the unrelated `http-proxy` package and keeps `tsc -b` happy
+  // under both bun (local) and npm (Forge) installs.
   const httpProxy = Object.fromEntries(
     backendPrefixes.map((prefix) => [
       prefix,
       {
         target: apiUrl,
         changeOrigin: true,
-        configure: (proxy: import('http-proxy').default) => {
+        configure: (proxy: HttpProxy.ProxyServer) => {
           proxy.on('proxyReq', (proxyReq, req) => {
             const devHost = req.headers.host
             if (typeof devHost === 'string' && devHost.length > 0) {
