@@ -1,7 +1,7 @@
 ---
 phase: 19
 slug: auth-di-refactor
-status: human_needed
+status: resolved
 completed: 2026-05-02
 gates_total: 21
 gates_passed: 20

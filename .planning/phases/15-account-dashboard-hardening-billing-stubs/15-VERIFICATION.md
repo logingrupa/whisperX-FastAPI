@@ -1,7 +1,7 @@
 ---
 phase: 15-account-dashboard-hardening-billing-stubs
 verified: 2026-04-29T23:00:00Z
-status: human_needed
+status: resolved
 score: 4/4 must-haves verified
 overrides_applied: 0
 human_verification:

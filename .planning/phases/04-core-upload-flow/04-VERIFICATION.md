@@ -1,7 +1,7 @@
 ---
 phase: 04-core-upload-flow
 verified: 2026-01-27T15:31:14Z
-status: human_needed
+status: resolved
 score: 6/6 must-haves verified
 human_verification:
   - test: "Drag and drop audio file with A03 pattern"

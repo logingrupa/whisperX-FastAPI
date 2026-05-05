@@ -1,5 +1,5 @@
 ---
-status: diagnosed
+status: resolved
 trigger: "Investigate the TUS cleanup scheduler date parsing error"
 created: 2026-01-31T00:00:00Z
 updated: 2026-01-31T00:15:00Z

@@ -336,17 +336,17 @@ Each step is one atomic commit. Tests must be green at each step.
   --hard origin/main` on the branch — no partial-state commits land on
   main.
 
-## Open questions for the planner (non-blocking)
+## Resolved questions (decisions baked into the implementation)
 
-These are genuine gray areas the planner should surface decisions for,
-not architectural drift:
+Originally listed as gray areas for the planner; resolved during execution
+and reconfirmed at v1.2 milestone close:
 
-- Q1. Should `get_db` be sync or async? FastAPI accepts both;
-  SQLAlchemy 2.x sync `Session` is what the codebase uses today. Stay
-  sync unless there is a perf reason to switch (Phase 20+).
-- Q2. Should `authenticated_user` accept an `Optional[User]` overload
-  via separate `authenticated_user_optional`, or use a sentinel? Two
-  separate deps is more idiomatic FastAPI.
-- Q3. Should the new `app/core/services.py` use plain module-level
-  globals or `@lru_cache(maxsize=1)` factories? Globals are simpler
-  but `@lru_cache` makes lazy-init explicit. Plan should pick one.
+- ~~Q1. Should `get_db` be sync or async?~~ → **sync**. SQLAlchemy 2.x
+  sync `Session` matches the rest of the codebase; no perf reason to
+  switch yet (revisit Phase 20+ if needed).
+- ~~Q2. Should `authenticated_user` accept `Optional[User]`?~~ → **two
+  separate deps**. `authenticated_user` (required) + future
+  `authenticated_user_optional` (when needed). More idiomatic FastAPI.
+- ~~Q3. Module globals vs `@lru_cache(maxsize=1)` factories?~~ →
+  **`@lru_cache(maxsize=1)`**. Lazy-init is explicit; matches the
+  ffmpeg probe pattern added during v1.2 close (`app/audio.py`).

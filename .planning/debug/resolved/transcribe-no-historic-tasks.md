@@ -1,5 +1,5 @@
 ---
-status: awaiting_human_verify
+status: resolved
 trigger: "TranscribePage at http://127.0.0.1:5273/ui/ does NOT render historic tasks even though GET /task/all returns 461 items 200 OK"
 created: 2026-04-29T00:00:00Z
 updated: 2026-04-29T20:30:19Z

@@ -1,6 +1,6 @@
 ---
 slug: login-correct-pw-30s-401
-status: root_cause_found
+status: resolved
 trigger: |
   Login attempted in browser with autosaved (Chrome-remembered) credentials at
   http://127.0.0.1:5273/ui/login. Network panel shows 125 requests, 166 kB

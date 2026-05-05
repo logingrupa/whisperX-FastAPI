@@ -1,5 +1,5 @@
 ---
-status: diagnosed
+status: resolved
 phase: 05-real-time-progress-tracking
 source: [05-01-SUMMARY.md, 05-02-SUMMARY.md, 05-03-SUMMARY.md]
 started: 2026-01-28T22:30:00Z
@@ -14,19 +14,19 @@ updated: 2026-01-28T22:45:00Z
 
 ### 1. Progress Bar Animation
 expected: When a file is processing, the progress bar fills smoothly with animated transitions (not jumpy discrete steps).
-result: issue
+result: resolved
 reported: "jumps steps, I see step1.png and then next is nextstep.png no loading bar visible. but 5% text."
 severity: major
 
 ### 2. Stage Badge with Color
 expected: Processing files show a colored badge indicating current stage (e.g., "Transcribing", "Aligning", "Diarizing") with appropriate color coding (blue for upload/queued, yellow for processing, green for complete, red for error).
-result: issue
+result: resolved
 reported: "see blue 1/5 and then straight next step is green label/bubble done - intermediate stages (Transcribing, Aligning, Diarizing) not shown"
 severity: major
 
 ### 3. Stage Step Counter
 expected: Stage badge shows step count during processing (e.g., "Transcribing (2/5)") to indicate progress through the pipeline.
-result: issue
+result: resolved
 reported: "only see 1st step then next step is always done - no intermediate step counts visible"
 severity: major
 
@@ -37,13 +37,13 @@ note: Badge says "Done" instead of "Complete" - acceptable wording
 
 ### 5. Error State Display
 expected: When processing fails, file shows red AlertCircle icon, red border, error message, and a "Retry" button.
-result: issue
+result: resolved
 reported: "crashed backend, console shows 500 errors and WebSocket failures, but UI stays stuck on Queued (1/5) with 5% for 20+ minutes - no error state shown"
 severity: major
 
 ### 6. Connection Status Indicator
 expected: During WebSocket reconnection attempts, a subtle indicator shows "Reconnecting... (attempt X/5)". After 5 failed attempts, an escalated amber warning appears with a manual "Reconnect" button.
-result: issue
+result: resolved
 reported: "no info in UI - just error in console log, no reconnecting indicator or amber warning shown"
 severity: major
 
