@@ -11,8 +11,8 @@ info:
     \ Align the transcript to the audio/video file.\n    3. Diarize: Diarize an audio/video\
     \ file into speakers.\n    4. Combine Transcript and Diarization: Combine the\
     \ transcript and diarization results.\n\n    ## Supported file extensions:\n \
-    \   AUDIO_EXTENSIONS = {'.oga', '.mp3', '.ogg', '.wma', '.amr', '.m4a', '.wav',\
-    \ '.aac', '.awb'}\n\n    VIDEO_EXTENSIONS = {'.mov', '.mkv', '.wmv', '.avi', '.mp4'}\n\
+    \   AUDIO_EXTENSIONS = {'.oga', '.wma', '.wav', '.aac', '.amr', '.awb', '.mp3',\
+    \ '.m4a', '.ogg'}\n\n    VIDEO_EXTENSIONS = {'.wmv', '.mp4', '.avi', '.mkv', '.mov'}\n\
     \n    ## Language-Specific Model Overrides:\n\n    Some languages have fine-tuned\
     \ models that are automatically used when that language is selected.\n    The\
     \ server-side `LANGUAGE_MODEL_OVERRIDES` configuration maps language codes to\
@@ -2158,6 +2158,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/usage:
+    get:
+      tags:
+      - Usage
+      summary: Get Usage
+      description: Return the caller's current usage summary.
+      operationId: get_usage_api_usage_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageSummaryResponse'
   /billing/checkout:
     post:
       tags:
@@ -2930,6 +2944,65 @@ components:
       - expires_at
       title: TicketResponse
       description: Response body for ``POST /api/ws/ticket`` (201).
+    UsageSummaryResponse:
+      properties:
+        plan_tier:
+          type: string
+          enum:
+          - free
+          - trial
+          - pro
+          - team
+          title: Plan Tier
+        trial_started_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Trial Started At
+        trial_expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Trial Expires At
+          description: trial_started_at plus seven days; None when trial_started_at
+            is None
+        hour_count:
+          type: integer
+          minimum: 0.0
+          title: Hour Count
+        hour_limit:
+          type: integer
+          minimum: 0.0
+          title: Hour Limit
+        daily_minutes_used:
+          type: number
+          minimum: 0.0
+          title: Daily Minutes Used
+        daily_minutes_limit:
+          type: number
+          minimum: 0.0
+          title: Daily Minutes Limit
+        window_resets_at:
+          type: string
+          format: date-time
+          title: Window Resets At
+        day_resets_at:
+          type: string
+          format: date-time
+          title: Day Resets At
+      type: object
+      required:
+      - plan_tier
+      - hour_count
+      - hour_limit
+      - daily_minutes_used
+      - daily_minutes_limit
+      - window_resets_at
+      - day_resets_at
+      title: UsageSummaryResponse
+      description: GET /api/usage — current rate-limit + trial state for the caller.
     ValidationError:
       properties:
         loc:

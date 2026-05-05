@@ -26,6 +26,7 @@ from app.api import (  # noqa: E402
     service_router,
     stt_router,
     task_router,
+    usage_router,
     websocket_router,
     ws_ticket_router,
 )
@@ -224,6 +225,7 @@ app.include_router(tus_upload_router)
 app.include_router(auth_router)
 app.include_router(key_router)
 app.include_router(account_router)
+app.include_router(usage_router)
 app.include_router(billing_router)
 app.include_router(billing_webhook_router)
 app.include_router(ws_ticket_router)

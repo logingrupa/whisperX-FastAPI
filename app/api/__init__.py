@@ -11,6 +11,7 @@ from app.api.key_routes import key_router
 from app.api.account_routes import account_router
 from app.api.billing_routes import billing_router
 from app.api.billing_webhook_routes import billing_webhook_router
+from app.api.usage_routes import usage_router
 from app.api.ws_ticket_routes import ws_ticket_router
 
 __all__ = [
@@ -23,5 +24,6 @@ __all__ = [
     "account_router",
     "billing_router",
     "billing_webhook_router",
+    "usage_router",
     "ws_ticket_router",
 ]

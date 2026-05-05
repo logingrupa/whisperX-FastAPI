@@ -48,6 +48,7 @@ from app.services.auth import (
 from app.services.free_tier_gate import FreeTierGate
 from app.services.task_management_service import TaskManagementService
 from app.services.usage_event_writer import UsageEventWriter
+from app.services.usage_query_service import UsageQueryService
 
 
 # ===========================================================================
@@ -181,6 +182,23 @@ def get_account_service(
     one.
     """
     return AccountService(session=db, user_repository=user_repository)
+
+
+def get_usage_query_service(
+    user_repository: IUserRepository = Depends(get_user_repository),
+    rate_limit_repository: IRateLimitRepository = Depends(get_rate_limit_repository),
+) -> UsageQueryService:
+    """Return a UsageQueryService bound to the request-scoped repos (quick-260505-l2w).
+
+    Read-only path: chains off the same get_db Session as every other dep
+    (D2 single-Session-per-request invariant); composes the user repo +
+    rate-limit repo so the service can resolve the caller and read the
+    two bucket rows without any new DB-binding code.
+    """
+    return UsageQueryService(
+        user_repository=user_repository,
+        rate_limit_repository=rate_limit_repository,
+    )
 
 
 # ===========================================================================

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "whisperX REST service",
-    "description": "\n    # whisperX RESTful API\n\n    Welcome to the whisperX RESTful API! This API provides a suite of audio processing services to enhance and analyze your audio content.\n\n    ## Documentation:\n\n    For detailed information on request and response formats, consult the [WhisperX Documentation](https://github.com/m-bain/whisperX).\n\n    ## Services:\n\n    Speech-2-Text provides a suite of audio processing services to enhance and analyze your audio content. The following services are available:\n\n    1. Transcribe: Transcribe an audio/video  file into text.\n    2. Align: Align the transcript to the audio/video file.\n    3. Diarize: Diarize an audio/video file into speakers.\n    4. Combine Transcript and Diarization: Combine the transcript and diarization results.\n\n    ## Supported file extensions:\n    AUDIO_EXTENSIONS = {'.oga', '.mp3', '.ogg', '.wma', '.amr', '.m4a', '.wav', '.aac', '.awb'}\n\n    VIDEO_EXTENSIONS = {'.mov', '.mkv', '.wmv', '.avi', '.mp4'}\n\n    ## Language-Specific Model Overrides:\n\n    Some languages have fine-tuned models that are automatically used when that language is selected.\n    The server-side `LANGUAGE_MODEL_OVERRIDES` configuration maps language codes to optimized CTranslate2\n    model paths. When an override is configured, the `model` parameter is ignored for that language and\n    the fine-tuned model is loaded instead.\n\n    Currently configured overrides:\n    - **`lv` (Latvian)**: Uses `AiLab-IMCS-UL/whisper-large-v3-lv-late-cv19` (CTranslate2 int8) —\n      a fine-tuned Whisper Large V3 with ~3.2% WER vs ~19.2% WER for stock Whisper on Latvian.\n\n    ",
+    "description": "\n    # whisperX RESTful API\n\n    Welcome to the whisperX RESTful API! This API provides a suite of audio processing services to enhance and analyze your audio content.\n\n    ## Documentation:\n\n    For detailed information on request and response formats, consult the [WhisperX Documentation](https://github.com/m-bain/whisperX).\n\n    ## Services:\n\n    Speech-2-Text provides a suite of audio processing services to enhance and analyze your audio content. The following services are available:\n\n    1. Transcribe: Transcribe an audio/video  file into text.\n    2. Align: Align the transcript to the audio/video file.\n    3. Diarize: Diarize an audio/video file into speakers.\n    4. Combine Transcript and Diarization: Combine the transcript and diarization results.\n\n    ## Supported file extensions:\n    AUDIO_EXTENSIONS = {'.oga', '.wma', '.wav', '.aac', '.amr', '.awb', '.mp3', '.m4a', '.ogg'}\n\n    VIDEO_EXTENSIONS = {'.wmv', '.mp4', '.avi', '.mkv', '.mov'}\n\n    ## Language-Specific Model Overrides:\n\n    Some languages have fine-tuned models that are automatically used when that language is selected.\n    The server-side `LANGUAGE_MODEL_OVERRIDES` configuration maps language codes to optimized CTranslate2\n    model paths. When an override is configured, the `model` parameter is ignored for that language and\n    the fine-tuned model is loaded instead.\n\n    Currently configured overrides:\n    - **`lv` (Latvian)**: Uses `AiLab-IMCS-UL/whisper-large-v3-lv-late-cv19` (CTranslate2 int8) —\n      a fine-tuned Whisper Large V3 with ~3.2% WER vs ~19.2% WER for stock Whisper on Latvian.\n\n    ",
     "version": "0.0.1"
   },
   "paths": {
@@ -2730,6 +2730,28 @@
         }
       }
     },
+    "/api/usage": {
+      "get": {
+        "tags": [
+          "Usage"
+        ],
+        "summary": "Get Usage",
+        "description": "Return the caller's current usage summary.",
+        "operationId": "get_usage_api_usage_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageSummaryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/billing/checkout": {
       "post": {
         "tags": [
@@ -3776,6 +3798,87 @@
         ],
         "title": "TicketResponse",
         "description": "Response body for ``POST /api/ws/ticket`` (201)."
+      },
+      "UsageSummaryResponse": {
+        "properties": {
+          "plan_tier": {
+            "type": "string",
+            "enum": [
+              "free",
+              "trial",
+              "pro",
+              "team"
+            ],
+            "title": "Plan Tier"
+          },
+          "trial_started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trial Started At"
+          },
+          "trial_expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trial Expires At",
+            "description": "trial_started_at plus seven days; None when trial_started_at is None"
+          },
+          "hour_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Hour Count"
+          },
+          "hour_limit": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Hour Limit"
+          },
+          "daily_minutes_used": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Daily Minutes Used"
+          },
+          "daily_minutes_limit": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Daily Minutes Limit"
+          },
+          "window_resets_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Window Resets At"
+          },
+          "day_resets_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Day Resets At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "plan_tier",
+          "hour_count",
+          "hour_limit",
+          "daily_minutes_used",
+          "daily_minutes_limit",
+          "window_resets_at",
+          "day_resets_at"
+        ],
+        "title": "UsageSummaryResponse",
+        "description": "GET /api/usage — current rate-limit + trial state for the caller."
       },
       "ValidationError": {
         "properties": {
