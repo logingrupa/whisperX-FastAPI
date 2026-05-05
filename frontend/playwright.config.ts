@@ -38,6 +38,15 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      testIgnore: ['**/phase19/**'],
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      // Phase 19 verification specs hit the REAL backend on :8000 via the
+      // Vite proxy (no page.route mocks). Requires `uvicorn app.main:app`
+      // running on http://localhost:8000 BEFORE `bun run test:e2e`.
+      name: 'phase19-real-backend',
+      testMatch: ['**/phase19/**/*.spec.ts'],
       use: { ...devices['Desktop Chrome'] },
     },
   ],
