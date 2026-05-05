@@ -3,6 +3,7 @@ import { keysHandlers } from './keys.handlers';
 import { wsHandlers } from './ws.handlers';
 import { transcribeHandlers } from './transcribe.handlers';
 import { accountHandlers } from './account.handlers';
+import { usageHandlers } from './usage.handlers';
 
 export const handlers = [
   ...authHandlers,
@@ -10,4 +11,5 @@ export const handlers = [
   ...wsHandlers,
   ...transcribeHandlers,
   ...accountHandlers,
+  ...usageHandlers,
 ];
