@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import ipaddress
 import logging
+import os
 
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
@@ -34,6 +35,15 @@ from app.core.config import get_settings
 logger = logging.getLogger(__name__)
 
 _DEFAULT_RETRY_AFTER_SECONDS = 60
+
+# Env override so e2e suites can disable rate limits without burning the
+# per-IP budget shared with manual testing. Production MUST leave this unset
+# (defaults to enabled). Read once at module import; restart server to flip.
+_RATE_LIMIT_ENABLED = os.environ.get("RATE_LIMIT_ENABLED", "true").strip().lower() not in (
+    "false",
+    "0",
+    "no",
+)
 
 
 def _client_subnet_key(request: Request) -> str:
@@ -65,7 +75,11 @@ def _client_subnet_key(request: Request) -> str:
 # Module-level singleton — used by `@limiter.limit("3/hour")` decorators on
 # /auth/register, /auth/login, etc. App wiring (mounting limiter onto
 # `app.state.limiter`) lives in plan 13-09.
-limiter = Limiter(key_func=_client_subnet_key, default_limits=[])
+limiter = Limiter(
+    key_func=_client_subnet_key, default_limits=[], enabled=_RATE_LIMIT_ENABLED
+)
+if not _RATE_LIMIT_ENABLED:
+    logger.warning("rate limiter DISABLED via RATE_LIMIT_ENABLED=false (test/dev only)")
 
 
 def _extract_retry_after(detail: str) -> int:
