@@ -19,17 +19,17 @@ test.describe('phase 19: hard-reload keeps session', () => {
     const user = freshUser('reload');
     await registerViaApi(request, user);
 
-    await page.goto('/ui/login');
+    await page.goto('/login');
     await page.getByLabel(/email/i).fill(user.email);
     await page.getByLabel(/password/i).fill(user.password);
     await page.getByRole('button', { name: /sign in|log in/i }).click();
 
-    await page.waitForURL(/\/ui\/?$/, { timeout: 10_000 });
-    expect(page.url()).toMatch(/\/ui\/?$/);
+    await page.waitForURL(/\/$/, { timeout: 10_000 });
+    expect(page.url()).toMatch(/\/$/);
 
     await page.reload({ waitUntil: 'load' });
 
-    await expect.poll(() => page.url(), { timeout: 10_000 }).toMatch(/\/ui\/?$/);
+    await expect.poll(() => page.url(), { timeout: 10_000 }).toMatch(/\/$/);
     expect(page.url()).not.toContain('/login');
 
     const meResponse = await page.request.get(`${BACKEND_BASE}/api/account/me`);

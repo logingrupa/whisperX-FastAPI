@@ -1,56 +1,9 @@
 import path from 'path'
-import { defineConfig, loadEnv, type HttpProxy, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type HttpProxy } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
-
-/**
- * Dev-only redirect for SPA routes typed without the /ui/ base prefix.
- *
- * Vite serves the app under `base: '/ui/'`. When a user types a bare path
- * like `/register` or `/login`, Vite's default 404 page suggests prepending
- * the base ("did you mean /ui/register?") which is helpful but two clicks
- * away. This plugin transparently 302-redirects bare app routes so direct
- * URLs always land on the right page in dev — production is handled by
- * FastAPI's SPA catch-all (app/spa_handler.py).
- *
- * Only matches GET requests for known client routes — never touches API
- * paths (which are listed in `proxy` and forwarded to FastAPI).
- */
-function redirectBareSpaRoutes(routes: readonly string[]): Plugin {
-  const matchSet = new Set(routes)
-  return {
-    name: 'whisperx-redirect-bare-spa-routes',
-    configureServer(server) {
-      server.middlewares.use((req, res, next) => {
-        if (req.method !== 'GET') return next()
-        const url = req.url ?? '/'
-        const [pathname] = url.split('?')
-        const queryIndex = url.indexOf('?')
-        const search = queryIndex >= 0 ? url.slice(queryIndex) : ''
-
-        // /ui (no trailing slash) -> /ui/
-        if (pathname === '/ui') {
-          res.statusCode = 302
-          res.setHeader('Location', `/ui/${search}`)
-          res.end()
-          return
-        }
-
-        // Bare SPA routes (e.g. /login) -> /ui/login
-        if (matchSet.has(pathname)) {
-          res.statusCode = 302
-          res.setHeader('Location', `/ui${pathname}${search}`)
-          res.end()
-          return
-        }
-
-        next()
-      })
-    },
-  }
-}
 
 export default defineConfig(({ mode }) => {
   // Load env file based on mode (development, production)
@@ -70,9 +23,9 @@ export default defineConfig(({ mode }) => {
     '/health',          // health probe
     '/upload',          // direct POST upload
     '/uploads',         // tuspyserver chunked upload
-    '/auth',            // Phase 13 auth: register/login/logout
-    '/api',             // Phase 13: /api/keys, /api/account, /api/ws/ticket
-    '/billing',         // Phase 13 billing
+    '/auth',             // Phase 13 auth: register/login/logout
+    '/api',              // Phase 13: /api/keys, /api/account, /api/ws/ticket
+    '/billing',          // Phase 13 billing
   ] as const
 
   // Forward dev origin to tuspyserver so Location response header points back
@@ -102,25 +55,12 @@ export default defineConfig(({ mode }) => {
     ]),
   )
 
-  // SPA routes (React Router) that should redirect to `/ui/<path>` when
-  // typed bare. Mirrors public routes in src/routes/AppRouter.tsx.
-  // Every public SPA route in src/routes/AppRouter.tsx — bare visits 302 to
-  // /ui/<path>. Keep in sync with AppRouter route table.
-  const bareSpaRoutes = [
-    '/',
-    '/login',
-    '/register',
-    '/dashboard/keys',
-    '/dashboard/usage',
-    '/dashboard/account',
-  ] as const
-
   return {
-    // Base path for production - matches FastAPI mount point
-    base: '/ui/',
+    // SPA mounts at site root in prod (Forge nginx serves dist/ at /).
+    // Router has no basename — keep base/basename aligned end-to-end.
+    base: '/',
 
     plugins: [
-      redirectBareSpaRoutes(bareSpaRoutes),
       react(),
       tailwindcss(),
     ],

@@ -16,8 +16,8 @@ import { defineConfig, devices } from '@playwright/test';
 //   netsh interface ipv4 show excludedportrange protocol=tcp
 const HOST = '127.0.0.1';
 const PORT = 5273;
-// Trailing slash REQUIRED — Vite's `base: '/ui/'` returns 404 on bare `/ui`.
-const BASE_URL = `http://${HOST}:${PORT}/ui/`;
+// SPA mounts at site root in prod (Forge nginx) — base `/` matches.
+const BASE_URL = `http://${HOST}:${PORT}/`;
 
 export default defineConfig({
   testDir: './e2e',

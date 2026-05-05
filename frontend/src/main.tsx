@@ -32,7 +32,7 @@ setTimeout(() => {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter basename="/ui">
+    <BrowserRouter>
       <TooltipProvider>
         <App />
         <Toaster />
