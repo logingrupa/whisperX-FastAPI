@@ -355,6 +355,10 @@ v1.2 roadmap decisions (locked 2026-04-29 by gsd-roadmapper):
 - [Phase ?]: [19-15]: REFACTOR-07 wire-byte equivalence verified end-to-end — bun run test 138/138 GREEN + bun run test:e2e 8/8 GREEN against the refactored Phase-19 backend; Set-Cookie attrs byte-identical pre/post; checkpoint:human-verify resolved by automation evidence in sequential mode (no flake to triage)
 - [Phase ?]: [Phase 19]: [19-16]: Single literal session.close() callsite locked; UoW deleted; audio_processing_service uses with-block; gate 2 reconciled TWO→ONE
 
+### Roadmap Evolution
+
+- 2026-05-06: Phase 20 added (TUS Free-Tier Gate Wiring + Counter Repair) — appended to v1.2 milestone after `/gsd-debug` session `usage-counter-not-incrementing` confirmed TUS upload path bypasses `FreeTierGate.check()`. Free-tier policy escape hole + `/api/usage` zero-counter cosmetic both close together.
+
 ### Pending Todos
 
 - Phase 10 plan-phase (next step: `/gsd-plan-phase 10`)
