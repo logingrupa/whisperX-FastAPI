@@ -95,19 +95,88 @@ function parseRetryAfter(headers: Headers): number {
 interface ParsedErrorBody {
   detail: string;
   code?: string;
+  correlationId?: string;
   raw: unknown;
 }
 
+/**
+ * Normalise the three backend error shapes into a single ``ParsedErrorBody``
+ * so callers never have to peek at the wire format:
+ *
+ * 1. ``ApplicationError.to_dict()`` -> ``{ "error": { "message", "code",
+ *    "correlation_id", ... } }`` (DomainError, ValidationError, etc.).
+ * 2. FastAPI ``HTTPException(detail={...})`` -> ``{ "detail": { "message",
+ *    "code", ... } }``.
+ * 3. FastAPI ``HTTPException(detail="...")`` -> ``{ "detail": "..." }``.
+ *
+ * The chosen message order prefers user-safe text (``user_message`` /
+ * ``message``) over raw ``detail`` so we never leak internal diagnostics
+ * into a toast.
+ */
+function pickMessage(
+  source: Record<string, unknown> | null,
+  fallback: string,
+): string {
+  if (!source) return fallback;
+  const userMsg = source.user_message;
+  if (typeof userMsg === 'string' && userMsg.length > 0) return userMsg;
+  const message = source.message;
+  if (typeof message === 'string' && message.length > 0) return message;
+  return fallback;
+}
+
+function asObject(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
 async function parseErrorBody(response: Response): Promise<ParsedErrorBody> {
+  const fallback = `HTTP ${response.status}`;
   try {
-    const body = (await response.json()) as { detail?: string; code?: string };
-    return {
-      detail: body.detail ?? `HTTP ${response.status}`,
-      code: body.code,
-      raw: body,
-    };
+    const body = (await response.json()) as unknown;
+    const bodyObj = asObject(body);
+    if (!bodyObj) {
+      return { detail: fallback, raw: body };
+    }
+
+    const errorObj = asObject(bodyObj.error);
+    if (errorObj) {
+      return {
+        detail: pickMessage(errorObj, fallback),
+        code: typeof errorObj.code === 'string' ? errorObj.code : undefined,
+        correlationId:
+          typeof errorObj.correlation_id === 'string'
+            ? errorObj.correlation_id
+            : undefined,
+        raw: body,
+      };
+    }
+
+    const detailObj = asObject(bodyObj.detail);
+    if (detailObj) {
+      return {
+        detail: pickMessage(detailObj, fallback),
+        code: typeof detailObj.code === 'string' ? detailObj.code : undefined,
+        correlationId:
+          typeof detailObj.correlation_id === 'string'
+            ? detailObj.correlation_id
+            : undefined,
+        raw: body,
+      };
+    }
+
+    if (typeof bodyObj.detail === 'string' && bodyObj.detail.length > 0) {
+      return {
+        detail: bodyObj.detail,
+        code: typeof bodyObj.code === 'string' ? bodyObj.code : undefined,
+        raw: body,
+      };
+    }
+
+    return { detail: fallback, raw: body };
   } catch {
-    return { detail: `HTTP ${response.status}`, raw: null };
+    return { detail: fallback, raw: null };
   }
 }
 
@@ -142,7 +211,13 @@ async function request<T>(opts: RequestOptions): Promise<T> {
 
   if (!response.ok) {
     const body = await parseErrorBody(response);
-    throw new ApiClientError(response.status, body.detail, body.code, body.raw);
+    throw new ApiClientError(
+      response.status,
+      body.detail,
+      body.code,
+      body.raw,
+      body.correlationId,
+    );
   }
 
   if (response.status === 204) {

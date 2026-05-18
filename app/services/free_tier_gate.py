@@ -91,22 +91,32 @@ class FreeTierGate:
     ) -> None:
         """Run all 6 fail-fast gates. Raises on first failure.
 
-        Order (CONTEXT §138):
-          - trial expiry              -> TrialExpiredError (402)
-          - hourly transcribe rate    -> RateLimitExceededError (429 + Retry-After)
-          - file duration             -> FreeTierViolationError (403)
-          - allowed model             -> FreeTierViolationError (403)
-          - diarization allowed       -> FreeTierViolationError (403)
-          - daily audio min cap       -> RateLimitExceededError (429 + Retry-After)
-          - concurrency slot acquired -> ConcurrencyLimitError (429 + Retry-After)
+        Order (debug fix — quota leak): pure validators (zero-cost config
+        checks) run FIRST, then rate-bucket consumers. A duration / model /
+        diarize-policy rejection must NOT cost the user a slot of hourly
+        quota — that bug was visible as "Hour quota 1/5 even though my
+        upload was rejected".
+
+        Failure modes:
+          - trial expiry              -> TrialExpiredError (402)         [pure]
+          - file duration             -> FreeTierViolationError (403)    [pure]
+          - allowed model             -> FreeTierViolationError (403)    [pure]
+          - diarization allowed       -> FreeTierViolationError (403)    [pure]
+          - hourly transcribe rate    -> RateLimitExceededError (429)    [consumes 1 token]
+          - daily audio min cap       -> RateLimitExceededError (429)    [consumes N tokens]
+          - concurrency slot acquired -> ConcurrencyLimitError  (429)    [consumes 1 token, released in finally]
         """
         policy = self._policy_for(user)
         user_id = int(user.id)  # type: ignore[arg-type]
+        # Pure validators (no bucket consume) — fail-fast on config violations
+        # before we touch any rate-limit token.
         self._check_trial_expiry(user)
-        self._check_hourly_rate(user_id, policy)
         self._check_file_duration(file_seconds, policy)
         self._check_model(model, policy)
         self._check_diarization(diarize, policy)
+        # Rate consumers — order matters: hourly first (smallest token),
+        # daily next, concurrency last (its slot is released in finally).
+        self._check_hourly_rate(user_id, policy)
         self._check_daily_minutes(user_id, file_seconds, policy)
         self._check_concurrency(user_id, policy)
 
@@ -141,8 +151,14 @@ class FreeTierGate:
             return
         if user.trial_started_at is None:
             return
+        # SQLite returns naive datetimes for DATETIME columns; the rest of
+        # the stack uses tz-aware UTC. Normalise here so comparison never
+        # crashes with "can't compare offset-naive and offset-aware".
+        started = user.trial_started_at
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=timezone.utc)
         now = datetime.now(timezone.utc)
-        if user.trial_started_at + timedelta(days=TRIAL_DAYS) < now:
+        if started + timedelta(days=TRIAL_DAYS) < now:
             raise TrialExpiredError()
 
     def _check_hourly_rate(self, user_id: int, policy: TierPolicy) -> None:

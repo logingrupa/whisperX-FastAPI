@@ -49,8 +49,10 @@ FREE_POLICY = TierPolicy(
 
 PRO_POLICY = TierPolicy(
     max_per_hour=100,
-    max_file_seconds=60 * 60,
-    max_daily_seconds=600 * 60,
+    # Pro tier: single file up to 24h. Daily cap mirrors max_file_seconds
+    # so a 24h upload doesn't fail the daily-minutes gate on its own.
+    max_file_seconds=24 * 60 * 60,
+    max_daily_seconds=24 * 60 * 60,
     allowed_models=frozenset(
         {"tiny", "base", "small", "medium", "large", "large-v2", "large-v3"}
     ),

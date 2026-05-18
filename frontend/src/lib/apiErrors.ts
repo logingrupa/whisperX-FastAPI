@@ -17,13 +17,21 @@ export class ApiClientError extends Error {
   public readonly status: number;
   public readonly code?: string;
   public readonly body?: unknown;
+  public readonly correlationId?: string;
 
-  constructor(status: number, message: string, code?: string, body?: unknown) {
+  constructor(
+    status: number,
+    message: string,
+    code?: string,
+    body?: unknown,
+    correlationId?: string,
+  ) {
     super(message);
     this.name = 'ApiClientError';
     this.status = status;
     this.code = code;
     this.body = body;
+    this.correlationId = correlationId;
   }
 }
 

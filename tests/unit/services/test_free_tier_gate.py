@@ -251,3 +251,73 @@ class TestFreeTierGate:
 
     def test_concurrency_bucket_key_is_deterministic(self) -> None:
         assert concurrency_bucket_key(7) == "user:7:concurrent"
+
+    # --- Quota-leak regression (debug session 2026-05-14) ----------------
+    #
+    # Bug: hourly bucket consumed BEFORE pure validators (duration / model /
+    # diarize) → a 22-min file rejected for exceeding the 5-min free tier
+    # limit still burned 1/5 hour quota. Reproducible by uploading any file
+    # > policy.max_file_seconds on a fresh free account.
+    #
+    # Contract now: no rate bucket touched if a pure validator raises.
+
+    def test_file_duration_rejection_does_not_consume_any_bucket(self) -> None:
+        rls = _StubRateLimitService()
+        gate = FreeTierGate(rls)  # type: ignore[arg-type]
+        user = _make_user(plan_tier="free")
+        with pytest.raises(FreeTierViolationError):
+            gate.check(
+                user=user, file_seconds=1304.0, model="tiny", diarize=False
+            )
+        # ZERO bucket consumes — duration check failed before any rate gate.
+        assert rls.consumed_calls == []
+
+    def test_model_rejection_does_not_consume_any_bucket(self) -> None:
+        rls = _StubRateLimitService()
+        gate = FreeTierGate(rls)  # type: ignore[arg-type]
+        user = _make_user(plan_tier="free")
+        with pytest.raises(FreeTierViolationError):
+            gate.check(
+                user=user, file_seconds=60.0, model="large-v3", diarize=False
+            )
+        assert rls.consumed_calls == []
+
+    def test_diarize_rejection_does_not_consume_any_bucket(self) -> None:
+        rls = _StubRateLimitService()
+        gate = FreeTierGate(rls)  # type: ignore[arg-type]
+        user = _make_user(plan_tier="free")
+        with pytest.raises(FreeTierViolationError):
+            gate.check(
+                user=user, file_seconds=60.0, model="tiny", diarize=True
+            )
+        assert rls.consumed_calls == []
+
+    def test_trial_expired_does_not_consume_any_bucket(self) -> None:
+        rls = _StubRateLimitService()
+        gate = FreeTierGate(rls)  # type: ignore[arg-type]
+        user = _make_user(
+            plan_tier="trial",
+            trial_started_at=datetime.now(timezone.utc) - timedelta(days=8),
+        )
+        with pytest.raises(TrialExpiredError):
+            gate.check(
+                user=user, file_seconds=60.0, model="tiny", diarize=False
+            )
+        assert rls.consumed_calls == []
+
+    def test_trial_expiry_handles_naive_datetime_from_sqlite(self) -> None:
+        """SQLite returns DATETIME columns as offset-naive; the gate must
+        normalise instead of crashing with ``TypeError: can't compare
+        offset-naive and offset-aware datetimes`` (debug session 2026-05-14)."""
+        rls = _StubRateLimitService()
+        gate = FreeTierGate(rls)  # type: ignore[arg-type]
+        # Naive datetime (no tzinfo) — the exact shape SQLAlchemy hands back
+        # for SQLite DATETIME columns by default. Build via .replace(tzinfo=None)
+        # so we don't depend on the deprecated datetime.utcnow().
+        naive_started_at = (
+            datetime.now(timezone.utc) - timedelta(days=2)
+        ).replace(tzinfo=None)
+        assert naive_started_at.tzinfo is None  # precondition
+        user = _make_user(plan_tier="trial", trial_started_at=naive_started_at)
+        # 2 days into a 7-day trial — must NOT raise (and must NOT TypeError).
+        gate.check(user=user, file_seconds=60.0, model="tiny", diarize=False)

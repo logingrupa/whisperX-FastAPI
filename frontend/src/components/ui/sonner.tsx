@@ -11,7 +11,18 @@ const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
       theme="system"
+      position="top-right"
+      richColors
+      closeButton
+      expand
+      visibleToasts={6}
       className="toaster group"
+      toastOptions={{
+        // Make sure toasts stay above ANY app-level overlay (TUS progress,
+        // dialogs, the AppShell sidebar). Default sonner z-index is 9999 —
+        // we bump to 2147483647 (max int) to be defensive.
+        style: { zIndex: 2147483647 },
+      }}
       icons={{
         success: <CircleCheckIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,
@@ -25,6 +36,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
           "--border-radius": "var(--radius)",
+          zIndex: 2147483647,
         } as React.CSSProperties
       }
       {...props}

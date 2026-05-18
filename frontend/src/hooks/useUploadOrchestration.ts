@@ -18,6 +18,7 @@ import { useFileQueue, type UseFileQueueReturn } from './useFileQueue';
 import { useTaskProgress, type TaskProgressState, type TaskErrorState, type ConnectionState } from './useTaskProgress';
 import { startTranscription } from '@/lib/api/transcriptionApi';
 import { SIZE_THRESHOLD } from '@/lib/upload/constants';
+import { showError } from '@/lib/toast';
 import type { FileQueueItem } from '@/types/upload';
 import { useTusUpload, isTusSupported } from '@/hooks/useTusUpload';
 
@@ -97,6 +98,7 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
     if (!fileId) return;
 
     setFileError(fileId, error.userMessage, error.technicalDetail ?? undefined);
+    showError('Transcription failed', { description: error.userMessage });
 
     // Clear current processing
     currentFileIdRef.current = null;
@@ -169,6 +171,9 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
         setRetryingFileId(null);
         abortControllerRef.current.delete(item.id);
         setFileError(item.id, userMessage, technicalDetail);
+        showError('Upload failed', {
+          description: `${liveFile.name} — ${userMessage}`,
+        });
         currentFileIdRef.current = null;
         currentTaskIdRef.current = null;
       },
@@ -224,6 +229,10 @@ export function useUploadOrchestration(): UseUploadOrchestrationReturn {
         'Upload failed',
         result.error.detail
       );
+      showError('Upload failed', {
+        description: `${liveFile.name} — ${result.error.detail}`,
+        duration: 8000,
+      });
       currentFileIdRef.current = null;
       return;
     }

@@ -200,4 +200,79 @@ describe('apiClient', () => {
     // No body -> no Content-Type forced (buildBody returns undefined)
     expect(capturedContentType).toBe(null);
   });
+
+  // --- Error-body parser coverage (debug fix: surface backend detail) -----
+
+  it('parses ApplicationError.to_dict() body shape ({error: {...}})', async () => {
+    server.use(
+      http.post('/api/test', () =>
+        HttpResponse.json(
+          {
+            error: {
+              message: 'File audio.xyz has unsupported extension .xyz',
+              user_message: 'Audio format .xyz is not supported.',
+              code: 'UNSUPPORTED_FILE_EXTENSION',
+              correlation_id: '01234567-89ab-cdef-0123-456789abcdef',
+            },
+          },
+          { status: 422 },
+        ),
+      ),
+    );
+    try {
+      await apiClient.post('/api/test', {});
+      throw new Error('expected throw');
+    } catch (err) {
+      const e = err as ApiClientError;
+      expect(e).toBeInstanceOf(ApiClientError);
+      expect(e.status).toBe(422);
+      expect(e.message).toBe('Audio format .xyz is not supported.');
+      expect(e.code).toBe('UNSUPPORTED_FILE_EXTENSION');
+      expect(e.correlationId).toBe('01234567-89ab-cdef-0123-456789abcdef');
+    }
+  });
+
+  it('parses HTTPException(detail={...}) dict shape', async () => {
+    server.use(
+      http.post('/api/test', () =>
+        HttpResponse.json(
+          { detail: { message: 'Magic-byte mismatch', code: 'FILE_FORMAT_MISMATCH' } },
+          { status: 400 },
+        ),
+      ),
+    );
+    try {
+      await apiClient.post('/api/test', {});
+      throw new Error('expected throw');
+    } catch (err) {
+      const e = err as ApiClientError;
+      expect(e.status).toBe(400);
+      expect(e.message).toBe('Magic-byte mismatch');
+      expect(e.code).toBe('FILE_FORMAT_MISMATCH');
+    }
+  });
+
+  it('parses FastAPI HTTPException string-detail shape', async () => {
+    // Regression: this is the exact body the debug session surfaced.
+    server.use(
+      http.post('/api/test', () =>
+        HttpResponse.json(
+          {
+            detail:
+              "Invalid file extension for file 1-gupsp.flac. Allowed: {'.mp3', '.wav'}",
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+    try {
+      await apiClient.post('/api/test', {});
+      throw new Error('expected throw');
+    } catch (err) {
+      const e = err as ApiClientError;
+      expect(e.status).toBe(400);
+      expect(e.message).toContain('Invalid file extension');
+      expect(e.message).toContain('1-gupsp.flac');
+    }
+  });
 });

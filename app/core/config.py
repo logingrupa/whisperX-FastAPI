@@ -7,6 +7,10 @@ import torch
 from pydantic import Field, SecretStr, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.file_extensions import (
+    AUDIO_EXTENSIONS as _DEFAULT_AUDIO_EXTENSIONS,
+    VIDEO_EXTENSIONS as _DEFAULT_VIDEO_EXTENSIONS,
+)
 from app.schemas import ComputeType, Device, WhisperModel
 
 
@@ -59,18 +63,12 @@ class WhisperSettings(BaseSettings):
         description="Compute type for model inference",
     )
 
-    AUDIO_EXTENSIONS: set[str] = {
-        ".mp3",
-        ".wav",
-        ".awb",
-        ".aac",
-        ".ogg",
-        ".oga",
-        ".m4a",
-        ".wma",
-        ".amr",
-    }
-    VIDEO_EXTENSIONS: set[str] = {".mp4", ".mov", ".avi", ".wmv", ".mkv"}
+    AUDIO_EXTENSIONS: set[str] = Field(
+        default_factory=lambda: set(_DEFAULT_AUDIO_EXTENSIONS)
+    )
+    VIDEO_EXTENSIONS: set[str] = Field(
+        default_factory=lambda: set(_DEFAULT_VIDEO_EXTENSIONS)
+    )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

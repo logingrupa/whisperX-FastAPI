@@ -72,6 +72,8 @@ export default defineConfig(({ mode }) => {
     },
 
     server: {
+      host: '0.0.0.0',
+      allowedHosts: ['whisper.kingdom.lv'],
       proxy: {
         ...httpProxy,
         // WebSocket endpoint for real-time progress (separate target — ws://)
