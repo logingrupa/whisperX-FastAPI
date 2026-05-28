@@ -35,6 +35,7 @@ from app.infrastructure.database.repositories.sqlalchemy_user_repository import 
 )
 from app.infrastructure.websocket import get_progress_emitter
 from app.services.auth.rate_limit_service import RateLimitService
+from app.services.concurrency_slot import release_slot_if_authed
 from app.services.free_tier_gate import FreeTierGate
 from app.services.usage_event_writer import UsageEventWriter
 from app.schemas import (
@@ -297,29 +298,6 @@ def align_whisper_output(
 
     logger.debug("Completed alignment")
     return result  # type: ignore[no-any-return]
-
-
-def _release_slot_if_authed(
-    repo: SQLAlchemyTaskRepository,
-    user_repo: SQLAlchemyUserRepository,
-    identifier: str,
-    free_tier_gate: FreeTierGate,
-) -> None:
-    """Release the concurrency slot iff the task has an authenticated owner.
-
-    Tiger-style flat-guard: each precondition early-returns; no nested if.
-    Phase 19-09 — replaces the previous nested-if in process_audio_common
-    finally block. Module-scope so it is greppable and unit-testable.
-    """
-    completed_task = repo.get_by_id(identifier)
-    if completed_task is None:
-        return
-    if completed_task.user_id is None:
-        return
-    user = user_repo.get_by_id(completed_task.user_id)
-    if user is None:
-        return
-    free_tier_gate.release_concurrency(user)
 
 
 def process_audio_common(
@@ -616,7 +594,7 @@ def process_audio_common(
             # previous nested-if; a single try/except wraps it so a slot-
             # release crash never blocks the context-manager exit.
             try:
-                _release_slot_if_authed(
+                release_slot_if_authed(
                     repository, user_repo, params.identifier, free_tier_gate
                 )
             except Exception as exc:

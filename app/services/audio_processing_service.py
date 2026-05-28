@@ -24,6 +24,7 @@ from app.infrastructure.database.repositories.sqlalchemy_task_repository import 
     SQLAlchemyTaskRepository,
 )
 from app.infrastructure.websocket import get_progress_emitter
+from app.services.concurrency_slot import release_slot_for_task
 from app.schemas import (
     AlignmentParams,
     ASROptions,
@@ -180,6 +181,13 @@ def process_audio_task(
                 identifier=identifier,
                 update_data={"status": TaskStatus.failed, "error": str(e)},
             )
+
+        finally:
+            # Phase 20 — release the concurrency slot consumed by
+            # FreeTierGate.check at request time. Success OR failure path
+            # MUST refund the slot, otherwise the user is locked out until
+            # an operator resets the bucket (rate=0, no auto-refill).
+            release_slot_for_task(session, identifier)
 
 
 def process_transcribe(

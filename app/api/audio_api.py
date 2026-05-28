@@ -121,42 +121,48 @@ async def speech_to_text(
         diarize=diarize_requested,
     )
 
-    # Create domain task
-    task = DomainTask(
-        uuid=str(uuid4()),
-        status=TaskStatus.processing,
-        file_name=file.filename,
-        audio_duration=audio_duration,
-        language=model_params.language,
-        task_type=TaskType.full_process,
-        task_params={
-            **model_params.model_dump(),
-            **align_params.model_dump(),
-            "asr_options": asr_options_params.model_dump(),
-            "vad_options": vad_options_params.model_dump(),
-            **diarize_params.model_dump(),
-        },
-        callback_url=callback_url,
-        start_time=datetime.now(tz=timezone.utc),
-        user_id=int(user.id) if user.id is not None else None,
-    )
+    # Phase 20 — gate-then-schedule atomic: if ANYTHING between
+    # check() and add_task() raises, refund the slot so the user is not
+    # locked out by a leak the BackgroundTask finally will never run.
+    try:
+        task = DomainTask(
+            uuid=str(uuid4()),
+            status=TaskStatus.processing,
+            file_name=file.filename,
+            audio_duration=audio_duration,
+            language=model_params.language,
+            task_type=TaskType.full_process,
+            task_params={
+                **model_params.model_dump(),
+                **align_params.model_dump(),
+                "asr_options": asr_options_params.model_dump(),
+                "vad_options": vad_options_params.model_dump(),
+                **diarize_params.model_dump(),
+            },
+            callback_url=callback_url,
+            start_time=datetime.now(tz=timezone.utc),
+            user_id=int(user.id) if user.id is not None else None,
+        )
 
-    identifier = repository.add(task)
-    logger.info("Task added to database: ID %s", identifier)
+        identifier = repository.add(task)
+        logger.info("Task added to database: ID %s", identifier)
 
-    audio_params = SpeechToTextProcessingParams(
-        audio=audio,
-        identifier=identifier,
-        vad_options=vad_options_params,
-        asr_options=asr_options_params,
-        whisper_model_params=model_params,
-        alignment_params=align_params,
-        diarization_params=diarize_params,
-        callback_url=callback_url,
-    )
+        audio_params = SpeechToTextProcessingParams(
+            audio=audio,
+            identifier=identifier,
+            vad_options=vad_options_params,
+            asr_options=asr_options_params,
+            whisper_model_params=model_params,
+            alignment_params=align_params,
+            diarization_params=diarize_params,
+            callback_url=callback_url,
+        )
 
-    background_tasks.add_task(process_audio_common, audio_params)
-    logger.info("Background task scheduled for processing: ID %s", identifier)
+        background_tasks.add_task(process_audio_common, audio_params)
+        logger.info("Background task scheduled for processing: ID %s", identifier)
+    except Exception:
+        free_tier_gate.release_concurrency(user)
+        raise
 
     return Response(identifier=identifier, message="Task queued")
 
@@ -223,42 +229,46 @@ async def speech_to_text_url(
         diarize=diarize_requested,
     )
 
-    # Create domain task
-    task = DomainTask(
-        uuid=str(uuid4()),
-        status=TaskStatus.processing,
-        file_name=filename,
-        audio_duration=audio_duration,
-        language=model_params.language,
-        task_type=TaskType.full_process,
-        task_params={
-            **model_params.model_dump(),
-            **align_params.model_dump(),
-            "asr_options": asr_options_params.model_dump(),
-            "vad_options": vad_options_params.model_dump(),
-            **diarize_params.model_dump(),
-        },
-        url=url,
-        callback_url=callback_url,
-        start_time=datetime.now(tz=timezone.utc),
-        user_id=int(user.id) if user.id is not None else None,
-    )
+    # Phase 20 — gate-then-schedule atomic (see /speech-to-text comment).
+    try:
+        task = DomainTask(
+            uuid=str(uuid4()),
+            status=TaskStatus.processing,
+            file_name=filename,
+            audio_duration=audio_duration,
+            language=model_params.language,
+            task_type=TaskType.full_process,
+            task_params={
+                **model_params.model_dump(),
+                **align_params.model_dump(),
+                "asr_options": asr_options_params.model_dump(),
+                "vad_options": vad_options_params.model_dump(),
+                **diarize_params.model_dump(),
+            },
+            url=url,
+            callback_url=callback_url,
+            start_time=datetime.now(tz=timezone.utc),
+            user_id=int(user.id) if user.id is not None else None,
+        )
 
-    identifier = repository.add(task)
-    logger.info("Task added to database: ID %s", identifier)
+        identifier = repository.add(task)
+        logger.info("Task added to database: ID %s", identifier)
 
-    audio_params = SpeechToTextProcessingParams(
-        audio=audio,
-        identifier=identifier,
-        vad_options=vad_options_params,
-        asr_options=asr_options_params,
-        whisper_model_params=model_params,
-        alignment_params=align_params,
-        diarization_params=diarize_params,
-        callback_url=callback_url,
-    )
+        audio_params = SpeechToTextProcessingParams(
+            audio=audio,
+            identifier=identifier,
+            vad_options=vad_options_params,
+            asr_options=asr_options_params,
+            whisper_model_params=model_params,
+            alignment_params=align_params,
+            diarization_params=diarize_params,
+            callback_url=callback_url,
+        )
 
-    background_tasks.add_task(process_audio_common, audio_params)
-    logger.info("Background task scheduled for processing: ID %s", identifier)
+        background_tasks.add_task(process_audio_common, audio_params)
+        logger.info("Background task scheduled for processing: ID %s", identifier)
+    except Exception:
+        free_tier_gate.release_concurrency(user)
+        raise
 
     return Response(identifier=identifier, message="Task queued")

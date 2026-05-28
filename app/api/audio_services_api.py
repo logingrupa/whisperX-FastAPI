@@ -129,34 +129,38 @@ async def transcribe(
         diarize=False,
     )
 
-    # Create domain task
-    task = DomainTask(
-        uuid=str(uuid4()),
-        status=TaskStatus.processing,
-        file_name=file.filename,
-        audio_duration=audio_duration,
-        language=model_params.language,
-        task_type=TaskType.transcription,
-        task_params={
-            **model_params.model_dump(),
-            "asr_options": asr_options_params.model_dump(),
-            "vad_options": vad_options_params.model_dump(),
-        },
-        start_time=datetime.now(tz=timezone.utc),
-        user_id=int(user.id) if user.id is not None else None,
-    )
+    # Phase 20 — gate-then-schedule atomic (see /speech-to-text comment).
+    try:
+        task = DomainTask(
+            uuid=str(uuid4()),
+            status=TaskStatus.processing,
+            file_name=file.filename,
+            audio_duration=audio_duration,
+            language=model_params.language,
+            task_type=TaskType.transcription,
+            task_params={
+                **model_params.model_dump(),
+                "asr_options": asr_options_params.model_dump(),
+                "vad_options": vad_options_params.model_dump(),
+            },
+            start_time=datetime.now(tz=timezone.utc),
+            user_id=int(user.id) if user.id is not None else None,
+        )
 
-    identifier = repository.add(task)
+        identifier = repository.add(task)
 
-    background_tasks.add_task(
-        process_transcribe,
-        audio,
-        identifier,
-        model_params,
-        asr_options_params,
-        vad_options_params,
-        transcription_service,
-    )
+        background_tasks.add_task(
+            process_transcribe,
+            audio,
+            identifier,
+            model_params,
+            asr_options_params,
+            vad_options_params,
+            transcription_service,
+        )
+    except Exception:
+        free_tier_gate.release_concurrency(user)
+        raise
 
     logger.info(TASK_SCHEDULED_LOG_FORMAT, identifier)
     return Response(identifier=identifier, message=TASK_QUEUED_MESSAGE)
