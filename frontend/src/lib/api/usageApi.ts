@@ -34,6 +34,23 @@ const usageSummarySchema = z.object({
 
 export type UsageSummary = z.infer<typeof usageSummarySchema>;
 
+const usageByKeyEntrySchema = z.object({
+  api_key_id: z.number().int().nullable(),
+  name: z.string().nullable(),
+  prefix: z.string().nullable(),
+  revoked: z.boolean(),
+  transcription_count: z.number().int().nonnegative(),
+  minutes_used: z.number().nonnegative(),
+  last_used_at: z.string().datetime({ offset: true }).nullable(),
+});
+
+const usageByKeyResponseSchema = z.object({
+  keys: z.array(usageByKeyEntrySchema),
+});
+
+export type UsageByKeyEntry = z.infer<typeof usageByKeyEntrySchema>;
+export type UsageByKeyResponse = z.infer<typeof usageByKeyResponseSchema>;
+
 /**
  * Fetch the caller's usage summary. Throws RateLimitError on 429 (rate
  * limited) or ApiClientError on other 4xx/5xx; subtype-first catch order
@@ -42,6 +59,16 @@ export type UsageSummary = z.infer<typeof usageSummarySchema>;
 export async function fetchUsageSummary(): Promise<UsageSummary> {
   const raw = await apiClient.get<unknown>('/api/usage');
   return usageSummarySchema.parse(raw);
+}
+
+/**
+ * Fetch per-API-key usage totals (busiest key first). The api_key_id=null
+ * entry is the "unattributed" bucket (pre-attribution history + cookie/
+ * session transcriptions). Same subtype-first error contract as above.
+ */
+export async function fetchUsageByKey(): Promise<UsageByKeyEntry[]> {
+  const raw = await apiClient.get<unknown>('/api/usage/by-key');
+  return usageByKeyResponseSchema.parse(raw).keys;
 }
 
 // Re-export error classes for caller convenience (DRY with accountApi style).

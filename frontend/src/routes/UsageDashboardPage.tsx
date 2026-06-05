@@ -49,11 +49,13 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import {
+  fetchUsageByKey,
   fetchUsageSummary,
   type PlanTier,
+  type UsageByKeyEntry,
   type UsageSummary,
 } from '@/lib/api/usageApi';
-import { ApiClientError, RateLimitError } from '@/lib/apiClient';
+import { RateLimitError } from '@/lib/apiClient';
 
 const PLAN_BADGE_VARIANT: Record<PlanTier, 'default' | 'secondary' | 'outline'> = {
   free: 'secondary',
@@ -121,6 +123,19 @@ function formatMinutes(value: number): string {
   return `${value.toFixed(1)} min`;
 }
 
+function formatLastUsed(iso: string | null): string {
+  if (iso === null) return '—';
+  const date = new Date(iso);
+  const yyyy = date.getUTCFullYear();
+  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(date.getUTCDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function keyLabel(entry: UsageByKeyEntry): string {
+  return entry.name ?? 'Unattributed';
+}
+
 function clampPercent(value: number): number {
   if (Number.isNaN(value)) return 0;
   if (value < 0) return 0;
@@ -151,6 +166,7 @@ function SkeletonCard() {
 export function UsageDashboardPage() {
   const navigate = useNavigate();
   const [summary, setSummary] = useState<UsageSummary | null>(null);
+  const [byKey, setByKey] = useState<UsageByKeyEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -158,43 +174,29 @@ export function UsageDashboardPage() {
     setError(null);
     setIsLoading(true);
     try {
-      const data = await fetchUsageSummary();
+      // by-key is supplementary — a failure there must NOT blank the page,
+      // so swallow it to null while the summary drives page-level errors.
+      const [data, keys] = await Promise.all([
+        fetchUsageSummary(),
+        fetchUsageByKey().catch(() => null),
+      ]);
       setSummary(data);
+      setByKey(keys);
     } catch (err) {
       // RateLimitError BEFORE ApiClientError — RateLimitError extends ApiClientError.
+      setSummary(null);
       if (err instanceof RateLimitError) {
         setError(`Rate limited. Try again in ${err.retryAfterSeconds}s.`);
-        setSummary(null);
-        return;
-      }
-      if (err instanceof ApiClientError) {
-        setError('Could not load usage.');
-        setSummary(null);
         return;
       }
       setError('Could not load usage.');
-      setSummary(null);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    void fetchUsageSummary()
-      .then((data) => {
-        setSummary(data);
-        setIsLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof RateLimitError) {
-          setError(`Rate limited. Try again in ${err.retryAfterSeconds}s.`);
-        } else if (err instanceof ApiClientError) {
-          setError('Could not load usage.');
-        } else {
-          setError('Could not load usage.');
-        }
-        setIsLoading(false);
-      });
+    void refresh();
   }, []);
 
   if (error !== null) {
@@ -276,6 +278,68 @@ export function UsageDashboardPage() {
         subLine="Resets at midnight UTC"
         testIdPrefix="daily-minutes"
       />
+
+      {/* Per-API-key breakdown (supplementary; omitted if unavailable/empty) */}
+      {byKey !== null && byKey.length > 0 && <ApiKeyUsageCard entries={byKey} />}
+    </div>
+  );
+}
+
+function ApiKeyUsageCard({ entries }: { entries: UsageByKeyEntry[] }) {
+  return (
+    <Card className="gap-4 p-6" data-testid="usage-by-key-card">
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="text-lg font-semibold">Usage by API key</h2>
+        <span className="text-xs text-muted-foreground">all time</span>
+      </div>
+      <div className="flex flex-col divide-y divide-border">
+        <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 pb-2 text-xs font-medium text-muted-foreground">
+          <span>Key</span>
+          <span className="text-right">Transcribes</span>
+          <span className="text-right">Minutes</span>
+        </div>
+        {entries.map((entry) => (
+          <ApiKeyUsageRow
+            key={entry.api_key_id ?? 'unattributed'}
+            entry={entry}
+          />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function ApiKeyUsageRow({ entry }: { entry: UsageByKeyEntry }) {
+  const isUnattributed = entry.api_key_id === null;
+  return (
+    <div
+      className="grid grid-cols-[1fr_auto_auto] items-center gap-x-4 py-2.5"
+      data-testid={`usage-by-key-row-${entry.api_key_id ?? 'unattributed'}`}
+    >
+      <div className="flex min-w-0 flex-col">
+        <div className="flex items-center gap-2">
+          <span
+            className={`truncate text-sm font-medium ${isUnattributed ? 'text-muted-foreground italic' : 'text-foreground'}`}
+          >
+            {keyLabel(entry)}
+          </span>
+          {entry.revoked && (
+            <Badge variant="outline" className="text-destructive">
+              revoked
+            </Badge>
+          )}
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {entry.prefix !== null ? `${entry.prefix}… · ` : ''}
+          last used {formatLastUsed(entry.last_used_at)}
+        </span>
+      </div>
+      <span className="text-right text-sm tabular-nums">
+        {entry.transcription_count}
+      </span>
+      <span className="text-right text-sm tabular-nums">
+        {formatMinutes(entry.minutes_used)}
+      </span>
     </div>
   );
 }
