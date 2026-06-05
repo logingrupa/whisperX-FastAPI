@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+from app.core.time import ensure_utc_aware
 from app.domain.entities.user import User as DomainUser
 from app.infrastructure.database.models import User as ORMUser
 
 
 def to_domain(orm_user: ORMUser) -> DomainUser:
     """Convert ORM User to domain User entity.
+
+    SQLite drops tzinfo on persisted ``DATETIME`` columns; the domain entity
+    contract is tz-aware UTC (see ``User`` docstring). Normalise on read so
+    downstream comparisons and ISO serialisation always carry a timezone.
 
     Args:
         orm_user: SQLAlchemy ORM User row.
@@ -22,9 +27,9 @@ def to_domain(orm_user: ORMUser) -> DomainUser:
         plan_tier=orm_user.plan_tier,
         stripe_customer_id=orm_user.stripe_customer_id,
         token_version=orm_user.token_version,
-        trial_started_at=orm_user.trial_started_at,
-        created_at=orm_user.created_at,
-        updated_at=orm_user.updated_at,
+        trial_started_at=ensure_utc_aware(orm_user.trial_started_at),
+        created_at=ensure_utc_aware(orm_user.created_at),
+        updated_at=ensure_utc_aware(orm_user.updated_at),
     )
 
 

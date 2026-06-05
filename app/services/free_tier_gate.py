@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 
+from app.core.time import ensure_utc_aware
 from app.core.exceptions import (
     ConcurrencyLimitError,
     FreeTierViolationError,
@@ -151,12 +152,10 @@ class FreeTierGate:
             return
         if user.trial_started_at is None:
             return
-        # SQLite returns naive datetimes for DATETIME columns; the rest of
-        # the stack uses tz-aware UTC. Normalise here so comparison never
-        # crashes with "can't compare offset-naive and offset-aware".
-        started = user.trial_started_at
-        if started.tzinfo is None:
-            started = started.replace(tzinfo=timezone.utc)
+        # SQLite returns naive datetimes for DATETIME columns; normalise to
+        # tz-aware UTC (shared rule) so comparison never crashes with
+        # "can't compare offset-naive and offset-aware".
+        started = ensure_utc_aware(user.trial_started_at)
         now = datetime.now(timezone.utc)
         if started + timedelta(days=TRIAL_DAYS) < now:
             raise TrialExpiredError()
