@@ -66,6 +66,54 @@ class TestUsageEventWriter:
             assert row[3] == "tiny"
             assert row[4] == "task-abc"
 
+    def test_record_writes_api_key_id(self, session_factory: Any) -> None:
+        """api_key_id is persisted when supplied; NULL when omitted."""
+        # Seed the FK target — SQLite FK enforcement is ON (connection listener).
+        with session_factory() as session:
+            session.execute(
+                text(
+                    "INSERT INTO api_keys "
+                    "(id, user_id, name, prefix, hash, scopes, created_at) "
+                    "VALUES (7, 1, 'k', 'pfx12345', 'h', 'transcribe', :ts)"
+                ),
+                {"ts": "2026-06-06 00:00:00+00:00"},
+            )
+            session.commit()
+        with session_factory() as session:
+            writer = UsageEventWriter(session)
+            writer.record(
+                user_id=1,
+                task_uuid="task-keyed",
+                gpu_seconds=3.0,
+                file_seconds=45.0,
+                model="tiny",
+                api_key_id=7,
+            )
+            writer.record(
+                user_id=1,
+                task_uuid="task-anon",
+                gpu_seconds=3.0,
+                file_seconds=45.0,
+                model="tiny",
+            )
+        with session_factory() as session:
+            keyed = session.execute(
+                text(
+                    "SELECT api_key_id FROM usage_events "
+                    "WHERE idempotency_key = :k"
+                ),
+                {"k": "task-keyed"},
+            ).scalar()
+            anon = session.execute(
+                text(
+                    "SELECT api_key_id FROM usage_events "
+                    "WHERE idempotency_key = :k"
+                ),
+                {"k": "task-anon"},
+            ).scalar()
+            assert keyed == 7
+            assert anon is None
+
     def test_record_idempotency_skip(self, session_factory: Any) -> None:
         """Second record() with same task_uuid is silent no-op."""
         with session_factory() as session:

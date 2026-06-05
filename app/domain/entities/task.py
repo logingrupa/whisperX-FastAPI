@@ -57,6 +57,7 @@ class Task:
     progress_percentage: int | None = None
     progress_stage: str | None = None
     user_id: int | None = None
+    api_key_id: int | None = None
 
     def mark_as_completed(
         self, result: dict[str, Any], duration: float, end_time: datetime
@@ -152,4 +153,5 @@ class Task:
             "progress_percentage": self.progress_percentage,
             "progress_stage": self.progress_stage,
             "user_id": self.user_id,
+            "api_key_id": self.api_key_id,
         }

@@ -34,3 +34,27 @@ class UsageSummaryResponse(BaseModel):
     daily_minutes_limit: float = Field(..., ge=0.0)
     window_resets_at: datetime
     day_resets_at: datetime
+
+
+class UsageByKeyEntry(BaseModel):
+    """One row of the per-API-key usage breakdown.
+
+    ``api_key_id is None`` is the synthetic "unattributed" bucket: usage from
+    before attribution shipped, cookie/session transcriptions, or events
+    whose key was later deleted (FK SET NULL). ``name``/``prefix`` are None
+    in that case.
+    """
+
+    api_key_id: int | None = None
+    name: str | None = None
+    prefix: str | None = None
+    revoked: bool = False
+    transcription_count: int = Field(..., ge=0)
+    minutes_used: float = Field(..., ge=0.0)
+    last_used_at: datetime | None = None
+
+
+class UsageByKeyResponse(BaseModel):
+    """GET /api/usage/by-key — per-key usage totals, busiest key first."""
+
+    keys: list[UsageByKeyEntry]

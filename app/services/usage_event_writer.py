@@ -31,8 +31,13 @@ class UsageEventWriter:
         gpu_seconds: float,
         file_seconds: float,
         model: str,
+        api_key_id: int | None = None,
     ) -> None:
         """Insert one usage_events row. Idempotent — duplicate task_uuid is no-op.
+
+        ``api_key_id`` attributes the event to the bearer key that scheduled
+        the task (None for cookie/session auth -> "unattributed" in the
+        per-key breakdown). Powers GET /api/usage/by-key.
 
         The UNIQUE constraint on usage_events.idempotency_key means a
         replayed completion (re-enqueued task, double-fire) raises
@@ -42,14 +47,15 @@ class UsageEventWriter:
             self.session.execute(
                 text(
                     "INSERT INTO usage_events "
-                    "(user_id, task_id, gpu_seconds, file_seconds, model, "
-                    "idempotency_key, created_at) "
-                    "VALUES (:user_id, :task_id, :gpu_seconds, :file_seconds, "
-                    ":model, :idempotency_key, :created_at)"
+                    "(user_id, task_id, api_key_id, gpu_seconds, file_seconds, "
+                    "model, idempotency_key, created_at) "
+                    "VALUES (:user_id, :task_id, :api_key_id, :gpu_seconds, "
+                    ":file_seconds, :model, :idempotency_key, :created_at)"
                 ),
                 {
                     "user_id": user_id,
                     "task_id": None,
+                    "api_key_id": api_key_id,
                     "gpu_seconds": gpu_seconds,
                     "file_seconds": file_seconds,
                     "model": model,

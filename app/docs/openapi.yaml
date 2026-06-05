@@ -11,9 +11,9 @@ info:
     \ Align the transcript to the audio/video file.\n    3. Diarize: Diarize an audio/video\
     \ file into speakers.\n    4. Combine Transcript and Diarization: Combine the\
     \ transcript and diarization results.\n\n    ## Supported file extensions:\n \
-    \   AUDIO_EXTENSIONS = {'.ogg', '.flac', '.awb', '.oga', '.mp3', '.wma', '.m4a',\
-    \ '.amr', '.aac', '.wav'}\n\n    VIDEO_EXTENSIONS = {'.avi', '.webm', '.mov',\
-    \ '.wmv', '.mp4', '.mkv'}\n\n    ## Language-Specific Model Overrides:\n\n   \
+    \   AUDIO_EXTENSIONS = {'.mp3', '.wav', '.wma', '.m4a', '.awb', '.ogg', '.aac',\
+    \ '.oga', '.flac', '.amr'}\n\n    VIDEO_EXTENSIONS = {'.mov', '.wmv', '.webm',\
+    \ '.mkv', '.avi', '.mp4'}\n\n    ## Language-Specific Model Overrides:\n\n   \
     \ Some languages have fine-tuned models that are automatically used when that\
     \ language is selected.\n    The server-side `LANGUAGE_MODEL_OVERRIDES` configuration\
     \ maps language codes to optimized CTranslate2\n    model paths. When an override\
@@ -2172,6 +2172,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UsageSummaryResponse'
+  /api/usage/by-key:
+    get:
+      tags:
+      - Usage
+      summary: Get Usage By Key
+      description: 'Return the caller''s historical usage grouped by API key.
+
+
+        NULL-key rows (pre-attribution history, cookie/session transcriptions,
+
+        deleted keys) collapse into a single ''unattributed'' entry.'
+      operationId: get_usage_by_key_api_usage_by_key_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageByKeyResponse'
   /billing/checkout:
     post:
       tags:
@@ -2944,6 +2963,68 @@ components:
       - expires_at
       title: TicketResponse
       description: Response body for ``POST /api/ws/ticket`` (201).
+    UsageByKeyEntry:
+      properties:
+        api_key_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Api Key Id
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        prefix:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Prefix
+        revoked:
+          type: boolean
+          title: Revoked
+          default: false
+        transcription_count:
+          type: integer
+          minimum: 0.0
+          title: Transcription Count
+        minutes_used:
+          type: number
+          minimum: 0.0
+          title: Minutes Used
+        last_used_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Used At
+      type: object
+      required:
+      - transcription_count
+      - minutes_used
+      title: UsageByKeyEntry
+      description: 'One row of the per-API-key usage breakdown.
+
+
+        ``api_key_id is None`` is the synthetic "unattributed" bucket: usage from
+
+        before attribution shipped, cookie/session transcriptions, or events
+
+        whose key was later deleted (FK SET NULL). ``name``/``prefix`` are None
+
+        in that case.'
+    UsageByKeyResponse:
+      properties:
+        keys:
+          items:
+            $ref: '#/components/schemas/UsageByKeyEntry'
+          type: array
+          title: Keys
+      type: object
+      required:
+      - keys
+      title: UsageByKeyResponse
+      description: GET /api/usage/by-key — per-key usage totals, busiest key first.
     UsageSummaryResponse:
       properties:
         plan_tier:

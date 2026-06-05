@@ -27,10 +27,15 @@ from fastapi import APIRouter, Depends
 from app.api.dependencies import (
     authenticated_user,
     csrf_protected,
+    get_usage_by_key_service,
     get_usage_query_service,
 )
-from app.api.schemas.usage_schemas import UsageSummaryResponse
+from app.api.schemas.usage_schemas import (
+    UsageByKeyResponse,
+    UsageSummaryResponse,
+)
 from app.domain.entities.user import User
+from app.services.usage_by_key_service import UsageByKeyService
 from app.services.usage_query_service import UsageQueryService
 
 usage_router = APIRouter(
@@ -48,3 +53,17 @@ async def get_usage(
     """Return the caller's current usage summary."""
     summary = usage_query_service.get_summary(int(user.id))
     return UsageSummaryResponse(**summary)
+
+
+@usage_router.get("/by-key", response_model=UsageByKeyResponse)
+async def get_usage_by_key(
+    user: User = Depends(authenticated_user),
+    usage_by_key_service: UsageByKeyService = Depends(get_usage_by_key_service),
+) -> UsageByKeyResponse:
+    """Return the caller's historical usage grouped by API key.
+
+    NULL-key rows (pre-attribution history, cookie/session transcriptions,
+    deleted keys) collapse into a single 'unattributed' entry.
+    """
+    keys = usage_by_key_service.get_breakdown(int(user.id))
+    return UsageByKeyResponse(keys=keys)

@@ -47,6 +47,7 @@ from app.services.auth import (
 )
 from app.services.free_tier_gate import FreeTierGate
 from app.services.task_management_service import TaskManagementService
+from app.services.usage_by_key_service import UsageByKeyService
 from app.services.usage_event_writer import UsageEventWriter
 from app.services.usage_query_service import UsageQueryService
 
@@ -201,6 +202,17 @@ def get_usage_query_service(
     )
 
 
+def get_usage_by_key_service(
+    db: Session = Depends(get_db),
+) -> UsageByKeyService:
+    """Return a UsageByKeyService bound to the request-scoped Session.
+
+    Read-only aggregation over usage_events (GROUP BY api_key_id); chains off
+    the same get_db Session as every other dep (D2 single-Session invariant).
+    """
+    return UsageByKeyService(session=db)
+
+
 # ===========================================================================
 # Phase 19 Plan 04 — authenticated_user Depends chain (D2)
 #
@@ -234,8 +246,12 @@ _COOKIE_REFRESH_FAILURES = (JwtExpiredError, JwtAlgorithmError, JwtTamperedError
 STATE_MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 
-def _resolve_bearer(plaintext: str, db: Session) -> User | None:
-    """Resolve a presented bearer plaintext to a User, or None on failure.
+def _resolve_bearer(plaintext: str, db: Session) -> tuple[User | None, int | None]:
+    """Resolve a presented bearer plaintext to ``(User, api_key_id)``.
+
+    The api_key_id is surfaced (alongside the User) so the transcribe route
+    can attribute usage to the specific key (see ``current_api_key_id``).
+    Returns ``(None, None)`` on any bearer failure.
 
     Two-query semantics carried forward verbatim from the legacy resolver
     (Phase 20 collapses to a single JOIN; preserved here so structural
@@ -247,8 +263,9 @@ def _resolve_bearer(plaintext: str, db: Session) -> User | None:
     try:
         api_key = key_service.verify_plaintext(plaintext)
     except _BEARER_FAILURES:
-        return None
-    return SQLAlchemyUserRepository(db).get_by_id(api_key.user_id)
+        return None, None
+    user = SQLAlchemyUserRepository(db).get_by_id(api_key.user_id)
+    return user, int(api_key.id) if api_key.id is not None else None
 
 
 def _resolve_cookie(token: str, db: Session, response: Response) -> User | None:
@@ -304,11 +321,18 @@ def _try_resolve(
     the bearer header is present but malformed, this returns None — it
     does NOT silently fall through to the cookie (T-19-04-06 mitigation;
     see RESEARCH §Pitfall 5).
+
+    Side-effect: stashes the resolving ``api_key_id`` (bearer auth only) on
+    ``request.state`` so ``current_api_key_id`` can attribute usage without
+    re-running key verification. Cookie/anonymous legs leave it None.
     """
+    request.state.api_key_id = None
     auth_header = request.headers.get("authorization", "")
     if auth_header.startswith(BEARER_PREFIX):
         plaintext = auth_header[len(BEARER_PREFIX):].strip()
-        return _resolve_bearer(plaintext, db)
+        user, api_key_id = _resolve_bearer(plaintext, db)
+        request.state.api_key_id = api_key_id
+        return user
     cookie = request.cookies.get(SESSION_COOKIE)
     if cookie:
         return _resolve_cookie(cookie, db, response)
@@ -350,6 +374,20 @@ async def authenticated_user_optional(
     this dep instead).
     """
     return _try_resolve(request, response, db)
+
+
+def current_api_key_id(
+    request: Request,
+    user: User = Depends(authenticated_user),
+) -> int | None:
+    """Return the api_key_id that authenticated this request, or None.
+
+    Depends on ``authenticated_user`` so resolution (which stamps
+    ``request.state.api_key_id`` in ``_try_resolve``) is guaranteed to have
+    run first. Returns None for cookie/session-authenticated requests —
+    those have no API key to attribute usage to.
+    """
+    return getattr(request.state, "api_key_id", None)
 
 
 def get_scoped_task_repository(

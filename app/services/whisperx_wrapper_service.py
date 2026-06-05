@@ -358,6 +358,7 @@ def process_audio_common(
         transcription_succeeded = False
         duration_observed: float = 0.0
         task_user_id: int | None = None
+        task_api_key_id: int | None = None
         task_uuid: str = ""
         task_audio_duration: float = 0.0
         task_model: str = "unknown"
@@ -531,6 +532,7 @@ def process_audio_common(
 
             if completed_task is not None:
                 task_user_id = completed_task.user_id
+                task_api_key_id = completed_task.api_key_id
                 task_uuid = completed_task.uuid
                 task_audio_duration = completed_task.audio_duration or 0.0
                 params_dict = completed_task.task_params or {}
@@ -578,6 +580,7 @@ def process_audio_common(
                         gpu_seconds=duration_observed,
                         file_seconds=task_audio_duration,
                         model=task_model,
+                        api_key_id=task_api_key_id,
                     )
                 except Exception as exc:
                     logger.warning(

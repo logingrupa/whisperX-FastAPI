@@ -143,6 +143,12 @@ class Task(Base):
         nullable=True,
         comment="Owning user (nullable until Phase 12 backfill)",
     )
+    api_key_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("api_keys.id", ondelete="SET NULL", name="fk_tasks_api_key_id"),
+        nullable=True,
+        comment="API key used to schedule this task (NULL = cookie/session auth)",
+    )
 
 
 class User(Base):
@@ -381,6 +387,12 @@ class UsageEvent(Base):
         ForeignKey("tasks.id", name="fk_usage_events_task_id"),
         nullable=True,
         comment="Originating task (FK → tasks.id)",
+    )
+    api_key_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("api_keys.id", ondelete="SET NULL", name="fk_usage_events_api_key_id"),
+        nullable=True,
+        comment="API key the transcription was billed to (NULL = unattributed)",
     )
     gpu_seconds: Mapped[float | None] = mapped_column(
         Float,

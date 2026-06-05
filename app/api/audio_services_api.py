@@ -26,6 +26,7 @@ from app.api.constants import (
 )
 from app.api.dependencies import (
     authenticated_user,
+    current_api_key_id,
     get_free_tier_gate,
     get_scoped_task_repository,
 )
@@ -91,6 +92,7 @@ async def transcribe(
     transcription_service: ITranscriptionService = Depends(get_transcription_service),
     user: User = Depends(authenticated_user),
     free_tier_gate: FreeTierGate = Depends(get_free_tier_gate),
+    api_key_id: int | None = Depends(current_api_key_id),
 ) -> Response:
     """
     Transcribe an uploaded audio file.
@@ -145,6 +147,7 @@ async def transcribe(
             },
             start_time=datetime.now(tz=timezone.utc),
             user_id=int(user.id) if user.id is not None else None,
+            api_key_id=api_key_id,
         )
 
         identifier = repository.add(task)

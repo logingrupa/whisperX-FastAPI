@@ -24,6 +24,7 @@
 | `progress_percentage` | Current progress percentage (0-100) | INTEGER | True | None | False |
 | `progress_stage` | Current processing stage (queued, transcribing, aligning, diarizing, complete) | VARCHAR | True | None | False |
 | `user_id` | Owning user (nullable until Phase 12 backfill) | INTEGER | True | None | False |
+| `api_key_id` | API key used to schedule this task (NULL = cookie/session auth) | INTEGER | True | None | False |
 ## Table: users
 
 | Field | Description | Type | Nullable |  Unique | Primary Key |
@@ -71,6 +72,7 @@
 | `id` | Unique identifier for each usage event (Primary Key) | INTEGER | False | None | True |
 | `user_id` | Owning user (FK → users.id) | INTEGER | False | None | False |
 | `task_id` | Originating task (FK → tasks.id) | INTEGER | True | None | False |
+| `api_key_id` | API key the transcription was billed to (NULL = unattributed) | INTEGER | True | None | False |
 | `gpu_seconds` | GPU compute seconds consumed | FLOAT | True | None | False |
 | `file_seconds` | Audio file duration in seconds | FLOAT | True | None | False |
 | `model` | Model identifier used for this transcription | VARCHAR | True | None | False |

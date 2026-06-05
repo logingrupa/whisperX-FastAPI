@@ -112,6 +112,68 @@ def _set_plan_tier(session_factory, *, user_id: int, plan_tier: str) -> None:
         session.commit()
 
 
+def _set_trial_started_at(session_factory, *, user_id: int, value: str) -> None:
+    """Write a tz-naive timestamp string the way SQLite persists DATETIME columns."""
+    with session_factory() as session:
+        session.execute(
+            text("UPDATE users SET trial_started_at = :ts WHERE id = :uid"),
+            {"ts": value, "uid": user_id},
+        )
+        session.commit()
+
+
+def _seed_api_key(
+    session_factory, *, user_id: int, name: str, prefix: str, revoked: bool = False
+) -> int:
+    """Insert an api_keys row; return its id."""
+    with session_factory() as session:
+        result = session.execute(
+            text(
+                "INSERT INTO api_keys "
+                "(user_id, name, prefix, hash, scopes, created_at, revoked_at) "
+                "VALUES (:uid, :name, :prefix, :hash, 'transcribe', :ts, :rev)"
+            ),
+            {
+                "uid": user_id,
+                "name": name,
+                "prefix": prefix,
+                "hash": f"hash-{prefix}",
+                "ts": datetime.now(timezone.utc),
+                "rev": datetime.now(timezone.utc) if revoked else None,
+            },
+        )
+        session.commit()
+        return int(result.lastrowid)
+
+
+def _seed_usage_event(
+    session_factory,
+    *,
+    user_id: int,
+    idempotency_key: str,
+    file_seconds: float,
+    api_key_id: int | None,
+) -> None:
+    """Insert a usage_events row with optional api_key attribution."""
+    with session_factory() as session:
+        session.execute(
+            text(
+                "INSERT INTO usage_events "
+                "(user_id, api_key_id, gpu_seconds, file_seconds, model, "
+                "idempotency_key, created_at) "
+                "VALUES (:uid, :akid, 1.0, :fs, 'tiny', :idem, :ts)"
+            ),
+            {
+                "uid": user_id,
+                "akid": api_key_id,
+                "fs": file_seconds,
+                "idem": idempotency_key,
+                "ts": datetime.now(timezone.utc),
+            },
+        )
+        session.commit()
+
+
 def _seed_bucket(
     session_factory,
     *,
@@ -187,7 +249,7 @@ def test_get_usage_pro_user_returns_pro_limits(
     client: TestClient,
     session_factory,
 ) -> None:
-    """plan_tier='pro' -> hour_limit=100, daily_minutes_limit=600.0."""
+    """plan_tier='pro' -> hour_limit=100, daily_minutes_limit=1440.0 (PRO_POLICY 24h)."""
     user_id = _register(client, "pro@example.com")
     _set_plan_tier(session_factory, user_id=user_id, plan_tier="pro")
     response = client.get("/api/usage")
@@ -195,7 +257,33 @@ def test_get_usage_pro_user_returns_pro_limits(
     body = response.json()
     assert body["plan_tier"] == "pro"
     assert body["hour_limit"] == 100
-    assert body["daily_minutes_limit"] == 600.0
+    assert body["daily_minutes_limit"] == 1440.0
+
+
+@pytest.mark.integration
+def test_get_usage_trial_dates_are_timezone_aware(
+    client: TestClient,
+    session_factory,
+) -> None:
+    """Regression: non-null trial_started_at must serialise with a tz designator.
+
+    SQLite drops tzinfo, so a persisted DATETIME reads back naive and
+    isoformat()s to a string with NO timezone. The frontend Zod contract is
+    ``.datetime({ offset: true })`` which rejects such strings, surfacing as
+    'Could not load usage.' The user_mapper now normalises to UTC-aware.
+    """
+    user_id = _register(client, "trial-dates@example.com")
+    _set_trial_started_at(
+        session_factory, user_id=user_id, value="2026-05-18 16:42:21.806094"
+    )
+    response = client.get("/api/usage")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["trial_started_at"] is not None
+    assert body["trial_expires_at"] is not None
+    # Must carry a timezone designator (Z or +HH:MM) — else Zod rejects.
+    assert body["trial_started_at"].endswith(("Z", "+00:00"))
+    assert body["trial_expires_at"].endswith(("Z", "+00:00"))
 
 
 @pytest.mark.integration
@@ -209,6 +297,69 @@ def test_get_usage_csrf_not_required_on_get(
     response = client.get("/api/usage")
     assert response.status_code == 200, response.text
     assert response.status_code != 403
+
+
+@pytest.mark.integration
+def test_get_usage_by_key_aggregates_and_buckets_unattributed(
+    client: TestClient,
+    session_factory,
+) -> None:
+    """Events group by api_key_id; NULL-key rows collapse to one bucket."""
+    user_id = _register(client, "by-key@example.com")
+    key_id = _seed_api_key(
+        session_factory, user_id=user_id, name="livestream-pc", prefix="AhUddB8W"
+    )
+    # Two attributed events (90s + 30s = 2.0 min) + one unattributed (60s = 1.0 min).
+    _seed_usage_event(
+        session_factory, user_id=user_id, idempotency_key="e1",
+        file_seconds=90.0, api_key_id=key_id,
+    )
+    _seed_usage_event(
+        session_factory, user_id=user_id, idempotency_key="e2",
+        file_seconds=30.0, api_key_id=key_id,
+    )
+    _seed_usage_event(
+        session_factory, user_id=user_id, idempotency_key="e3",
+        file_seconds=60.0, api_key_id=None,
+    )
+
+    response = client.get("/api/usage/by-key")
+    assert response.status_code == 200, response.text
+    keys = response.json()["keys"]
+
+    # Busiest key first (2.0 min > 1.0 min).
+    assert len(keys) == 2
+    attributed, unattributed = keys[0], keys[1]
+
+    assert attributed["api_key_id"] == key_id
+    assert attributed["name"] == "livestream-pc"
+    assert attributed["prefix"] == "AhUddB8W"
+    assert attributed["revoked"] is False
+    assert attributed["transcription_count"] == 2
+    assert attributed["minutes_used"] == 2.0
+    assert attributed["last_used_at"].endswith(("Z", "+00:00"))
+
+    assert unattributed["api_key_id"] is None
+    assert unattributed["name"] is None
+    assert unattributed["transcription_count"] == 1
+    assert unattributed["minutes_used"] == 1.0
+
+
+@pytest.mark.integration
+def test_get_usage_by_key_empty_when_no_events(client: TestClient) -> None:
+    """Fresh user with no usage_events -> empty keys list."""
+    _register(client, "no-events@example.com")
+    response = client.get("/api/usage/by-key")
+    assert response.status_code == 200, response.text
+    assert response.json()["keys"] == []
+
+
+@pytest.mark.integration
+def test_get_usage_by_key_unauthenticated_returns_401(usage_app: FastAPI) -> None:
+    """GET /api/usage/by-key without auth -> 401."""
+    anon = TestClient(usage_app)
+    response = anon.get("/api/usage/by-key")
+    assert response.status_code == 401
 
 
 @pytest.mark.integration
