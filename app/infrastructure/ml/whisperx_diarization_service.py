@@ -11,22 +11,35 @@ from whisperx.diarize import DiarizationPipeline
 from app.core.exceptions import DiarizationFailedError
 from app.core.logging import logger
 
+# Pin the model explicitly: whisperX main defaults to
+# pyannote/speaker-diarization-community-1, which is gated and NOT what we
+# validated. 3.1 runs fine under pyannote.audio 4.x, but 4.x eagerly loads the
+# PLDA npz files from the community-1 repo even for 3.1 — those two files must
+# be warm-cached once (gate accepted) for HF_HUB_OFFLINE=1 boots to work.
+_DIARIZATION_MODEL = "pyannote/speaker-diarization-3.1"
+
 # pyannote's Pipeline.from_pretrained swallows the underlying HTTP/cache error
 # and returns None, so whisperx's `.to(device)` blows up with an opaque
 # AttributeError. Guard the load and raise a domain error naming the two real
 # causes: a token that cannot read the gated repo, or a HF cache the service
 # account cannot populate (the SYSTEM-run boot task has its own cache dir).
 _GATED_MODEL_HINT = (
-    "pyannote/speaker-diarization-3.1 could not be loaded (gated model). "
-    "Verify HF_TOKEN has accepted the model conditions and that HF_HOME points "
-    "at a cache the server process can write."
+    f"{_DIARIZATION_MODEL} could not be loaded (gated model). "
+    "Verify HF_TOKEN has accepted the model conditions (including the "
+    "pyannote/speaker-diarization-community-1 gate — pyannote 4.x loads its "
+    "PLDA files even for 3.1) and that HF_HOME points at a cache the server "
+    "process can write."
 )
 
 
 def _load_pipeline(hf_token: str, device: str) -> DiarizationPipeline:
     """Load the diarization pipeline, failing loudly instead of returning None."""
     try:
-        pipeline = DiarizationPipeline(use_auth_token=hf_token, device=device)
+        pipeline = DiarizationPipeline(
+            model_name=_DIARIZATION_MODEL,
+            token=hf_token,
+            device=device,
+        )
     except AttributeError as exc:
         # `.to(None)` — from_pretrained returned None.
         raise DiarizationFailedError(_GATED_MODEL_HINT, exc) from exc
