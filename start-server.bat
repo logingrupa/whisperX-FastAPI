@@ -8,21 +8,16 @@ echo.
 REM Get the directory where this script lives (project root)
 set "SCRIPT_DIR=%~dp0"
 
-REM Add ffmpeg to PATH (winget installs to user-specific location)
-set "WINGET_PKGS=%LOCALAPPDATA%\Microsoft\WinGet\Packages"
+REM FFmpeg 7.1 SHARED build, PINNED (matches start-server-boot.bat).
+REM Winget auto-discovery would find the 8.1 static build and break torchcodec
+REM (whisperX main needs FFmpeg 4-7 shared DLLs). Same dir ships ffmpeg.exe.
+REM app/core/dll_paths.py also reads FFMPEG_DIR for os.add_dll_directory.
+set "FFMPEG_DIR=C:\tools\ffmpeg-7.1-shared\bin"
+set "PATH=%FFMPEG_DIR%;%PATH%"
 
-REM Search winget packages folder for ffmpeg using dir
-for /f "delims=" %%i in ('dir /b /s "%WINGET_PKGS%\ffmpeg.exe" 2^>nul') do (
-    set "PATH=%%~dpi;%PATH%"
-    echo ffmpeg found: %%~dpi
-    goto :ffmpeg_done
+if not exist "%FFMPEG_DIR%\ffmpeg.exe" (
+    echo WARNING: %FFMPEG_DIR%\ffmpeg.exe not found - audio processing will fail.
 )
-
-echo WARNING: ffmpeg not found in WinGet packages.
-echo Checking system PATH...
-where ffmpeg >nul 2>&1 && echo ffmpeg found in system PATH || echo ffmpeg NOT found - video processing will fail.
-
-:ffmpeg_done
 
 REM Activate venv using absolute path
 call "%SCRIPT_DIR%.venv\Scripts\activate.bat"

@@ -3,8 +3,13 @@
 import asyncio
 from collections.abc import AsyncGenerator
 
+from app.core.dll_paths import register_ffmpeg_dll_dir
 from app.core.warnings_filter import filter_warnings
 
+# Both must run before any whisperx/torchcodec import below (routers import
+# whisperx transitively): DLL dir registration or torchcodec cannot find the
+# FFmpeg 7.1 shared DLLs on Windows.
+register_ffmpeg_dll_dir()
 filter_warnings()
 
 import logging  # noqa: E402

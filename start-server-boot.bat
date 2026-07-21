@@ -15,7 +15,11 @@ REM ---------------------------------------------------------------------------
 setlocal
 set "SCRIPT_DIR=%~dp0"
 set "PORT=8000"
-set "FFMPEG_DIR=C:\Users\rolan\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1-full_build\bin"
+REM FFmpeg 7.1 SHARED build (BtbN) — torchcodec (whisperX main) links against
+REM FFmpeg 4-7 shared DLLs; the old winget 8.1 static build fails both axes.
+REM Same dir ships ffmpeg.exe, so whisperx.load_audio's subprocess keeps working.
+REM app/core/dll_paths.py also reads FFMPEG_DIR for os.add_dll_directory.
+set "FFMPEG_DIR=C:\tools\ffmpeg-7.1-shared\bin"
 set "PATH=%FFMPEG_DIR%;%PATH%"
 
 REM HuggingFace cache is PINNED for the same reason ffmpeg is: running as
@@ -24,6 +28,10 @@ REM so the service gets an empty second cache and re-downloads every model.
 REM Gated pyannote/speaker-diarization-3.1 fails there, from_pretrained returns
 REM None, and diarization dies at 60%%. Point it at the desktop user's cache.
 set "HF_HOME=C:\Users\rolan\.cache\huggingface"
+
+REM nltk data pinned for the same SYSTEM-profile reason: punkt_tab (whisperX
+REM main sentence splitting) was downloaded to the desktop user's Roaming dir.
+set "NLTK_DATA=C:\Users\rolan\AppData\Roaming\nltk_data"
 
 REM Never contact the HF hub at runtime. Every model is already cached (whisper
 REM large-v3 + tiny, lv/ru/en align models, all three pyannote models); the hub
