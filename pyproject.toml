@@ -37,6 +37,7 @@ dependencies = [
     "python-multipart==0.0.22",
     "tqdm==4.67.1",
     "uvicorn==0.40.0",
+    "websockets==16.0",  # uvicorn WS protocol impl (websocket_router) — uvicorn is pinned WITHOUT [standard], so declare explicitly; whisperX main's tree no longer pulls it transitively
     "whisperx",
     "tuspyserver==4.2.3",
     "apscheduler==3.10.4",
