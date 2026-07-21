@@ -37,7 +37,7 @@ dependencies = [
     "python-multipart==0.0.22",
     "tqdm==4.67.1",
     "uvicorn==0.40.0",
-    "whisperx==3.7.4",
+    "whisperx",
     "tuspyserver==4.2.3",
     "apscheduler==3.10.4",
     "streaming-form-data>=1.19.0",
@@ -70,20 +70,35 @@ dev = [
     "types-PyYAML>=6.0.12",
 ]
 
+# Runtime dirs (data/, logs/, models/, node_modules/, ...) accumulate at repo
+# root; setuptools flat-layout auto-discovery refuses to build with multiple
+# top-level candidates. Only app/ is the installable package.
+[tool.setuptools.packages.find]
+include = ["app*"]
+
 [tool.uv]
-# PyTorch index configuration with environment markers for platform-specific builds
-# CUDA 12.6 on Linux, CPU-only on Windows and macOS
+# PyTorch index configuration with environment markers for platform-specific builds.
+# CUDA (cu128) on x86_64/AMD64 Linux+Windows, CPU-only on macOS and other arches.
+# NOTE: Windows reports platform_machine == 'AMD64' (not 'x86_64') — both spellings
+# MUST appear in the CUDA marker or Windows silently resolves CPU wheels
+# (mirrors upstream whisperX commit 11bc7de).
 
 [tool.uv.sources]
+whisperx = { git = "https://github.com/m-bain/whisperX", rev = "2cfd7b7c5c7bba144954364db747319b50e8232b" }
 torch = [
   { index = "pytorch-cpu", marker = "sys_platform == 'darwin'" },
-  { index = "pytorch-cpu", marker = "platform_machine != 'x86_64' and sys_platform != 'darwin'" },
-  { index = "pytorch", marker = "platform_machine == 'x86_64' and sys_platform != 'darwin'" },
+  { index = "pytorch", marker = "(platform_machine == 'x86_64' or platform_machine == 'AMD64') and sys_platform != 'darwin'" },
+  { index = "pytorch-cpu", marker = "platform_machine != 'x86_64' and platform_machine != 'AMD64' and sys_platform != 'darwin'" },
 ]
 torchaudio = [
   { index = "pytorch-cpu", marker = "sys_platform == 'darwin'" },
-  { index = "pytorch-cpu", marker = "platform_machine != 'x86_64' and sys_platform != 'darwin'" },
-  { index = "pytorch", marker = "platform_machine == 'x86_64' and sys_platform != 'darwin'" },
+  { index = "pytorch", marker = "(platform_machine == 'x86_64' or platform_machine == 'AMD64') and sys_platform != 'darwin'" },
+  { index = "pytorch-cpu", marker = "platform_machine != 'x86_64' and platform_machine != 'AMD64' and sys_platform != 'darwin'" },
+]
+torchvision = [
+  { index = "pytorch-cpu", marker = "sys_platform == 'darwin'" },
+  { index = "pytorch", marker = "(platform_machine == 'x86_64' or platform_machine == 'AMD64') and sys_platform != 'darwin'" },
+  { index = "pytorch-cpu", marker = "platform_machine != 'x86_64' and platform_machine != 'AMD64' and sys_platform != 'darwin'" },
 ]
 triton = [
   { index = "pytorch", marker = "sys_platform == 'linux'" },
