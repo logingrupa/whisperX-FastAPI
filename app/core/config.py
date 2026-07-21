@@ -100,6 +100,18 @@ class WhisperSettings(BaseSettings):
         description="Compute type for model inference",
     )
 
+    MODEL_CACHE_ENABLED: bool = Field(
+        default=True,
+        description=(
+            "Keep whisper/align/diarize models resident in VRAM across jobs "
+            "(model_registry). False restores load-per-job behavior."
+        ),
+    )
+    MODEL_CACHE_MAX_MODELS: int = Field(
+        default=8,
+        description="Registry count cap; oldest entry evicted beyond this",
+    )
+
     AUDIO_EXTENSIONS: set[str] = Field(
         default_factory=lambda: set(_DEFAULT_AUDIO_EXTENSIONS)
     )

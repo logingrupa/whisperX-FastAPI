@@ -42,22 +42,3 @@ class IDiarizationService(Protocol):
                 - Additional metadata columns may be included
         """
         ...
-
-    def load_model(self, device: str, hf_token: str) -> None:
-        """
-        Load diarization model.
-
-        Args:
-            device: Device to load model on ('cpu' or 'cuda')
-            hf_token: HuggingFace authentication token for model access
-        """
-        ...
-
-    def unload_model(self) -> None:
-        """
-        Unload diarization model to free resources (GPU memory, etc.).
-
-        This should properly clean up GPU memory using garbage collection
-        and CUDA cache clearing if applicable.
-        """
-        ...

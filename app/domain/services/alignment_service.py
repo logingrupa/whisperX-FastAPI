@@ -47,25 +47,3 @@ class IAlignmentService(Protocol):
                 - Character alignments if requested
         """
         ...
-
-    def load_model(
-        self, language_code: str, device: str, model_name: str | None = None
-    ) -> None:
-        """
-        Load alignment model for a specific language.
-
-        Args:
-            language_code: Language code for the alignment model
-            device: Device to load model on ('cpu' or 'cuda')
-            model_name: Specific model name to use (optional)
-        """
-        ...
-
-    def unload_model(self) -> None:
-        """
-        Unload alignment model to free resources (GPU memory, etc.).
-
-        This should properly clean up GPU memory using garbage collection
-        and CUDA cache clearing if applicable.
-        """
-        ...
