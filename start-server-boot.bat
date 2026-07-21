@@ -1,0 +1,41 @@
+@echo off
+REM ---------------------------------------------------------------------------
+REM Boot launcher for the WhisperX FastAPI backend (Scheduled Task, RU SYSTEM).
+REM Differs from start-server.bat (manual/dev) on purpose:
+REM   - ffmpeg dir is PINNED absolute (SYSTEM profile has no winget %LOCALAPPDATA%)
+REM   - NO --reload (stable long-run; reload watcher is a dev convenience)
+REM   - stdout/stderr appended to logs\backend-boot.log (no console attached)
+REM   - PREFLIGHT frees port %PORT%: finds any stale LISTENING owner, walks up
+REM     to the root python of that process tree and taskkill /T's it, so a
+REM     re-run or task re-trigger (e.g. after a code patch) always rebinds
+REM     cleanly instead of dying with WinError 10013/10048. First boot = no-op.
+REM Config + secrets load from .env (pydantic env_file), resolved from cwd, so
+REM   the cd below is REQUIRED for the app to find .env and records.db.
+REM ---------------------------------------------------------------------------
+setlocal
+set "SCRIPT_DIR=%~dp0"
+set "PORT=8000"
+set "FFMPEG_DIR=C:\Users\rolan\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1-full_build\bin"
+set "PATH=%FFMPEG_DIR%;%PATH%"
+
+REM HuggingFace cache is PINNED for the same reason ffmpeg is: running as
+REM SYSTEM, %USERPROFILE% resolves to C:\Windows\System32\config\systemprofile,
+REM so the service gets an empty second cache and re-downloads every model.
+REM Gated pyannote/speaker-diarization-3.1 fails there, from_pretrained returns
+REM None, and diarization dies at 60%%. Point it at the desktop user's cache.
+set "HF_HOME=C:\Users\rolan\.cache\huggingface"
+
+if not exist "%SCRIPT_DIR%logs" mkdir "%SCRIPT_DIR%logs"
+
+REM --- Preflight: free port %PORT% by killing any stale server tree ---
+echo [%DATE% %TIME%] preflight: freeing port %PORT% >> "%SCRIPT_DIR%logs\backend-boot.log"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$port=%PORT%;$owners=@((Get-NetTCPConnection -LocalPort $port -State Listen -EA SilentlyContinue).OwningProcess)|Select-Object -Unique;foreach($o in $owners){if(-not $o){continue};$cur=$o;while($true){$pr=Get-CimInstance Win32_Process -Filter ('ProcessId='+$cur) -EA SilentlyContinue;if(-not $pr){break};$par=Get-CimInstance Win32_Process -Filter ('ProcessId='+$pr.ParentProcessId) -EA SilentlyContinue;if($par -and $par.Name -eq 'python.exe'){$cur=$par.ProcessId}else{break}};Write-Output ('killing stale python tree root PID '+$cur);taskkill /F /T /PID $cur}" >> "%SCRIPT_DIR%logs\backend-boot.log" 2>&1
+
+REM brief pause so the socket fully releases before we rebind
+ping -n 3 127.0.0.1 >nul
+
+call "%SCRIPT_DIR%.venv\Scripts\activate.bat"
+cd /d "%SCRIPT_DIR%"
+
+echo [%DATE% %TIME%] boot launcher starting uvicorn >> "%SCRIPT_DIR%logs\backend-boot.log"
+python -m uvicorn app.main:app --host 0.0.0.0 --port %PORT% >> "%SCRIPT_DIR%logs\backend-boot.log" 2>&1

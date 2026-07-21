@@ -45,10 +45,12 @@ class TestWhisperSettings:
 
     def test_default_values(self) -> None:
         """Test that default values are set correctly."""
-        # Save and remove HF_TOKEN from environment if set
+        # `_env_file=None` is required: WhisperSettings reads the flat keys in
+        # the repo's .env (HF_TOKEN, WHISPER_MODEL, ...), so popping os.environ
+        # alone would not isolate the declared defaults from a developer's file.
         hf_token_backup = os.environ.pop("HF_TOKEN", None)
         try:
-            settings = WhisperSettings()
+            settings = WhisperSettings(_env_file=None)
             assert settings.WHISPER_MODEL == WhisperModel.tiny
             assert settings.DEFAULT_LANG == "en"
             assert settings.HF_TOKEN is None
@@ -137,6 +139,10 @@ class TestSettings:
                 "DEFAULT_LANG": "en",
                 "AUTH__JWT_SECRET": "test-jwt-secret-not-the-default",
                 "AUTH__CSRF_SECRET": "test-csrf-secret-not-the-default",
+                # The repo .env ships AUTH__COOKIE_SECURE=false for local http
+                # dev; ENVIRONMENT=production above makes
+                # AuthSettings._reject_dev_defaults_in_production demand true.
+                "AUTH__COOKIE_SECURE": "true",
             },
             clear=False,
         ):

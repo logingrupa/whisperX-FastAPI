@@ -1,7 +1,7 @@
 """Tests for the whisperx_services module."""
 
 from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
 import pandas as pd
@@ -227,8 +227,9 @@ def test_process_audio_common_gpu(
         diarization_params=DiarizationParams(min_speakers=1, max_speakers=2),
     )
 
-    # Mock the database session and repository
-    mock_session = Mock()
+    # MagicMock, not Mock: Phase 19-09 made the worker own its session through
+    # `with SessionLocal() as db`, which needs the context-manager protocol.
+    mock_session = MagicMock()
     mock_repository = Mock()
 
     with (
@@ -248,8 +249,11 @@ def test_process_audio_common_gpu(
             "app.services.whisperx_wrapper_service.load_align_model",
             return_value=(mock_align_model, {}),
         ),
+        # Patch where it is USED, not where it is defined: the service module
+        # did `from whisperx.diarize import DiarizationPipeline` at import time,
+        # so rebinding the source module leaves the bound name untouched.
         patch(
-            "whisperx.diarize.DiarizationPipeline",
+            "app.infrastructure.ml.whisperx_diarization_service.DiarizationPipeline",
             return_value=mock_diarization_pipeline,
         ),
         patch(
@@ -261,8 +265,18 @@ def test_process_audio_common_gpu(
 
         # Verify repository update was called
         assert mock_repository.update.called
-        # Verify session close was called
-        assert mock_session.close.called
+        # The task must reach a terminal status on the GPU path — a bare
+        # "update was called" also passes on progress-only writes, which is how
+        # a crashed diarization job used to masquerade as a live task.
+        terminal_updates = [
+            call
+            for call in mock_repository.update.call_args_list
+            if "status" in call[1]["update_data"]
+        ]
+        assert len(terminal_updates) == 1
+        assert terminal_updates[0][1]["update_data"]["status"] == "completed"
+        # Context-manager exit is what finalises the session now (19-09).
+        assert mock_session.__exit__.called
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")

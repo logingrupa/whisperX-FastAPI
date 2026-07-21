@@ -13,6 +13,7 @@ from uuid import uuid4
 from fastapi import BackgroundTasks
 
 from app.audio import get_audio_duration, process_audio_file
+from app.core.config import get_settings
 from app.core.logging import logger
 from app.domain.entities.task import Task as DomainTask
 from app.domain.repositories.task_repository import ITaskRepository
@@ -20,8 +21,6 @@ from app.infrastructure.storage.magic_validator import validate_magic_bytes
 from app.schemas import (
     AlignmentParams,
     ASROptions,
-    ComputeType,
-    Device,
     DiarizationParams,
     InterpolateMethod,
     SpeechToTextProcessingParams,
@@ -29,7 +28,6 @@ from app.schemas import (
     TaskStatus,
     TaskType,
     VADOptions,
-    WhisperModel,
     WhisperModelParams,
 )
 from app.services.whisperx_wrapper_service import process_audio_common
@@ -119,16 +117,21 @@ class UploadSessionService:
             # 5. Build processing params with explicit defaults
             # All schema classes use Field(Query(...)) for FastAPI DI, but Query
             # objects don't resolve to actual values when constructed directly.
+            # Model/device/compute come from settings, NOT literals: hardcoding
+            # WhisperModel.tiny here silently downgraded every TUS upload to the
+            # tiny model for any language without a LANGUAGE_MODEL_OVERRIDES
+            # entry, regardless of WHISPER_MODEL in .env.
+            whisper_settings = get_settings().whisper
             model_params = WhisperModelParams(
                 language=language if language and language != "auto" else "en",
                 task=TaskEnum.TRANSCRIBE,
-                model=WhisperModel.tiny,
-                device=Device.cuda,
+                model=whisper_settings.WHISPER_MODEL,
+                device=whisper_settings.DEVICE,
                 device_index=0,
                 threads=0,
                 batch_size=8,
                 chunk_size=20,
-                compute_type=ComputeType.float16,
+                compute_type=whisper_settings.COMPUTE_TYPE,
             )
 
             params = SpeechToTextProcessingParams(

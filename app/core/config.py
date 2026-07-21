@@ -14,8 +14,43 @@ from app.core.file_extensions import (
 from app.schemas import ComputeType, Device, WhisperModel
 
 
+# Nested settings groups read the SAME flat keys `.env` actually declares
+# (HF_TOKEN, WHISPER_MODEL, DB_URL, ...). Without this, `Settings` would only
+# match them through its `env_nested_delimiter="__"` path — i.e. as
+# `whisper__HF_TOKEN` — and `case_sensitive=True` makes even `WHISPER__HF_TOKEN`
+# miss the lowercase `whisper` field name. The keys then silently fall back to
+# their defaults: HF_TOKEN became None, which is what broke gated pyannote
+# diarization. AuthSettings already carries its own config (env_prefix AUTH__).
+_FLAT_ENV_CONFIG = SettingsConfigDict(
+    env_file=".env",
+    env_file_encoding="utf-8",
+    case_sensitive=True,
+    extra="ignore",
+)
+
+
+def resolve_environment() -> str:
+    """Resolve the deployment environment from the OS env, then `.env`.
+
+    Validators cannot read `Settings.ENVIRONMENT` (it is the outer model, and
+    they run during its own construction), so they resolve it here. Reading
+    `os.environ` ALONE is a trap: a dotenv file is parsed by pydantic-settings
+    without being exported to the process environment, so a deployment that
+    declares ENVIRONMENT=production only in `.env` would look non-production to
+    every guardrail and skip all of them silently.
+    """
+    import os
+
+    from dotenv import dotenv_values
+
+    raw = os.environ.get("ENVIRONMENT") or dotenv_values(".env").get("ENVIRONMENT") or ""
+    return raw.strip().lower()
+
+
 class DatabaseSettings(BaseSettings):
     """Database configuration settings."""
+
+    model_config = _FLAT_ENV_CONFIG
 
     DB_URL: str = Field(
         default="sqlite:///records.db",
@@ -29,6 +64,8 @@ class DatabaseSettings(BaseSettings):
 
 class WhisperSettings(BaseSettings):
     """WhisperX ML model configuration settings."""
+
+    model_config = _FLAT_ENV_CONFIG
 
     HF_TOKEN: Optional[str] = Field(
         default=None,
@@ -104,6 +141,8 @@ class WhisperSettings(BaseSettings):
 class LoggingSettings(BaseSettings):
     """Logging configuration settings."""
 
+    model_config = _FLAT_ENV_CONFIG
+
     LOG_LEVEL: str = Field(
         default="INFO",
         description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
@@ -120,6 +159,8 @@ class LoggingSettings(BaseSettings):
 
 class CallbackSettings(BaseSettings):
     """Callback configuration settings."""
+
+    model_config = _FLAT_ENV_CONFIG
 
     CALLBACK_TIMEOUT: int = Field(
         default=10,
@@ -202,9 +243,7 @@ class AuthSettings(BaseSettings):
         pydantic-settings cannot conditionally require fields, so we use harmless
         dev defaults and assert at construction time that production never sees them.
         """
-        import os
-
-        if os.environ.get("ENVIRONMENT", "").lower() != "production":
+        if resolve_environment() != "production":
             return self
         dev_default = "change-me-dev-only"
         if self.JWT_SECRET.get_secret_value() == dev_default:

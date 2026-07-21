@@ -10,6 +10,25 @@ from app.services.audio_processing_service import (
 )
 
 
+def assert_single_terminal_update(mock_repository: MagicMock) -> dict:
+    """Return the one terminal (status-carrying) repository.update payload.
+
+    `process_audio_task` also writes progress-only updates (queued -> stage ->
+    complete), so `update` is called several times per task; exactly one of
+    those calls carries `status`. Asserting on that call keeps the tests
+    pinned to the outcome instead of to the progress-update count.
+    """
+    terminal_calls = [
+        call
+        for call in mock_repository.update.call_args_list
+        if "status" in call[1]["update_data"]
+    ]
+    assert len(terminal_calls) == 1, (
+        f"expected exactly one terminal update, got {len(terminal_calls)}"
+    )
+    return terminal_calls[0][1]
+
+
 @pytest.mark.unit
 class TestAudioProcessingService:
     """Unit tests for audio processing service functions."""
@@ -55,13 +74,10 @@ class TestAudioProcessingService:
 
         # Verify
         mock_processor.assert_called_once()
-        mock_repository.update.assert_called_once()
-        update_call = mock_repository.update.call_args
-        assert update_call[1]["identifier"] == "test-123"
-        assert update_call[1]["update_data"]["status"] == "completed"
-        assert update_call[1]["update_data"]["result"] == {
-            "segments": [{"text": "hello"}]
-        }
+        update_call = assert_single_terminal_update(mock_repository)
+        assert update_call["identifier"] == "test-123"
+        assert update_call["update_data"]["status"] == "completed"
+        assert update_call["update_data"]["result"] == {"segments": [{"text": "hello"}]}
         # Context-manager exit guarantees session finalisation (replaces
         # legacy literal mock_session.close.assert_called_once()).
         mock_session.__exit__.assert_called_once()
@@ -99,9 +115,8 @@ class TestAudioProcessingService:
         )
 
         # Verify
-        mock_repository.update.assert_called_once()
-        update_call = mock_repository.update.call_args
-        result = update_call[1]["update_data"]["result"]
+        update_call = assert_single_terminal_update(mock_repository)
+        result = update_call["update_data"]["result"]
         # Should be a list of dicts, not a DataFrame
         assert isinstance(result, list)
         assert len(result) == 2
@@ -130,11 +145,10 @@ class TestAudioProcessingService:
         )
 
         # Verify task was marked as failed
-        mock_repository.update.assert_called_once()
-        update_call = mock_repository.update.call_args
-        assert update_call[1]["identifier"] == "test-789"
-        assert update_call[1]["update_data"]["status"] == "failed"
-        assert "error" in update_call[1]["update_data"]
+        update_call = assert_single_terminal_update(mock_repository)
+        assert update_call["identifier"] == "test-789"
+        assert update_call["update_data"]["status"] == "failed"
+        assert "error" in update_call["update_data"]
         # Context-manager exit fires on the failure path too (replaces
         # legacy literal mock_session.close.assert_called_once()).
         mock_session.__exit__.assert_called_once()

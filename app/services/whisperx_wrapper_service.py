@@ -16,6 +16,7 @@ from whisperx.diarize import DiarizationPipeline
 
 from app.callbacks import post_task_callback
 from app.core.config import Config, get_settings
+from app.core.gpu_lock import gpu_slot
 from app.core.logging import logger
 from app.domain.entities.user import User
 from app.domain.repositories.task_repository import ITaskRepository
@@ -26,6 +27,9 @@ from app.domain.services.transcription_service import ITranscriptionService
 from app.infrastructure.database.connection import SessionLocal
 from app.infrastructure.database.repositories.sqlalchemy_rate_limit_repository import (
     SQLAlchemyRateLimitRepository,
+)
+from app.infrastructure.database.repositories.sqlalchemy_api_key_repository import (
+    SQLAlchemyApiKeyRepository,
 )
 from app.infrastructure.database.repositories.sqlalchemy_task_repository import (
     SQLAlchemyTaskRepository,
@@ -348,6 +352,7 @@ def process_audio_common(
     with SessionLocal() as db:
         repository: ITaskRepository = SQLAlchemyTaskRepository(db)
         user_repo = SQLAlchemyUserRepository(db)
+        api_key_repo = SQLAlchemyApiKeyRepository(db)
         rate_limit_service = RateLimitService(
             repository=SQLAlchemyRateLimitRepository(db)
         )
@@ -389,68 +394,74 @@ def process_audio_common(
                 params.whisper_model_params.threads,
             )
 
-            segments_before_alignment = transcription_svc.transcribe(
-                audio=params.audio,
-                task=params.whisper_model_params.task.value,
-                asr_options=params.asr_options.model_dump(),
-                vad_options=params.vad_options.model_dump(),
-                language=params.whisper_model_params.language,
-                batch_size=params.whisper_model_params.batch_size,
-                chunk_size=params.whisper_model_params.chunk_size,
-                model=params.whisper_model_params.model.value,
-                device=params.whisper_model_params.device.value,
-                device_index=params.whisper_model_params.device_index,
-                compute_type=params.whisper_model_params.compute_type.value,
-                threads=params.whisper_model_params.threads,
-            )
+            # Serialize GPU access for the entire model pipeline (transcribe
+            # -> align -> diarize -> combine). Holding one process-wide slot
+            # for the whole job guarantees only one job loads models into VRAM
+            # at a time — the CUDA OOM / driver-hang guard. Auto-releases on
+            # success or exception (context-manager finally).
+            with gpu_slot(params.identifier):
+                segments_before_alignment = transcription_svc.transcribe(
+                    audio=params.audio,
+                    task=params.whisper_model_params.task.value,
+                    asr_options=params.asr_options.model_dump(),
+                    vad_options=params.vad_options.model_dump(),
+                    language=params.whisper_model_params.language,
+                    batch_size=params.whisper_model_params.batch_size,
+                    chunk_size=params.whisper_model_params.chunk_size,
+                    model=params.whisper_model_params.model.value,
+                    device=params.whisper_model_params.device.value,
+                    device_index=params.whisper_model_params.device_index,
+                    compute_type=params.whisper_model_params.compute_type.value,
+                    threads=params.whisper_model_params.threads,
+                )
 
-            # Progress: transcription complete, starting alignment
-            _update_progress(repository, params.identifier, TaskProgressStage.aligning, 40)
+                # Progress: transcription complete, starting alignment
+                _update_progress(repository, params.identifier, TaskProgressStage.aligning, 40)
 
-            logger.debug(
-                "Alignment parameters - align_model: %s, interpolate_method: %s, return_char_alignments: %s, language_code: %s",
-                params.alignment_params.align_model,
-                params.alignment_params.interpolate_method,
-                params.alignment_params.return_char_alignments,
-                segments_before_alignment["language"],
-            )
-            segments_transcript = alignment_svc.align(
-                transcript=segments_before_alignment["segments"],
-                audio=params.audio,
-                language_code=segments_before_alignment["language"],
-                device=params.whisper_model_params.device.value,
-                align_model=params.alignment_params.align_model,
-                interpolate_method=params.alignment_params.interpolate_method,
-                return_char_alignments=params.alignment_params.return_char_alignments,
-            )
-            transcript = AlignedTranscription(**segments_transcript)
-            # removing words within each segment that have missing start, end, or score values
-            filtered_transcript = filter_aligned_transcription(transcript)
-            transcript_dict = filtered_transcript.model_dump()
+                logger.debug(
+                    "Alignment parameters - align_model: %s, interpolate_method: %s, return_char_alignments: %s, language_code: %s",
+                    params.alignment_params.align_model,
+                    params.alignment_params.interpolate_method,
+                    params.alignment_params.return_char_alignments,
+                    segments_before_alignment["language"],
+                )
+                segments_transcript = alignment_svc.align(
+                    transcript=segments_before_alignment["segments"],
+                    audio=params.audio,
+                    language_code=segments_before_alignment["language"],
+                    device=params.whisper_model_params.device.value,
+                    align_model=params.alignment_params.align_model,
+                    interpolate_method=params.alignment_params.interpolate_method,
+                    return_char_alignments=params.alignment_params.return_char_alignments,
+                )
+                transcript = AlignedTranscription(**segments_transcript)
+                # removing words within each segment that have missing start, end, or score values
+                filtered_transcript = filter_aligned_transcription(transcript)
+                transcript_dict = filtered_transcript.model_dump()
 
-            # Progress: alignment complete, starting diarization
-            _update_progress(repository, params.identifier, TaskProgressStage.diarizing, 60)
+                # Progress: alignment complete, starting diarization
+                _update_progress(repository, params.identifier, TaskProgressStage.diarizing, 60)
 
-            logger.debug(
-                "Diarization parameters - device: %s, min_speakers: %s, max_speakers: %s",
-                params.whisper_model_params.device.value,
-                params.diarization_params.min_speakers,
-                params.diarization_params.max_speakers,
-            )
-            diarization_segments = diarization_svc.diarize(
-                audio=params.audio,
-                device=params.whisper_model_params.device.value,
-                min_speakers=params.diarization_params.min_speakers,
-                max_speakers=params.diarization_params.max_speakers,
-            )
+                logger.debug(
+                    "Diarization parameters - device: %s, min_speakers: %s, max_speakers: %s",
+                    params.whisper_model_params.device.value,
+                    params.diarization_params.min_speakers,
+                    params.diarization_params.max_speakers,
+                )
+                diarization_segments = diarization_svc.diarize(
+                    audio=params.audio,
+                    device=params.whisper_model_params.device.value,
+                    min_speakers=params.diarization_params.min_speakers,
+                    max_speakers=params.diarization_params.max_speakers,
+                )
 
-            # Progress: diarization complete, combining results
-            _update_progress(repository, params.identifier, TaskProgressStage.diarizing, 80)
+                # Progress: diarization complete, combining results
+                _update_progress(repository, params.identifier, TaskProgressStage.diarizing, 80)
 
-            logger.debug("Starting to combine transcript with diarization results")
-            result = speaker_svc.assign_speakers(diarization_segments, transcript_dict)
+                logger.debug("Starting to combine transcript with diarization results")
+                result = speaker_svc.assign_speakers(diarization_segments, transcript_dict)
 
-            logger.debug("Completed combining transcript with diarization results")
+                logger.debug("Completed combining transcript with diarization results")
 
             end_time = datetime.now()
             duration = (end_time - start_time).total_seconds()
@@ -510,6 +521,29 @@ def process_audio_common(
                 params.identifier,
                 error_code="PROCESSING_FAILED",
                 user_message="Transcription processing failed due to memory constraints. Please try with a smaller file.",
+                technical_detail=str(e),
+            )
+            repository.update(
+                identifier=params.identifier,
+                update_data={"status": TaskStatus.failed, "error": str(e)},
+            )
+
+        except Exception as e:
+            # Catch-all is mandatory: this runs as a BackgroundTask, so anything
+            # not handled above (e.g. AttributeError from a model that failed to
+            # load) escapes silently and leaves the row stuck in `processing`
+            # forever — and every identical re-upload dedupes onto that corpse.
+            logger.error(
+                "Speech-to-text processing failed for identifier: %s with unexpected error. Error: %s",
+                params.identifier,
+                str(e),
+                exc_info=True,
+            )
+            progress_emitter = get_progress_emitter()
+            progress_emitter.emit_error(
+                params.identifier,
+                error_code="PROCESSING_FAILED",
+                user_message="Transcription processing failed unexpectedly. Please try again.",
                 technical_detail=str(e),
             )
             repository.update(
@@ -598,7 +632,11 @@ def process_audio_common(
             # release crash never blocks the context-manager exit.
             try:
                 release_slot_if_authed(
-                    repository, user_repo, params.identifier, free_tier_gate
+                    repository,
+                    user_repo,
+                    params.identifier,
+                    free_tier_gate,
+                    api_key_repo,
                 )
             except Exception as exc:
                 logger.warning(

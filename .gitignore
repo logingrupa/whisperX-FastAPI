@@ -21,3 +21,6 @@ models/
 
 # Per-user Claude Code settings (may include secrets / personal config)
 .claude/
+
+# Runtime logs (backend-boot.log grows to hundreds of MB)
+logs/

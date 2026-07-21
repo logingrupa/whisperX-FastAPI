@@ -5,12 +5,33 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy.orm import Session
 
+from app.infrastructure.database.models import User
 from app.infrastructure.database.repositories.sqlalchemy_task_repository import (
     SQLAlchemyTaskRepository,
 )
 from tests.factories import TaskFactory
 
 # Fixtures are imported via conftest.py, no need to import them here
+
+# TaskFactory defaults to user_id=1 (Phase 13-07: every task needs an owner).
+# Against a real database that default is a foreign key, so the owning row must
+# exist or every INSERT dies with "FOREIGN KEY constraint failed".
+DEFAULT_TASK_OWNER_ID = 1
+
+
+@pytest.fixture(autouse=True)
+def seed_default_task_owner(db_session: Session) -> None:
+    """Insert the user that TaskFactory's default `user_id` points at."""
+    if db_session.get(User, DEFAULT_TASK_OWNER_ID) is not None:
+        return
+    db_session.add(
+        User(
+            id=DEFAULT_TASK_OWNER_ID,
+            email="task-lifecycle-owner@example.test",
+            password_hash="not-a-real-argon2-hash",
+        )
+    )
+    db_session.commit()
 
 
 @pytest.mark.integration

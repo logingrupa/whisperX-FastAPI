@@ -8,7 +8,33 @@ import pandas as pd
 import torch
 from whisperx.diarize import DiarizationPipeline
 
+from app.core.exceptions import DiarizationFailedError
 from app.core.logging import logger
+
+# pyannote's Pipeline.from_pretrained swallows the underlying HTTP/cache error
+# and returns None, so whisperx's `.to(device)` blows up with an opaque
+# AttributeError. Guard the load and raise a domain error naming the two real
+# causes: a token that cannot read the gated repo, or a HF cache the service
+# account cannot populate (the SYSTEM-run boot task has its own cache dir).
+_GATED_MODEL_HINT = (
+    "pyannote/speaker-diarization-3.1 could not be loaded (gated model). "
+    "Verify HF_TOKEN has accepted the model conditions and that HF_HOME points "
+    "at a cache the server process can write."
+)
+
+
+def _load_pipeline(hf_token: str, device: str) -> DiarizationPipeline:
+    """Load the diarization pipeline, failing loudly instead of returning None."""
+    try:
+        pipeline = DiarizationPipeline(use_auth_token=hf_token, device=device)
+    except AttributeError as exc:
+        # `.to(None)` — from_pretrained returned None.
+        raise DiarizationFailedError(_GATED_MODEL_HINT, exc) from exc
+
+    if pipeline is None or getattr(pipeline, "model", None) is None:
+        raise DiarizationFailedError(_GATED_MODEL_HINT)
+
+    return pipeline
 
 
 class WhisperXDiarizationService:
@@ -59,7 +85,7 @@ class WhisperXDiarizationService:
             )
 
         # Load model
-        model = DiarizationPipeline(use_auth_token=self.hf_token, device=device)
+        model = _load_pipeline(self.hf_token, device)
 
         # Perform diarization
         result = model(
@@ -98,7 +124,7 @@ class WhisperXDiarizationService:
         """
         self.logger.info(f"Loading diarization model on {device}")
         self.hf_token = hf_token
-        self.model = DiarizationPipeline(use_auth_token=self.hf_token, device=device)
+        self.model = _load_pipeline(self.hf_token, device)
 
     def unload_model(self) -> None:
         """Unload diarization model and free GPU memory."""
