@@ -16,6 +16,17 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 
+def utc_now() -> datetime:
+    """Return the current instant as a tz-aware UTC datetime.
+
+    Single source of truth for "now" across the stack. Bare ``datetime.now()``
+    returns tz-naive *local* time; persisting that alongside UTC columns makes
+    ``ensure_utc_aware`` stamp a local wall-clock as UTC, silently shifting the
+    value by the machine's offset. Never call ``datetime.now()`` without a tz.
+    """
+    return datetime.now(timezone.utc)
+
+
 def ensure_utc_aware(value: datetime | None) -> datetime | None:
     """Return ``value`` as a tz-aware UTC datetime; ``None`` passes through.
 

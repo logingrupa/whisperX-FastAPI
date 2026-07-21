@@ -1,7 +1,6 @@
 """This module provides services for processing audio tasks including transcription, diarization, alignment, and speaker assignment using WhisperX and FastAPI."""
 
 from collections.abc import Callable
-from datetime import datetime
 from typing import Any
 
 from whisperx import utils as whisperx_utils
@@ -14,6 +13,7 @@ from app.core.exceptions import (
     ValidationError,
 )
 from app.core.logging import logger
+from app.core.time import utc_now
 from app.domain.repositories.task_repository import ITaskRepository
 from app.domain.services.alignment_service import IAlignmentService
 from app.domain.services.diarization_service import IDiarizationService
@@ -109,7 +109,7 @@ def process_audio_task(
         _update_progress(repository, identifier, TaskProgressStage.queued, 0)
 
         try:
-            start_time = datetime.now()
+            start_time = utc_now()
             logger.info(f"Starting {task_type} task for identifier {identifier}")
 
             # Progress: processing started
@@ -120,7 +120,7 @@ def process_audio_task(
             if task_type == "diarization":
                 result = result.drop(columns=["segment"]).to_dict(orient="records")
 
-            end_time = datetime.now()
+            end_time = utc_now()
             duration = (end_time - start_time).total_seconds()
             logger.info(
                 f"Completed {task_type} task for identifier {identifier}. Duration: {duration}s"

@@ -119,10 +119,14 @@ class Task(Base):
         Float, nullable=True, comment="Duration of the task execution"
     )
     start_time: Mapped[datetime | None] = mapped_column(
-        DateTime, nullable=True, comment="Start time of the task execution"
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Start time of the task execution (UTC, tz-aware)",
     )
     end_time: Mapped[datetime | None] = mapped_column(
-        DateTime, nullable=True, comment="End time of the task execution"
+        DateTime(timezone=True),
+        nullable=True,
+        comment="End time of the task execution (UTC, tz-aware)",
     )
     error: Mapped[str | None] = mapped_column(
         String, nullable=True, comment="Error message, if any, associated with the task"

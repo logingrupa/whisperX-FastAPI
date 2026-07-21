@@ -1,7 +1,6 @@
 """This module provides services for transcribing, diarizing, and aligning audio using Whisper and other models."""
 
 import gc
-from datetime import datetime
 from typing import Any
 
 import numpy as np
@@ -18,6 +17,7 @@ from app.callbacks import post_task_callback
 from app.core.config import Config, get_settings
 from app.core.gpu_lock import gpu_slot
 from app.core.logging import logger
+from app.core.time import utc_now
 from app.domain.entities.user import User
 from app.domain.repositories.task_repository import ITaskRepository
 from app.domain.services.alignment_service import IAlignmentService
@@ -372,7 +372,7 @@ def process_audio_common(
         _update_progress(repository, params.identifier, TaskProgressStage.queued, 0)
 
         try:
-            start_time = datetime.now()
+            start_time = utc_now()
             logger.info(
                 "Starting speech-to-text processing for identifier: %s",
                 params.identifier,
@@ -463,7 +463,7 @@ def process_audio_common(
 
                 logger.debug("Completed combining transcript with diarization results")
 
-            end_time = datetime.now()
+            end_time = utc_now()
             duration = (end_time - start_time).total_seconds()
             logger.info(
                 "Completed speech-to-text processing for identifier: %s. Duration: %ss",
