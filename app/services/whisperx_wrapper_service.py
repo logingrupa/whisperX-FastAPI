@@ -37,6 +37,7 @@ from app.infrastructure.database.repositories.sqlalchemy_task_repository import 
 from app.infrastructure.database.repositories.sqlalchemy_user_repository import (
     SQLAlchemyUserRepository,
 )
+from app.infrastructure.ml.model_registry import evict_on_cuda_error
 from app.infrastructure.websocket import get_progress_emitter
 from app.services.auth.rate_limit_service import RateLimitService
 from app.services.concurrency_slot import release_slot_if_authed
@@ -490,6 +491,7 @@ def process_audio_common(
             duration_observed = duration
 
         except (RuntimeError, ValueError, KeyError) as e:
+            evict_on_cuda_error(e)  # CUDA-class failures evict-all; app errors no-op
             logger.error(
                 "Speech-to-text processing failed for identifier: %s. Error: %s",
                 params.identifier,
@@ -512,6 +514,7 @@ def process_audio_common(
             )
 
         except MemoryError as e:
+            evict_on_cuda_error(e)  # CUDA-class failures evict-all; app errors no-op
             logger.error(
                 f"Task failed for identifier {params.identifier} due to out of memory. Error: {str(e)}"
             )
@@ -533,6 +536,7 @@ def process_audio_common(
             # not handled above (e.g. AttributeError from a model that failed to
             # load) escapes silently and leaves the row stuck in `processing`
             # forever — and every identical re-upload dedupes onto that corpse.
+            evict_on_cuda_error(e)  # CUDA-class failures evict-all; app errors no-op
             logger.error(
                 "Speech-to-text processing failed for identifier: %s with unexpected error. Error: %s",
                 params.identifier,

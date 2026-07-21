@@ -23,6 +23,8 @@ from app.infrastructure.database.connection import SessionLocal
 from app.infrastructure.database.repositories.sqlalchemy_task_repository import (
     SQLAlchemyTaskRepository,
 )
+from app.core.gpu_lock import gpu_slot
+from app.infrastructure.ml.model_registry import evict_on_cuda_error
 from app.infrastructure.websocket import get_progress_emitter
 from app.services.concurrency_slot import release_slot_for_task
 from app.schemas import (
@@ -115,7 +117,11 @@ def process_audio_task(
             # Progress: processing started
             _update_progress(repository, identifier, processing_stage, 10)
 
-            result = audio_processor()
+            # Serialize GPU access: hold the process-wide slot for the whole
+            # model load+inference so no two jobs double-load VRAM (CUDA OOM /
+            # driver hang guard). Slot auto-releases on success or exception.
+            with gpu_slot(identifier):
+                result = audio_processor()
 
             if task_type == "diarization":
                 result = result.drop(columns=["segment"]).to_dict(orient="records")
@@ -150,6 +156,7 @@ def process_audio_task(
             AudioProcessingError,
             InsufficientMemoryError,
         ) as e:
+            evict_on_cuda_error(e)  # CUDA-class failures evict-all; app errors no-op
             logger.error(
                 f"Task {task_type} failed for identifier {identifier}. Error: {str(e)}"
             )
@@ -166,6 +173,7 @@ def process_audio_task(
                 update_data={"status": TaskStatus.failed, "error": str(e)},
             )
         except Exception as e:
+            evict_on_cuda_error(e)  # CUDA-class failures evict-all; app errors no-op
             logger.error(
                 f"Task {task_type} failed for identifier {identifier} with unexpected error. Error: {str(e)}"
             )
