@@ -25,6 +25,26 @@ REM Gated pyannote/speaker-diarization-3.1 fails there, from_pretrained returns
 REM None, and diarization dies at 60%%. Point it at the desktop user's cache.
 set "HF_HOME=C:\Users\rolan\.cache\huggingface"
 
+REM Never contact the HF hub at runtime. Every model is already cached (whisper
+REM large-v3 + tiny, lv/ru/en align models, all three pyannote models); the hub
+REM call was only a revision revalidation, and when it failed it surfaced as
+REM "pyannote/speaker-diarization-3.1 unavailable" and killed diarization even
+REM though the weights were on disk. Verified 2026-07-22: all 6 models load with
+REM the hub disabled.
+REM CAUTION: adding a NEW language fails hard here instead of downloading its
+REM align model. To add one: comment this out, run one job to warm the cache,
+REM then re-enable.
+set "HF_HUB_OFFLINE=1"
+set "TRANSFORMERS_OFFLINE=1"
+
+REM Two jobs on the GPU at once. Was 1 while disk I/O was the bottleneck (models
+REM read at 14 MB/s under Defender scanning, so the GPU sat at 1-8% and extra
+REM concurrency bought nothing). With the model dirs excluded from Defender the
+REM loads dropped to 1-6 s and the GPU is idle again for a different reason:
+REM there is simply only one job. 24 GB VRAM holds ~4 GB per job comfortably.
+REM Revert to 1 if CUDA OOM or driver hangs appear.
+set "GPU_MAX_CONCURRENT_JOBS=2"
+
 if not exist "%SCRIPT_DIR%logs" mkdir "%SCRIPT_DIR%logs"
 
 REM --- Preflight: free port %PORT% by killing any stale server tree ---
