@@ -111,6 +111,13 @@ class WhisperSettings(BaseSettings):
         default=8,
         description="Registry count cap; oldest entry evicted beyond this",
     )
+    MODEL_CACHE_IDLE_TTL_SECONDS: int = Field(
+        default=1800,
+        description=(
+            "Evict resident models unused for this many seconds (background "
+            "sweeper frees VRAM between jobs). 0 = keep forever."
+        ),
+    )
 
     AUDIO_EXTENSIONS: set[str] = Field(
         default_factory=lambda: set(_DEFAULT_AUDIO_EXTENSIONS)

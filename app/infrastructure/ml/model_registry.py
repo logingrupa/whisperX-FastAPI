@@ -10,6 +10,9 @@ pipelines mutate instance state during inference — one instance is NOT
 safe for two concurrent calls), and owns eviction policy:
 
 - Keep-all with a count cap (``MODEL_CACHE_MAX_MODELS``, oldest-first).
+- Idle TTL (``MODEL_CACHE_IDLE_TTL_SECONDS``, 0 = keep forever): a
+  background sweeper evicts entries unused longer than the TTL, freeing
+  VRAM between jobs. Entries mid-inference are never evicted.
 - Evict ALL on CUDA errors (context may be corrupted — self-healing back
   to cold-load behavior).
 - Keep cache on app errors (model state untouched).
@@ -39,6 +42,7 @@ class _Entry:
     model: Any | None = None
     lock: threading.Lock = field(default_factory=threading.Lock)
     loaded_at: float = 0.0
+    last_used_at: float = 0.0
 
 
 _registry: dict[tuple, _Entry] = {}
@@ -62,15 +66,20 @@ def _evict_oldest_locked() -> None:
 
 
 def _get_or_create_entry(key: tuple, max_models: int) -> _Entry:
-    """Get-or-create an entry under the registry lock; enforce the count cap."""
+    """Get-or-create an entry under the registry lock; enforce the count cap.
+
+    Touches ``last_used_at`` under the SAME lock the idle sweeper holds, so
+    an entry handed to a caller cannot be idle-evicted before the caller
+    acquires its inference lock.
+    """
     with _registry_lock:
         entry = _registry.get(key)
-        if entry is not None:
-            return entry
-        if len(_registry) >= max_models:
-            _evict_oldest_locked()
-        entry = _Entry()
-        _registry[key] = entry
+        if entry is None:
+            if len(_registry) >= max_models:
+                _evict_oldest_locked()
+            entry = _Entry()
+            _registry[key] = entry
+        entry.last_used_at = time.time()
         return entry
 
 
@@ -95,6 +104,9 @@ def lease(key: tuple, loader: Callable[[], Any]) -> Iterator[Any]:
             torch.cuda.empty_cache()
         return
 
+    if settings.whisper.MODEL_CACHE_IDLE_TTL_SECONDS > 0:
+        _ensure_sweeper()
+
     entry = _get_or_create_entry(key, settings.whisper.MODEL_CACHE_MAX_MODELS)
 
     with entry.lock:
@@ -116,7 +128,71 @@ def lease(key: tuple, loader: Callable[[], Any]) -> Iterator[Any]:
             )
         else:
             logger.info("model_cache HIT key=%s load_s=0.00", key)
-        yield entry.model
+        try:
+            yield entry.model
+        finally:
+            # Idle clock counts from job END, not start — a long job must
+            # not expire its own model.
+            entry.last_used_at = time.time()
+
+
+_SWEEP_INTERVAL_SECONDS = 60.0
+_sweeper_start_lock = threading.Lock()
+_sweeper_thread: threading.Thread | None = None
+
+
+def _sweep_idle_once(ttl_seconds: float) -> list[tuple]:
+    """Evict entries unused for longer than ``ttl_seconds``.
+
+    Entries whose inference lock is held are skipped (never evict a model
+    mid-job) — non-blocking acquire, retried on the next sweep.
+    """
+    now = time.time()
+    evicted: list[tuple] = []
+    with _registry_lock:
+        for key in list(_registry):
+            entry = _registry[key]
+            if now - entry.last_used_at < ttl_seconds:
+                continue
+            if not entry.lock.acquire(blocking=False):
+                continue
+            try:
+                del _registry[key]
+                entry.model = None
+                evicted.append(key)
+            finally:
+                entry.lock.release()
+    if evicted:
+        gc.collect()
+        torch.cuda.empty_cache()
+        logger.info(
+            "model_cache IDLE-EVICT ttl_s=%.0f evicted_keys=%s",
+            ttl_seconds,
+            evicted,
+        )
+    return evicted
+
+
+def _sweeper_loop() -> None:
+    while True:
+        time.sleep(_SWEEP_INTERVAL_SECONDS)
+        ttl_seconds = get_settings().whisper.MODEL_CACHE_IDLE_TTL_SECONDS
+        if ttl_seconds > 0:
+            _sweep_idle_once(ttl_seconds)
+
+
+def _ensure_sweeper() -> None:
+    """Start the idle-sweeper daemon thread once per process."""
+    global _sweeper_thread
+    if _sweeper_thread is not None:
+        return
+    with _sweeper_start_lock:
+        if _sweeper_thread is not None:
+            return
+        _sweeper_thread = threading.Thread(
+            target=_sweeper_loop, name="model-cache-idle-sweeper", daemon=True
+        )
+        _sweeper_thread.start()
 
 
 def evict_all(reason: str) -> None:

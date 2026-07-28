@@ -13,11 +13,14 @@ import torch
 from app.infrastructure.ml import model_registry
 
 
-def _fake_settings(enabled: bool = True, max_models: int = 8) -> SimpleNamespace:
+def _fake_settings(
+    enabled: bool = True, max_models: int = 8, idle_ttl: int = 0
+) -> SimpleNamespace:
     return SimpleNamespace(
         whisper=SimpleNamespace(
             MODEL_CACHE_ENABLED=enabled,
             MODEL_CACHE_MAX_MODELS=max_models,
+            MODEL_CACHE_IDLE_TTL_SECONDS=idle_ttl,
         )
     )
 
@@ -232,6 +235,76 @@ class TestCountCap:
         assert ("whisper", "oldest") not in snapshot["keys"]
         assert ("whisper", "middle") in snapshot["keys"]
         assert ("whisper", "newest") in snapshot["keys"]
+
+
+class TestIdleTtl:
+    def test_idle_entry_evicted(self):
+        key = ("whisper", "idle")
+        with model_registry.lease(key, _CountingLoader()):
+            pass
+        model_registry._registry[key].last_used_at -= 999
+
+        evicted = model_registry._sweep_idle_once(ttl_seconds=100)
+
+        assert evicted == [key]
+        assert model_registry.stats()["count"] == 0
+
+    def test_fresh_entry_kept(self):
+        key = ("whisper", "fresh")
+        with model_registry.lease(key, _CountingLoader()):
+            pass
+
+        assert model_registry._sweep_idle_once(ttl_seconds=100) == []
+        assert model_registry.stats()["count"] == 1
+
+    def test_busy_entry_never_evicted(self):
+        key = ("whisper", "busy")
+        entry_held = threading.Event()
+        release_entry = threading.Event()
+
+        def hold_lease() -> None:
+            with model_registry.lease(key, _CountingLoader()):
+                model_registry._registry[key].last_used_at -= 999
+                entry_held.set()
+                release_entry.wait(timeout=5)
+
+        holder = threading.Thread(target=hold_lease)
+        holder.start()
+        assert entry_held.wait(timeout=5)
+
+        # Sweep runs WHILE inference lock held — entry must survive.
+        assert model_registry._sweep_idle_once(ttl_seconds=100) == []
+        assert model_registry.stats()["count"] == 1
+
+        release_entry.set()
+        holder.join(timeout=5)
+
+    def test_lease_release_resets_idle_clock(self):
+        key = ("whisper", "reused")
+        with model_registry.lease(key, _CountingLoader()):
+            pass
+        model_registry._registry[key].last_used_at -= 999
+
+        # Re-lease refreshes last_used_at — entry no longer idle.
+        with model_registry.lease(key, _CountingLoader()):
+            pass
+
+        assert model_registry._sweep_idle_once(ttl_seconds=100) == []
+        assert model_registry.stats()["count"] == 1
+
+    def test_evicted_key_reloads_on_next_lease(self):
+        key = ("whisper", "comeback")
+        loader = _CountingLoader()
+        with model_registry.lease(key, loader):
+            pass
+        model_registry._registry[key].last_used_at -= 999
+        model_registry._sweep_idle_once(ttl_seconds=100)
+
+        with model_registry.lease(key, loader) as model:
+            assert model is not None
+
+        assert loader.calls == 2
+        assert model_registry.stats()["count"] == 1
 
 
 class TestOptsHash:
