@@ -11,6 +11,9 @@ REM     re-run or task re-trigger (e.g. after a code patch) always rebinds
 REM     cleanly instead of dying with WinError 10013/10048. First boot = no-op.
 REM   - PREFLIGHT then verifies the OS still reserves %PORT% for us. WinNAT can
 REM     claim the port with no owning process, which the kill above cannot fix.
+REM   - PREFLIGHT logs to its OWN file. The dying server holds backend-boot.log,
+REM     and cmd skips a command outright when its redirect cannot open, so
+REM     preflight silently never ran and its exit code was lost.
 REM Config + secrets load from .env (pydantic env_file), resolved from cwd, so
 REM   the cd below is REQUIRED for the app to find .env and records.db.
 REM ---------------------------------------------------------------------------
@@ -57,9 +60,11 @@ set "GPU_MAX_CONCURRENT_JOBS=2"
 
 if not exist "%SCRIPT_DIR%logs" mkdir "%SCRIPT_DIR%logs"
 
+set "PREFLIGHT_LOG=%SCRIPT_DIR%logs\preflight.log"
+
 REM --- Preflight: free port %PORT% by killing any stale server tree ---
-echo [%DATE% %TIME%] preflight: freeing port %PORT% >> "%SCRIPT_DIR%logs\backend-boot.log"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$port=%PORT%;$owners=@((Get-NetTCPConnection -LocalPort $port -State Listen -EA SilentlyContinue).OwningProcess)|Select-Object -Unique;foreach($o in $owners){if(-not $o){continue};$cur=$o;while($true){$pr=Get-CimInstance Win32_Process -Filter ('ProcessId='+$cur) -EA SilentlyContinue;if(-not $pr){break};$par=Get-CimInstance Win32_Process -Filter ('ProcessId='+$pr.ParentProcessId) -EA SilentlyContinue;if($par -and $par.Name -eq 'python.exe'){$cur=$par.ProcessId}else{break}};Write-Output ('killing stale python tree root PID '+$cur);taskkill /F /T /PID $cur}" >> "%SCRIPT_DIR%logs\backend-boot.log" 2>&1
+echo [%DATE% %TIME%] preflight: freeing port %PORT% >> "%PREFLIGHT_LOG%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$port=%PORT%;$owners=@((Get-NetTCPConnection -LocalPort $port -State Listen -EA SilentlyContinue).OwningProcess)|Select-Object -Unique;foreach($o in $owners){if(-not $o){continue};$cur=$o;while($true){$pr=Get-CimInstance Win32_Process -Filter ('ProcessId='+$cur) -EA SilentlyContinue;if(-not $pr){break};$par=Get-CimInstance Win32_Process -Filter ('ProcessId='+$pr.ParentProcessId) -EA SilentlyContinue;if($par -and $par.Name -eq 'python.exe'){$cur=$par.ProcessId}else{break}};Write-Output ('killing stale python tree root PID '+$cur);taskkill /F /T /PID $cur}" >> "%PREFLIGHT_LOG%" 2>&1
 
 REM brief pause so the socket fully releases before we rebind
 ping -n 3 127.0.0.1 >nul
@@ -68,9 +73,9 @@ call "%SCRIPT_DIR%.venv\Scripts\activate.bat"
 cd /d "%SCRIPT_DIR%"
 
 REM --- Preflight: port %PORT% must not be OS-reserved (WinNAT block, no PID to kill) ---
-powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\ensure-port-8000.ps1" -Port %PORT% >> "%SCRIPT_DIR%logs\backend-boot.log" 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\ensure-port-8000.ps1" -Port %PORT% >> "%PREFLIGHT_LOG%" 2>&1
 if errorlevel 1 (
-    echo [%DATE% %TIME%] aborting: port %PORT% is OS-reserved >> "%SCRIPT_DIR%logs\backend-boot.log"
+    echo [%DATE% %TIME%] aborting: port %PORT% unavailable (see reason above) >> "%PREFLIGHT_LOG%"
     exit /b 1
 )
 
