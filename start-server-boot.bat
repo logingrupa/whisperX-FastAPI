@@ -9,6 +9,8 @@ REM   - PREFLIGHT frees port %PORT%: finds any stale LISTENING owner, walks up
 REM     to the root python of that process tree and taskkill /T's it, so a
 REM     re-run or task re-trigger (e.g. after a code patch) always rebinds
 REM     cleanly instead of dying with WinError 10013/10048. First boot = no-op.
+REM   - PREFLIGHT then verifies the OS still reserves %PORT% for us. WinNAT can
+REM     claim the port with no owning process, which the kill above cannot fix.
 REM Config + secrets load from .env (pydantic env_file), resolved from cwd, so
 REM   the cd below is REQUIRED for the app to find .env and records.db.
 REM ---------------------------------------------------------------------------
@@ -64,6 +66,13 @@ ping -n 3 127.0.0.1 >nul
 
 call "%SCRIPT_DIR%.venv\Scripts\activate.bat"
 cd /d "%SCRIPT_DIR%"
+
+REM --- Preflight: port %PORT% must not be OS-reserved (WinNAT block, no PID to kill) ---
+powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\ensure-port-8000.ps1" -Port %PORT% >> "%SCRIPT_DIR%logs\backend-boot.log" 2>&1
+if errorlevel 1 (
+    echo [%DATE% %TIME%] aborting: port %PORT% is OS-reserved >> "%SCRIPT_DIR%logs\backend-boot.log"
+    exit /b 1
+)
 
 echo [%DATE% %TIME%] boot launcher starting uvicorn >> "%SCRIPT_DIR%logs\backend-boot.log"
 python -m uvicorn app.main:app --host 0.0.0.0 --port %PORT% >> "%SCRIPT_DIR%logs\backend-boot.log" 2>&1
