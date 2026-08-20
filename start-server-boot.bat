@@ -75,7 +75,7 @@ cd /d "%SCRIPT_DIR%"
 REM --- Preflight: port %PORT% must not be OS-reserved (WinNAT block, no PID to kill) ---
 powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\ensure-port-8000.ps1" -Port %PORT% >> "%PREFLIGHT_LOG%" 2>&1
 if errorlevel 1 (
-    echo [%DATE% %TIME%] aborting: port %PORT% unavailable (see reason above) >> "%PREFLIGHT_LOG%"
+    echo [%DATE% %TIME%] aborting: port %PORT% unavailable - reason above >> "%PREFLIGHT_LOG%"
     exit /b 1
 )
 
