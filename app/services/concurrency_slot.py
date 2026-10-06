@@ -29,7 +29,7 @@ from app.services.auth.rate_limit_service import RateLimitService
 from app.services.free_tier_gate import FreeTierGate
 
 
-def _task_bypassed_gate(
+def task_bypassed_gate(
     api_key_repo: SQLAlchemyApiKeyRepository, api_key_id: int | None
 ) -> bool:
     """True iff the task was created by an unlimited key (gate was bypassed).
@@ -64,7 +64,7 @@ def release_slot_if_authed(
         return
     if completed_task.user_id is None:
         return
-    if _task_bypassed_gate(api_key_repo, completed_task.api_key_id):
+    if task_bypassed_gate(api_key_repo, completed_task.api_key_id):
         return
     user = user_repo.get_by_id(completed_task.user_id)
     if user is None:

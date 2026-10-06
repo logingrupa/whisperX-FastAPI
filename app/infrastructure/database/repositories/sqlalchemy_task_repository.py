@@ -21,13 +21,18 @@ from uuid import uuid4
 
 from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Query, Session
+from sqlalchemy.orm import Query, Session, defer
 
 from app.core.exceptions import DatabaseOperationError
 from app.core.logging import logger
 from app.domain.entities.task import Task as DomainTask
-from app.infrastructure.database.mappers.task_mapper import to_domain, to_orm
+from app.infrastructure.database.mappers.task_mapper import (
+    to_domain,
+    to_domain_without_result,
+    to_orm,
+)
 from app.infrastructure.database.models import Task as ORMTask
+from app.schemas import TaskStatus
 
 
 class SQLAlchemyTaskRepository:
@@ -106,15 +111,14 @@ class SQLAlchemyTaskRepository:
             if not task.uuid:
                 task.uuid = str(uuid4())
 
-            orm_task = to_orm(task)
-            self.session.add(orm_task)
+            self.session.add(to_orm(task))
             self.session.commit()
-            self.session.refresh(orm_task)
-
+            # No re-read after commit: the uuid is known, and a failed refresh
+            # would report a committed row as a failed add.
             logger.info(
-                f"Task added successfully with UUID: {orm_task.uuid} user_id={orm_task.user_id}"
+                f"Task added successfully with UUID: {task.uuid} user_id={task.user_id}"
             )
-            return str(orm_task.uuid)
+            return task.uuid
 
         except SQLAlchemyError as e:
             self.session.rollback()
@@ -208,6 +212,9 @@ class SQLAlchemyTaskRepository:
         Pushes the user-scope filter AND q/status predicates into SQL via
         ``_scoped_query`` + ``_apply_filters``. Ordered ``created_at DESC``
         so newest tasks render first in the queue. Single SELECT — no N+1.
+        ``result`` (the full transcript) is deferred with raiseload: list rows
+        never carry it, and an accidental read fails loudly instead of
+        issuing one lazy SELECT per row.
 
         Args:
             q: Case-insensitive substring filter on file_name (or None).
@@ -223,12 +230,13 @@ class SQLAlchemyTaskRepository:
                 self._scoped_query(), q=q, status=status
             )
             orm_tasks = (
-                query.order_by(ORMTask.created_at.desc())
+                query.options(defer(ORMTask.result, raiseload=True))
+                .order_by(ORMTask.created_at.desc())
                 .offset(offset)
                 .limit(limit)
                 .all()
             )
-            domain_tasks = [to_domain(orm_task) for orm_task in orm_tasks]
+            domain_tasks = [to_domain_without_result(orm_task) for orm_task in orm_tasks]
             logger.debug(
                 "list_paginated returned %d tasks (offset=%d limit=%d)",
                 len(domain_tasks),
@@ -239,6 +247,40 @@ class SQLAlchemyTaskRepository:
         except SQLAlchemyError as e:
             logger.error(f"Failed to list paginated tasks: {str(e)}")
             return []
+
+    def find_in_flight_by_submission_key(
+        self, *, user_id: int, submission_key: str
+    ) -> DomainTask | None:
+        """Return the user's ``processing`` task with this submission key, if any.
+
+        Backed by the partial unique index ``uq_tasks_in_flight_submission``,
+        so at most one row can match. ``result`` is deferred (never set while
+        processing).
+
+        Args:
+            user_id: Owner of the submit.
+            submission_key: 64-char hex key from ``compute_submission_key``.
+
+        Returns:
+            DomainTask | None: The in-flight twin, or None.
+        """
+        if len(submission_key) != 64:
+            raise ValueError(
+                f"submission_key must be a 64-char hex digest, got: {submission_key!r}"
+            )
+        orm_task = (
+            self._scoped_query()
+            .options(defer(ORMTask.result, raiseload=True))
+            .filter(
+                ORMTask.user_id == user_id,
+                ORMTask.submission_key == submission_key,
+                ORMTask.status == TaskStatus.processing.value,
+            )
+            .first()
+        )
+        if orm_task is None:
+            return None
+        return to_domain_without_result(orm_task)
 
     def count(self, *, q: str | None, status: str | None) -> int:
         """Return scoped + filtered count (Plan 15-ux).

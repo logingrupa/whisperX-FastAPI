@@ -1,5 +1,6 @@
 """Service for file operations including uploads, downloads, and validation."""
 
+import hashlib
 import os
 import re
 from tempfile import NamedTemporaryFile
@@ -9,6 +10,8 @@ from fastapi import HTTPException, UploadFile
 
 from app.core.config import Config
 from app.core.logging import logger
+
+HASH_CHUNK_BYTES = 1024 * 1024
 
 
 class FileService:
@@ -107,6 +110,23 @@ class FileService:
         )
 
         return temp_file.name
+
+    @staticmethod
+    def sha256_of_file(path: str) -> str:
+        """
+        Hex SHA-256 of a file's bytes, read in 1 MiB chunks.
+
+        Args:
+            path: File to hash
+
+        Returns:
+            64-char lowercase hex digest
+        """
+        digest = hashlib.sha256()
+        with open(path, "rb") as stream:
+            for chunk in iter(lambda: stream.read(HASH_CHUNK_BYTES), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
 
     @staticmethod
     def download_from_url(url: str) -> tuple[str, str]:

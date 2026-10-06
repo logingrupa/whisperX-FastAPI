@@ -8,6 +8,7 @@ On upload completion, triggers transcription via UploadSessionService.
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends
+from starlette.concurrency import run_in_threadpool
 from tuspyserver import create_tus_router
 
 from app.api.dependencies import get_scoped_task_repository
@@ -46,7 +47,9 @@ async def create_upload_complete_hook(
             metadata: TUS client metadata dict.
         """
         logger.info("TUS upload complete: %s, triggering transcription", file_path)
-        await service.start_transcription(file_path, metadata, background_tasks)
+        await run_in_threadpool(
+            service.start_transcription, file_path, metadata, background_tasks
+        )
 
     return handler
 

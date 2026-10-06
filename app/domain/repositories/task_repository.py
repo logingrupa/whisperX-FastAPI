@@ -76,7 +76,25 @@ class ITaskRepository(Protocol):
 
         Returns:
             list[Task]: The page slice, ordered by created_at DESC so the
-            newest tasks appear first.
+            newest tasks appear first. ``result`` is None on every row
+            (list views never carry the transcript).
+        """
+        ...
+
+    def find_in_flight_by_submission_key(
+        self, *, user_id: int, submission_key: str
+    ) -> Task | None:
+        """Return the user's ``processing`` task with this submission key, if any.
+
+        A resubmit of the same file + params returns this task instead of
+        queueing a duplicate job.
+
+        Args:
+            user_id: Owner of the submit.
+            submission_key: 64-char hex key over file bytes + task inputs.
+
+        Returns:
+            Task | None: The in-flight twin, or None.
         """
         ...
 

@@ -24,8 +24,8 @@ from app.api.dependencies import (
     get_free_tier_gate,
     get_scoped_task_repository,
 )
+from app.api.submission_response import submission_response
 from app.core.services import get_file_service
-from app.audio import get_audio_duration, process_audio_file
 from app.core.exceptions import FileValidationError
 from app.core.logging import logger
 from app.domain.entities.task import Task as DomainTask
@@ -46,6 +46,10 @@ from app.schemas import (
 )
 from app.services import process_audio_common
 from app.services.file_service import FileService
+from app.services.task_submission_service import (
+    FreeTierAdmission,
+    TaskSubmissionService,
+)
 
 from app.api.callbacks import task_callback_router
 from app.callbacks import validate_callback_url_dependency
@@ -58,7 +62,7 @@ stt_router = APIRouter()
 
 
 @stt_router.post("/speech-to-text", tags=["Speech-2-Text"])
-async def speech_to_text(
+def speech_to_text(
     background_tasks: BackgroundTasks,
     model_params: WhisperModelParams = Depends(),
     align_params: AlignmentParams = Depends(),
@@ -77,6 +81,9 @@ async def speech_to_text(
     """
     Process an uploaded audio file for speech-to-text conversion.
 
+    Sync ``def`` so FastAPI runs it in the threadpool: saving and hashing the
+    upload never block the event loop. Decoding runs in the background job.
+
     Args:
         background_tasks (BackgroundTasks): Background tasks dependency.
         model_params (WhisperModelParams): Whisper model parameters.
@@ -90,95 +97,42 @@ async def speech_to_text(
         file_service (FileService): File service dependency.
 
     Returns:
-        Response: Confirmation message of task queuing.
+        Response: The queued task, or the in-flight task an identical
+        earlier submit created.
     """
     logger.info("Received file upload request: %s", file.filename)
 
-    # Validate file using file service
     if file.filename is None:
         raise FileValidationError(filename="unknown", reason="Filename is missing")
 
     file_service.validate_file_extension(file.filename, ALLOWED_EXTENSIONS)
 
-    # Save file using file service
-    temp_file = file_service.save_upload(file)
-    logger.info("%s saved as temporary file: %s", file.filename, temp_file)
+    audio_path = file_service.save_upload(file)
+    logger.info("%s saved as temporary file: %s", file.filename, audio_path)
 
-    # Process audio
-    audio = process_audio_file(temp_file)
-    audio_duration = get_audio_duration(audio)
-    logger.info("Audio file %s length: %s seconds", file.filename, audio_duration)
-
-    # Phase 13-08 free-tier gate (RATE-01..10): rate, trial, file, model,
-    # diarize, daily, concurrency — fail-fast. Slot is held until
-    # process_audio_common completion try/finally releases it (W1).
-    # `diarize` is True when caller explicitly requested speaker bounds;
-    # DiarizationParams has no boolean flag in v1.2 (min/max-speaker only).
-    diarize_requested = (
-        diarize_params.min_speakers is not None
-        or diarize_params.max_speakers is not None
-    )
-    free_tier_gate.check(
+    return _submit_full_process(
+        audio_path=audio_path,
+        file_name=file.filename,
+        url=None,
+        callback_url=callback_url,
+        model_params=model_params,
+        align_params=align_params,
+        diarize_params=diarize_params,
+        asr_options_params=asr_options_params,
+        vad_options_params=vad_options_params,
+        background_tasks=background_tasks,
+        repository=repository,
         user=user,
-        file_seconds=audio_duration,
-        model=model_params.model.value,
-        diarize=diarize_requested,
-        unlimited=api_key_unlimited,
+        free_tier_gate=free_tier_gate,
+        api_key_id=api_key_id,
+        api_key_unlimited=api_key_unlimited,
     )
-
-    # Phase 20 — gate-then-schedule atomic: if ANYTHING between
-    # check() and add_task() raises, refund the slot so the user is not
-    # locked out by a leak the BackgroundTask finally will never run.
-    try:
-        task = DomainTask(
-            uuid=str(uuid4()),
-            status=TaskStatus.processing,
-            file_name=file.filename,
-            audio_duration=audio_duration,
-            language=model_params.language,
-            task_type=TaskType.full_process,
-            task_params={
-                **model_params.model_dump(),
-                **align_params.model_dump(),
-                "asr_options": asr_options_params.model_dump(),
-                "vad_options": vad_options_params.model_dump(),
-                **diarize_params.model_dump(),
-            },
-            callback_url=callback_url,
-            start_time=datetime.now(tz=timezone.utc),
-            user_id=int(user.id) if user.id is not None else None,
-            api_key_id=api_key_id,
-        )
-
-        identifier = repository.add(task)
-        logger.info("Task added to database: ID %s", identifier)
-
-        audio_params = SpeechToTextProcessingParams(
-            audio=audio,
-            identifier=identifier,
-            vad_options=vad_options_params,
-            asr_options=asr_options_params,
-            whisper_model_params=model_params,
-            alignment_params=align_params,
-            diarization_params=diarize_params,
-            callback_url=callback_url,
-        )
-
-        background_tasks.add_task(process_audio_common, audio_params)
-        logger.info("Background task scheduled for processing: ID %s", identifier)
-    except Exception:
-        # Unlimited keys consumed no slot in check() — nothing to refund.
-        if not api_key_unlimited:
-            free_tier_gate.release_concurrency(user)
-        raise
-
-    return Response(identifier=identifier, message="Task queued")
 
 
 @stt_router.post(
     "/speech-to-text-url", callbacks=task_callback_router.routes, tags=["Speech-2-Text"]
 )
-async def speech_to_text_url(
+def speech_to_text_url(
     background_tasks: BackgroundTasks,
     model_params: WhisperModelParams = Depends(),
     align_params: AlignmentParams = Depends(),
@@ -197,6 +151,9 @@ async def speech_to_text_url(
     """
     Process an audio file from a URL for speech-to-text conversion.
 
+    Sync ``def`` so FastAPI runs it in the threadpool: the download never
+    blocks the event loop. Decoding runs in the background job.
+
     Args:
         background_tasks (BackgroundTasks): Background tasks dependency.
         model_params (WhisperModelParams): Whisper model parameters.
@@ -210,79 +167,106 @@ async def speech_to_text_url(
         file_service (FileService): File service dependency.
 
     Returns:
-        Response: Confirmation message of task queuing.
+        Response: The queued task, or the in-flight task an identical
+        earlier submit created.
     """
     logger.info("Received URL for processing: %s", url)
 
-    # Download file using file service
-    temp_audio_file, filename = file_service.download_from_url(url)
-    logger.info("File downloaded and saved temporarily: %s", temp_audio_file)
+    audio_path, filename = file_service.download_from_url(url)
+    logger.info("File downloaded and saved temporarily: %s", audio_path)
 
-    # Validate extension
-    file_service.validate_file_extension(temp_audio_file, ALLOWED_EXTENSIONS)
+    file_service.validate_file_extension(audio_path, ALLOWED_EXTENSIONS)
 
-    # Process audio
-    audio = process_audio_file(temp_audio_file)
-    audio_duration = get_audio_duration(audio)
-    logger.info("Audio file processed: duration %s seconds", audio_duration)
+    return _submit_full_process(
+        audio_path=audio_path,
+        file_name=filename,
+        url=url,
+        callback_url=callback_url,
+        model_params=model_params,
+        align_params=align_params,
+        diarize_params=diarize_params,
+        asr_options_params=asr_options_params,
+        vad_options_params=vad_options_params,
+        background_tasks=background_tasks,
+        repository=repository,
+        user=user,
+        free_tier_gate=free_tier_gate,
+        api_key_id=api_key_id,
+        api_key_unlimited=api_key_unlimited,
+    )
 
-    # Phase 13-08 free-tier gate (RATE-01..10) — same fail-fast contract
-    # as /speech-to-text. Slot released by process_audio_common finally.
+
+def _submit_full_process(
+    *,
+    audio_path: str,
+    file_name: str,
+    url: str | None,
+    callback_url: str | None,
+    model_params: WhisperModelParams,
+    align_params: AlignmentParams,
+    diarize_params: DiarizationParams,
+    asr_options_params: ASROptions,
+    vad_options_params: VADOptions,
+    background_tasks: BackgroundTasks,
+    repository: ITaskRepository,
+    user: User,
+    free_tier_gate: FreeTierGate,
+    api_key_id: int | None,
+    api_key_unlimited: bool,
+) -> Response:
+    """Create (or match the in-flight twin of) a full-process task and queue it."""
+    task = DomainTask(
+        uuid=str(uuid4()),
+        status=TaskStatus.processing,
+        file_name=file_name,
+        language=model_params.language,
+        task_type=TaskType.full_process,
+        task_params={
+            **model_params.model_dump(),
+            **align_params.model_dump(),
+            "asr_options": asr_options_params.model_dump(),
+            "vad_options": vad_options_params.model_dump(),
+            **diarize_params.model_dump(),
+        },
+        url=url,
+        callback_url=callback_url,
+        start_time=datetime.now(tz=timezone.utc),
+        user_id=int(user.id) if user.id is not None else None,
+        api_key_id=api_key_id,
+    )
+
+    def schedule(identifier: str) -> None:
+        background_tasks.add_task(
+            process_audio_common,
+            SpeechToTextProcessingParams(
+                audio_path=audio_path,
+                identifier=identifier,
+                vad_options=vad_options_params,
+                asr_options=asr_options_params,
+                whisper_model_params=model_params,
+                alignment_params=align_params,
+                diarization_params=diarize_params,
+                callback_url=callback_url,
+            ),
+        )
+
+    # Phase 13-08 free-tier gate (RATE-01..10). `diarize` is True when the
+    # caller set speaker bounds; DiarizationParams has no boolean flag.
+    # Slot held until process_audio_common's finally releases it (W1).
     diarize_requested = (
         diarize_params.min_speakers is not None
         or diarize_params.max_speakers is not None
     )
-    free_tier_gate.check(
-        user=user,
-        file_seconds=audio_duration,
-        model=model_params.model.value,
-        diarize=diarize_requested,
-        unlimited=api_key_unlimited,
+    outcome = TaskSubmissionService(repository).submit(
+        audio_path=audio_path,
+        task=task,
+        admission=FreeTierAdmission(
+            gate=free_tier_gate,
+            user=user,
+            model=model_params.model.value,
+            diarize=diarize_requested,
+            unlimited=api_key_unlimited,
+        ),
+        schedule=schedule,
     )
-
-    # Phase 20 — gate-then-schedule atomic (see /speech-to-text comment).
-    try:
-        task = DomainTask(
-            uuid=str(uuid4()),
-            status=TaskStatus.processing,
-            file_name=filename,
-            audio_duration=audio_duration,
-            language=model_params.language,
-            task_type=TaskType.full_process,
-            task_params={
-                **model_params.model_dump(),
-                **align_params.model_dump(),
-                "asr_options": asr_options_params.model_dump(),
-                "vad_options": vad_options_params.model_dump(),
-                **diarize_params.model_dump(),
-            },
-            url=url,
-            callback_url=callback_url,
-            start_time=datetime.now(tz=timezone.utc),
-            user_id=int(user.id) if user.id is not None else None,
-            api_key_id=api_key_id,
-        )
-
-        identifier = repository.add(task)
-        logger.info("Task added to database: ID %s", identifier)
-
-        audio_params = SpeechToTextProcessingParams(
-            audio=audio,
-            identifier=identifier,
-            vad_options=vad_options_params,
-            asr_options=asr_options_params,
-            whisper_model_params=model_params,
-            alignment_params=align_params,
-            diarization_params=diarize_params,
-            callback_url=callback_url,
-        )
-
-        background_tasks.add_task(process_audio_common, audio_params)
-        logger.info("Background task scheduled for processing: ID %s", identifier)
-    except Exception:
-        # Unlimited keys consumed no slot in check() — nothing to refund.
-        if not api_key_unlimited:
-            free_tier_gate.release_concurrency(user)
-        raise
-
-    return Response(identifier=identifier, message="Task queued")
+    return submission_response(outcome)

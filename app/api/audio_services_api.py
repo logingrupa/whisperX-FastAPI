@@ -31,6 +31,7 @@ from app.api.dependencies import (
     get_free_tier_gate,
     get_scoped_task_repository,
 )
+from app.api.submission_response import submission_response
 from app.core.services import (
     get_alignment_service,
     get_diarization_service,
@@ -72,6 +73,10 @@ from app.services import (
     process_transcribe,
 )
 from app.services.file_service import FileService
+from app.services.task_submission_service import (
+    FreeTierAdmission,
+    TaskSubmissionService,
+)
 from app.transcript import filter_aligned_transcription
 
 service_router = APIRouter()
@@ -82,7 +87,7 @@ service_router = APIRouter()
     tags=["Speech-2-Text services"],
     name="1. Transcribe",
 )
-async def transcribe(
+def transcribe(
     background_tasks: BackgroundTasks,
     model_params: WhisperModelParams = Depends(),
     asr_options_params: ASROptions = Depends(),
@@ -99,6 +104,10 @@ async def transcribe(
     """
     Transcribe an uploaded audio file.
 
+    Sync ``def`` so FastAPI runs it in the threadpool: saving and hashing the
+    upload never block the event loop. The reply waits only for an ffprobe
+    duration read; decoding runs in the background job.
+
     Args:
         background_tasks (BackgroundTasks): Background tasks dependency.
         model_params (WhisperModelParams): Whisper model parameters.
@@ -110,68 +119,55 @@ async def transcribe(
         transcription_service (ITranscriptionService): Transcription service dependency.
 
     Returns:
-        Response: Confirmation message of task queuing.
+        Response: The queued task, or the in-flight task an identical
+        earlier submit created.
     """
     logger.info("Received transcription request for file: %s", file.filename)
 
-    # Validate and save file using file service
     if file.filename is None:
         raise FileValidationError(filename="unknown", reason="Filename is missing")
 
     file_service.validate_file_extension(file.filename, ALLOWED_EXTENSIONS)
 
-    temp_file = file_service.save_upload(file)
-    audio = process_audio_file(temp_file)
-    audio_duration = get_audio_duration(audio)
-
-    # Phase 13-08 free-tier gate (RATE-01..10) — diarize=False on this
-    # transcribe-only route. Slot held until process_transcribe completion.
-    free_tier_gate.check(
-        user=user,
-        file_seconds=audio_duration,
-        model=model_params.model.value,
-        diarize=False,
-        unlimited=api_key_unlimited,
+    audio_path = file_service.save_upload(file)
+    task = DomainTask(
+        uuid=str(uuid4()),
+        status=TaskStatus.processing,
+        file_name=file.filename,
+        language=model_params.language,
+        task_type=TaskType.transcription,
+        task_params={
+            **model_params.model_dump(),
+            "asr_options": asr_options_params.model_dump(),
+            "vad_options": vad_options_params.model_dump(),
+        },
+        start_time=datetime.now(tz=timezone.utc),
+        user_id=int(user.id) if user.id is not None else None,
+        api_key_id=api_key_id,
     )
-
-    # Phase 20 — gate-then-schedule atomic (see /speech-to-text comment).
-    try:
-        task = DomainTask(
-            uuid=str(uuid4()),
-            status=TaskStatus.processing,
-            file_name=file.filename,
-            audio_duration=audio_duration,
-            language=model_params.language,
-            task_type=TaskType.transcription,
-            task_params={
-                **model_params.model_dump(),
-                "asr_options": asr_options_params.model_dump(),
-                "vad_options": vad_options_params.model_dump(),
-            },
-            start_time=datetime.now(tz=timezone.utc),
-            user_id=int(user.id) if user.id is not None else None,
-            api_key_id=api_key_id,
-        )
-
-        identifier = repository.add(task)
-
-        background_tasks.add_task(
+    outcome = TaskSubmissionService(repository).submit(
+        audio_path=audio_path,
+        task=task,
+        # Phase 13-08 free-tier gate — diarize=False on this transcribe-only
+        # route. Slot held until process_transcribe completion.
+        admission=FreeTierAdmission(
+            gate=free_tier_gate,
+            user=user,
+            model=model_params.model.value,
+            diarize=False,
+            unlimited=api_key_unlimited,
+        ),
+        schedule=lambda identifier: background_tasks.add_task(
             process_transcribe,
-            audio,
+            audio_path,
             identifier,
             model_params,
             asr_options_params,
             vad_options_params,
             transcription_service,
-        )
-    except Exception:
-        # Unlimited keys consumed no slot in check() — nothing to refund.
-        if not api_key_unlimited:
-            free_tier_gate.release_concurrency(user)
-        raise
-
-    logger.info(TASK_SCHEDULED_LOG_FORMAT, identifier)
-    return Response(identifier=identifier, message=TASK_QUEUED_MESSAGE)
+        ),
+    )
+    return submission_response(outcome)
 
 
 @service_router.post(
@@ -285,7 +281,7 @@ def align(
 @service_router.post(
     "/service/diarize", tags=["Speech-2-Text services"], name="3. Diarize"
 )
-async def diarize(
+def diarize(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     repository: ITaskRepository = Depends(get_scoped_task_repository),
@@ -364,7 +360,7 @@ async def diarize(
     tags=["Speech-2-Text services"],
     name="4. Combine Transcript and Diarization result",
 )
-async def combine(
+def combine(
     background_tasks: BackgroundTasks,
     aligned_transcript: UploadFile = File(...),
     diarization_result: UploadFile = File(...),

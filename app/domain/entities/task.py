@@ -36,6 +36,10 @@ class Task:
                  ownership checks. NOT NULL after 0003 migration but kept
                  ``int | None`` here for safe construction in pre-Phase-13
                  code paths and tests that don't exercise the auth flow.)
+        api_key_id: API key that scheduled the task (None = cookie/session auth)
+        submission_key: SHA-256 of file bytes + task type + language + params;
+                        an identical submit while this task is processing
+                        returns this task instead of creating a new one
     """
 
     uuid: str
@@ -58,6 +62,7 @@ class Task:
     progress_stage: str | None = None
     user_id: int | None = None
     api_key_id: int | None = None
+    submission_key: str | None = None
 
     def mark_as_completed(
         self, result: dict[str, Any], duration: float, end_time: datetime

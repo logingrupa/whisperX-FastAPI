@@ -17,7 +17,7 @@ task_router = APIRouter(dependencies=[Depends(csrf_protected)])
 
 
 @task_router.get("/task/all", tags=["Tasks Management"])
-async def get_all_tasks_status(
+def get_all_tasks_status(
     q: str | None = Query(
         None,
         description="Substring match against file_name (case-insensitive)",
@@ -38,7 +38,9 @@ async def get_all_tasks_status(
     Retrieve a paginated, optionally filtered list of tasks (Plan 15-ux).
 
     Pagination + search is server-side so the queue can scale beyond a few
-    hundred rows without dragging the whole table to the browser. The
+    hundred rows without dragging the whole table to the browser. Sync
+    ``def`` so FastAPI runs the query in the threadpool: a slow query never
+    stalls the event loop (and with it every other route). The
     user-scope filter (Phase 13-07) still applies — callers see only their
     own tasks.
 
@@ -69,7 +71,7 @@ async def get_all_tasks_status(
 
 
 @task_router.get("/task/{identifier}", tags=["Tasks Management"])
-async def get_transcription_status(
+def get_transcription_status(
     identifier: str,
     service: TaskManagementService = Depends(get_task_management_service),
 ) -> Result:
@@ -114,7 +116,7 @@ async def get_transcription_status(
 
 
 @task_router.delete("/task/{identifier}/delete", tags=["Tasks Management"])
-async def delete_task(
+def delete_task(
     identifier: str,
     service: TaskManagementService = Depends(get_task_management_service),
 ) -> Response:
@@ -147,7 +149,7 @@ async def delete_task(
     summary="Get task progress",
     description="Get current progress for a task. Use this as fallback when WebSocket is unavailable.",
 )
-async def get_task_progress(
+def get_task_progress(
     identifier: str,
     service: TaskManagementService = Depends(get_task_management_service),
 ) -> TaskProgress:

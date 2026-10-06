@@ -32,6 +32,7 @@ from typing import Any
 import torch
 
 from app.core.config import get_settings
+from app.core.gpu_lock import gpu_slot
 from app.core.logging import logger
 
 
@@ -56,13 +57,32 @@ def _opts_hash(options: dict[str, Any] | None) -> int | None:
     return hash(json.dumps(options, sort_keys=True, default=str))
 
 
-def _evict_oldest_locked() -> None:
-    """Evict the oldest-by-loaded_at entry. Caller holds _registry_lock."""
-    oldest_key = min(_registry, key=lambda k: _registry[k].loaded_at)
+def _evict_oldest_locked() -> bool:
+    """Evict the oldest loaded, idle entry. Caller holds _registry_lock.
+
+    Entries still loading or mid-inference are skipped; when every entry is
+    busy the registry runs over the cap until a later lease finds one idle.
+    Returns whether an entry was evicted.
+    """
+    idle_keys = [
+        key
+        for key, entry in _registry.items()
+        if entry.model is not None and not entry.lock.locked()
+    ]
+    if not idle_keys:
+        logger.warning("model_cache count cap reached but every entry is busy; over cap for now")
+        return False
+    oldest_key = min(idle_keys, key=lambda k: _registry[k].loaded_at)
     del _registry[oldest_key]
     logger.warning(
         "model_cache count cap reached — evicted oldest entry key=%s", oldest_key
     )
+    return True
+
+
+def _slot_holder(key: tuple) -> str:
+    """GPU-slot log label for a cache key: kind + model, e.g. ``whisper/large-v3``."""
+    return "/".join(str(part) for part in key[:2])
 
 
 def _get_or_create_entry(key: tuple, max_models: int) -> _Entry:
@@ -75,12 +95,30 @@ def _get_or_create_entry(key: tuple, max_models: int) -> _Entry:
     with _registry_lock:
         entry = _registry.get(key)
         if entry is None:
-            if len(_registry) >= max_models:
-                _evict_oldest_locked()
+            # Trim back to the cap, which a busy period may have overrun.
+            while len(_registry) >= max_models and _evict_oldest_locked():
+                pass
             entry = _Entry()
             _registry[key] = entry
         entry.last_used_at = time.time()
         return entry
+
+
+def _acquire_live_entry(key: tuple, max_models: int) -> _Entry:
+    """Lock the entry the registry currently holds for ``key``.
+
+    An entry can be evicted (evict-all, count cap) while a caller waits on
+    its lock; running on it then would use an orphaned model. Retry until
+    the locked entry is still the registered one. Lock order: entry lock,
+    then _registry_lock (the sweeper only try-locks entries).
+    """
+    while True:
+        entry = _get_or_create_entry(key, max_models)
+        entry.lock.acquire()
+        with _registry_lock:
+            if _registry.get(key) is entry:
+                return entry
+        entry.lock.release()
 
 
 @contextmanager
@@ -90,50 +128,63 @@ def lease(key: tuple, loader: Callable[[], Any]) -> Iterator[Any]:
     Holds the per-entry lock for the WHOLE with-block — inference on
     whisperx pipelines mutates instance state, so the lock must span the
     call, not just the load.
+
+    The GPU slot is taken AFTER the entry lock: a job queued behind another
+    job on the same model waits without holding a slot that a job on a
+    different model could use.
     """
     settings = get_settings()
 
     if not settings.whisper.MODEL_CACHE_ENABLED:
         # Bypass = rollback path: load per job, destroy after (old behavior).
-        model = loader()
-        try:
-            yield model
-        finally:
-            del model
-            gc.collect()
-            torch.cuda.empty_cache()
+        with gpu_slot(_slot_holder(key)):
+            model = loader()
+            try:
+                yield model
+            finally:
+                del model
+                gc.collect()
+                torch.cuda.empty_cache()
         return
 
     if settings.whisper.MODEL_CACHE_IDLE_TTL_SECONDS > 0:
         _ensure_sweeper()
 
-    entry = _get_or_create_entry(key, settings.whisper.MODEL_CACHE_MAX_MODELS)
-
-    with entry.lock:
-        if entry.model is None:
-            t0 = time.perf_counter()
+    entry = _acquire_live_entry(key, settings.whisper.MODEL_CACHE_MAX_MODELS)
+    try:
+        with gpu_slot(_slot_holder(key)):
+            if entry.model is None:
+                _load_into(entry, key, loader)
+            else:
+                logger.info("model_cache HIT key=%s load_s=0.00", key)
             try:
-                entry.model = loader()
-            except BaseException:
-                # Never cache a broken slot — drop the entry so the next
-                # lease retries the loader cleanly.
-                with _registry_lock:
-                    _registry.pop(key, None)
-                raise
-            entry.loaded_at = time.time()
-            logger.info(
-                "model_cache MISS key=%s load_s=%.2f",
-                key,
-                time.perf_counter() - t0,
-            )
-        else:
-            logger.info("model_cache HIT key=%s load_s=0.00", key)
-        try:
-            yield entry.model
-        finally:
-            # Idle clock counts from job END, not start — a long job must
-            # not expire its own model.
-            entry.last_used_at = time.time()
+                yield entry.model
+            finally:
+                # Idle clock counts from job END, not start — a long job must
+                # not expire its own model.
+                entry.last_used_at = time.time()
+    finally:
+        entry.lock.release()
+
+
+def _load_into(entry: _Entry, key: tuple, loader: Callable[[], Any]) -> None:
+    """Load the model into a locked entry; a failed load drops this entry."""
+    t0 = time.perf_counter()
+    try:
+        entry.model = loader()
+    except BaseException:
+        # Never cache a broken slot — drop THIS entry (not a newer one that
+        # replaced it) so the next lease retries the loader cleanly.
+        with _registry_lock:
+            if _registry.get(key) is entry:
+                del _registry[key]
+        raise
+    entry.loaded_at = time.time()
+    logger.info(
+        "model_cache MISS key=%s load_s=%.2f",
+        key,
+        time.perf_counter() - t0,
+    )
 
 
 _SWEEP_INTERVAL_SECONDS = 60.0

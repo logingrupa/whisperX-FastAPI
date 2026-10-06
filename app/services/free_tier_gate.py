@@ -59,13 +59,35 @@ def concurrency_bucket_key(user_id: int) -> str:
     return f"user:{user_id}:concurrent"
 
 
+
+def hourly_bucket_key(user_id: int) -> str:
+    """Bucket key for the per-user hourly transcribe count."""
+    return f"user:{user_id}:tx:hour"
+
+
+def daily_minutes_bucket_key(user_id: int) -> str:
+    """Bucket key for the per-user daily audio-minute budget."""
+    return f"user:{user_id}:audio_min:day"
+
+
+def _minute_tokens(file_seconds: float) -> int:
+    """Daily-bucket tokens a file costs: whole minutes, at least one."""
+    return max(1, int(file_seconds / 60))
+
+
+def _daily_capacity_minutes(policy: TierPolicy) -> int:
+    return policy.max_daily_seconds // 60
+
 class FreeTierGate:
     """Enforce free / pro / trial tier policies (CONTEXT §137-145).
 
     Public API:
       - check(user, file_seconds, model, diarize) — runs all 6 gates fail-fast
       - check_diarize_route(user) — pro-only diarize-route guard
+      - check_file_duration(user, file_seconds) — tier file-length cap alone
+      - reconcile_daily_minutes(user, charged, decoded) — settle the daily bucket
       - release_concurrency(user) — refund 1 concurrency slot (W1)
+      - release_admission(user, file_seconds) — refund all a check() consumed
     """
 
     def __init__(self, rate_limit_service: RateLimitService) -> None:
@@ -131,6 +153,38 @@ class FreeTierGate:
         self._check_daily_minutes(user_id, file_seconds, policy)
         self._check_concurrency(user_id, policy)
 
+    def check_file_duration(self, user: User, file_seconds: float) -> None:
+        """Re-check only the tier's file-length cap (no bucket consumed).
+
+        For the background job once it has decoded the audio: the submit
+        gated on the container's reported duration, which a truncated or
+        forged header can misstate.
+        """
+        self._check_file_duration(file_seconds, self._policy_for(user))
+
+    def reconcile_daily_minutes(
+        self, user: User, charged_seconds: float, decoded_seconds: float
+    ) -> None:
+        """Settle the daily audio-minute bucket once the real length is known.
+
+        check() charged the container's reported duration. Consumes the extra
+        minutes when the decoded audio is longer (RateLimitExceededError if
+        the day's budget cannot cover them) and refunds the surplus when it
+        is shorter.
+        """
+        policy = self._policy_for(user)
+        user_id = int(user.id)  # type: ignore[arg-type]
+        extra_tokens = _minute_tokens(decoded_seconds) - _minute_tokens(charged_seconds)
+        if extra_tokens < 0:
+            self.rate_limit_service.release(
+                daily_minutes_bucket_key(user_id),
+                tokens=-extra_tokens,
+                capacity=_daily_capacity_minutes(policy),
+            )
+            return
+        if extra_tokens > 0:
+            self._consume_daily_minutes(user_id, extra_tokens, policy)
+
     def check_diarize_route(self, user: User) -> None:
         """Pro-only diarize-route guard (no transcribe rate hit)."""
         self._check_trial_expiry(user)
@@ -153,6 +207,24 @@ class FreeTierGate:
             capacity=policy.max_concurrent,
         )
 
+    def release_admission(self, user: User, file_seconds: float) -> None:
+        """Refund everything check() consumed, for a submit that created no job.
+
+        Returns the hourly token, the daily audio minutes for ``file_seconds``
+        and the concurrency slot.
+        """
+        policy = self._policy_for(user)
+        user_id = int(user.id)  # type: ignore[arg-type]
+        self.rate_limit_service.release(
+            hourly_bucket_key(user_id), tokens=1, capacity=policy.max_per_hour
+        )
+        self.rate_limit_service.release(
+            daily_minutes_bucket_key(user_id),
+            tokens=_minute_tokens(file_seconds),
+            capacity=_daily_capacity_minutes(policy),
+        )
+        self.release_concurrency(user)
+
     # ------------------------------------------------------------------
     # Per-gate guards (SRP — one method per policy dimension)
     # ------------------------------------------------------------------
@@ -171,7 +243,7 @@ class FreeTierGate:
             raise TrialExpiredError()
 
     def _check_hourly_rate(self, user_id: int, policy: TierPolicy) -> None:
-        bucket_key = f"user:{user_id}:tx:hour"
+        bucket_key = hourly_bucket_key(user_id)
         allowed = self.rate_limit_service.check_and_consume(
             bucket_key,
             tokens_needed=1,
@@ -209,9 +281,13 @@ class FreeTierGate:
     def _check_daily_minutes(
         self, user_id: int, file_seconds: float, policy: TierPolicy
     ) -> None:
-        tokens_needed = max(1, int(file_seconds / 60))
-        bucket_key = f"user:{user_id}:audio_min:day"
-        capacity_minutes = policy.max_daily_seconds // 60
+        self._consume_daily_minutes(user_id, _minute_tokens(file_seconds), policy)
+
+    def _consume_daily_minutes(
+        self, user_id: int, tokens_needed: int, policy: TierPolicy
+    ) -> None:
+        bucket_key = daily_minutes_bucket_key(user_id)
+        capacity_minutes = _daily_capacity_minutes(policy)
         allowed = self.rate_limit_service.check_and_consume(
             bucket_key,
             tokens_needed=tokens_needed,

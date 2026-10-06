@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+from app.core import gpu_lock
 from app.infrastructure.ml import model_registry
 
 
@@ -127,7 +128,10 @@ class TestConcurrency:
         assert len(results) == 2
         assert results[0] is results[1]
 
-    def test_independent_locks_key2_not_blocked_by_key1_holder(self):
+    def test_independent_locks_key2_not_blocked_by_key1_holder(self, monkeypatch):
+        # Two GPU slots, as start-server-boot.bat configures: the GPU cap
+        # must not mask the per-entry lock independence under test.
+        monkeypatch.setattr(gpu_lock, "_gpu_semaphore", threading.Semaphore(2))
         key1_held = threading.Event()
         release_key1 = threading.Event()
         key2_done = threading.Event()
@@ -154,6 +158,194 @@ class TestConcurrency:
         thread_a.join(timeout=5)
         thread_b.join(timeout=5)
 
+
+
+class TestGpuSlot:
+    """The GPU slot is taken after the entry lock, and caps concurrent leases."""
+
+    def test_same_model_waiter_holds_no_gpu_slot(self, monkeypatch):
+        # Job A holds whisper/k1 (slot 1). Job B queues on k1's entry lock.
+        # Job C on k2 must get slot 2: B waits without holding one.
+        monkeypatch.setattr(gpu_lock, "_gpu_semaphore", threading.Semaphore(2))
+        job_a_holds_k1 = threading.Event()
+        release_job_a = threading.Event()
+        job_c_done = threading.Event()
+
+        def job_a() -> None:
+            with model_registry.lease(("whisper", "k1"), _CountingLoader()):
+                job_a_holds_k1.set()
+                release_job_a.wait(timeout=5)
+
+        def job_b() -> None:
+            with model_registry.lease(("whisper", "k1"), _CountingLoader()):
+                pass
+
+        def job_c() -> None:
+            with model_registry.lease(("whisper", "k2"), _CountingLoader()):
+                job_c_done.set()
+
+        thread_a = threading.Thread(target=job_a)
+        thread_a.start()
+        assert job_a_holds_k1.wait(timeout=5)
+        thread_b = threading.Thread(target=job_b)
+        thread_b.start()
+        thread_c = threading.Thread(target=job_c)
+        thread_c.start()
+
+        assert job_c_done.wait(timeout=5), "job C starved: job B held a GPU slot while queued"
+
+        release_job_a.set()
+        for thread in (thread_a, thread_b, thread_c):
+            thread.join(timeout=5)
+
+    def test_single_slot_serializes_different_models(self, monkeypatch):
+        monkeypatch.setattr(gpu_lock, "_gpu_semaphore", threading.Semaphore(1))
+        k1_held = threading.Event()
+        release_k1 = threading.Event()
+        k2_done = threading.Event()
+
+        def hold_k1() -> None:
+            with model_registry.lease(("whisper", "k1"), _CountingLoader()):
+                k1_held.set()
+                release_k1.wait(timeout=5)
+
+        def lease_k2() -> None:
+            with model_registry.lease(("align", "k2"), _CountingLoader()):
+                k2_done.set()
+
+        thread_a = threading.Thread(target=hold_k1)
+        thread_a.start()
+        assert k1_held.wait(timeout=5)
+        thread_b = threading.Thread(target=lease_k2)
+        thread_b.start()
+
+        assert not k2_done.wait(timeout=0.3), "second lease ran while the only slot was held"
+        release_k1.set()
+        assert k2_done.wait(timeout=5)
+        thread_a.join(timeout=5)
+        thread_b.join(timeout=5)
+
+    def test_bypass_path_also_takes_the_slot(self, monkeypatch):
+        monkeypatch.setattr(model_registry, "get_settings", lambda: _fake_settings(enabled=False))
+        monkeypatch.setattr(gpu_lock, "_gpu_semaphore", threading.Semaphore(1))
+
+        with model_registry.lease(("whisper", "bypass"), _CountingLoader()):
+            assert not gpu_lock._gpu_semaphore.acquire(blocking=False)
+
+        assert gpu_lock._gpu_semaphore.acquire(blocking=False)
+        gpu_lock._gpu_semaphore.release()
+
+
+class TestEvictedEntries:
+    """Leases never run on an entry the registry has already dropped."""
+
+    def test_job_parked_on_an_evicted_entry_reloads(self, monkeypatch):
+        monkeypatch.setattr(gpu_lock, "_gpu_semaphore", threading.Semaphore(2))
+        loader = _CountingLoader()
+        holder_has_model = threading.Event()
+        release_holder = threading.Event()
+        models = {}
+
+        def holder() -> None:
+            with model_registry.lease(("whisper", "k1"), loader) as model:
+                models["holder"] = model
+                holder_has_model.set()
+                release_holder.wait(timeout=5)
+
+        def parked() -> None:
+            with model_registry.lease(("whisper", "k1"), loader) as model:
+                models["parked"] = model
+
+        thread_holder = threading.Thread(target=holder)
+        thread_holder.start()
+        assert holder_has_model.wait(timeout=5)
+        thread_parked = threading.Thread(target=parked)
+        thread_parked.start()
+        model_registry.evict_all("simulated OOM")
+        release_holder.set()
+        thread_holder.join(timeout=5)
+        thread_parked.join(timeout=5)
+
+        assert loader.calls == 2, "the parked job must load a fresh copy"
+        assert models["parked"] is not models["holder"]
+
+    def test_cap_skips_entries_that_are_in_use(self, monkeypatch):
+        monkeypatch.setattr(
+            model_registry, "get_settings", lambda: _fake_settings(max_models=1)
+        )
+        monkeypatch.setattr(gpu_lock, "_gpu_semaphore", threading.Semaphore(2))
+        k1_in_use = threading.Event()
+        release_k1 = threading.Event()
+
+        def hold_k1() -> None:
+            with model_registry.lease(("whisper", "k1"), _CountingLoader()):
+                k1_in_use.set()
+                release_k1.wait(timeout=5)
+
+        thread = threading.Thread(target=hold_k1)
+        thread.start()
+        assert k1_in_use.wait(timeout=5)
+
+        with model_registry.lease(("align", "k2"), _CountingLoader()):
+            keys_during = set(model_registry.stats()["keys"])
+
+        release_k1.set()
+        thread.join(timeout=5)
+        assert keys_during == {("whisper", "k1"), ("align", "k2")}
+
+    def test_registry_trims_back_to_the_cap_after_a_busy_overrun(self, monkeypatch):
+        monkeypatch.setattr(
+            model_registry, "get_settings", lambda: _fake_settings(max_models=2)
+        )
+        monkeypatch.setattr(gpu_lock, "_gpu_semaphore", threading.Semaphore(3))
+        all_held = threading.Barrier(4)
+        release_all = threading.Event()
+
+        def hold(key_name: str) -> None:
+            with model_registry.lease(("whisper", key_name), _CountingLoader()):
+                all_held.wait(timeout=5)
+                release_all.wait(timeout=5)
+
+        threads = [threading.Thread(target=hold, args=(name,)) for name in ("a", "b", "c")]
+        for thread in threads:
+            thread.start()
+        all_held.wait(timeout=5)
+        count_while_busy = model_registry.stats()["count"]
+        release_all.set()
+        for thread in threads:
+            thread.join(timeout=5)
+
+        with model_registry.lease(("whisper", "d"), _CountingLoader()):
+            count_after = model_registry.stats()["count"]
+
+        assert count_while_busy == 3, "busy entries are never evicted"
+        assert count_after == 2, "the next new key trims the registry back to the cap"
+
+    def test_failed_load_does_not_drop_the_entry_that_replaced_it(self, monkeypatch):
+        monkeypatch.setattr(gpu_lock, "_gpu_semaphore", threading.Semaphore(2))
+        loading = threading.Event()
+        fail_now = threading.Event()
+
+        def failing_loader() -> object:
+            loading.set()
+            fail_now.wait(timeout=5)
+            raise RuntimeError("weights corrupt")
+
+        def doomed_lease() -> None:
+            with pytest.raises(RuntimeError):
+                with model_registry.lease(("whisper", "k1"), failing_loader):
+                    pass
+
+        thread = threading.Thread(target=doomed_lease)
+        thread.start()
+        assert loading.wait(timeout=5)
+        model_registry.evict_all("simulated OOM")
+        with model_registry.lease(("whisper", "k1"), _CountingLoader()):
+            pass
+        fail_now.set()
+        thread.join(timeout=5)
+
+        assert model_registry.stats()["keys"] == [("whisper", "k1")]
 
 class TestEviction:
     def test_torch_oom_evicts_all_and_returns_true(self):

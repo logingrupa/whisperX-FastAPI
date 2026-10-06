@@ -1,7 +1,7 @@
 """Tests for the whisperx_services module."""
 
 from typing import Any
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import ANY, MagicMock, Mock, patch
 
 import numpy as np
 import pandas as pd
@@ -191,7 +191,7 @@ def test_process_audio_common_gpu(
 ) -> None:
     """Test process_audio_common function with GPU."""
     params = SpeechToTextProcessingParams(
-        audio=audio_data,  # Already numpy array from fixture
+        audio_path="saved-upload.wav",  # decoded by the stubbed process_audio_file
         identifier="test-123",
         whisper_model_params=WhisperModelParams(
             language="en",
@@ -234,6 +234,10 @@ def test_process_audio_common_gpu(
 
     with (
         patch(
+            "app.services.whisperx_wrapper_service.decode_task_audio",
+            return_value=audio_data,
+        ) as mock_decode,
+        patch(
             "app.services.whisperx_wrapper_service.SessionLocal",
             return_value=mock_session,
         ),
@@ -263,6 +267,8 @@ def test_process_audio_common_gpu(
     ):
         process_audio_common(params)
 
+        # The background job, not the request, decodes the saved upload.
+        mock_decode.assert_called_once_with(ANY, "test-123", "saved-upload.wav")
         # Verify repository update was called
         assert mock_repository.update.called
         # The task must reach a terminal status on the GPU path — a bare

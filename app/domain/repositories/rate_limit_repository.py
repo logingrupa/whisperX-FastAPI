@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from collections.abc import Callable
+from typing import Any, Protocol, TypeVar
 
 from app.domain.entities.rate_limit_bucket import RateLimitBucket
 
+
+T = TypeVar("T")
 
 class IRateLimitRepository(Protocol):
     """Repository interface for RateLimitBucket — backed by SQLite token bucket."""
@@ -21,18 +24,26 @@ class IRateLimitRepository(Protocol):
         """
         ...
 
-    def upsert_atomic(self, bucket_key: str, new_state: dict[str, Any]) -> None:
-        """Read-modify-write a bucket atomically (``BEGIN IMMEDIATE``).
+    def update_atomic(
+        self,
+        bucket_key: str,
+        compute: Callable[[RateLimitBucket | None], tuple[dict[str, Any] | None, T]],
+    ) -> T:
+        """Read, recompute and write one bucket inside a single ``BEGIN IMMEDIATE``.
 
-        Caller computed ``new_state`` via ``app.core.rate_limit.consume()``. The
-        atomic transaction prevents lost-update under multi-worker SQLite.
+        The SQLite RESERVED lock spans the read and the write, so concurrent
+        callers on any thread or connection never lose an update.
 
         Args:
             bucket_key: Unique bucket identifier.
-            new_state: Mapping with at least ``tokens`` (int) and ``last_refill``
-                (datetime) keys.
+            compute: Gets the stored bucket (``None`` if absent) and returns
+                ``(new_state, result)``. ``new_state`` holds ``tokens`` (int)
+                and ``last_refill`` (datetime); ``None`` writes nothing.
+
+        Returns:
+            The ``result`` that ``compute`` returned.
 
         Raises:
-            DatabaseOperationError: If the upsert fails.
+            DatabaseOperationError: If the transaction fails.
         """
         ...

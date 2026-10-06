@@ -11,9 +11,9 @@ info:
     \ Align the transcript to the audio/video file.\n    3. Diarize: Diarize an audio/video\
     \ file into speakers.\n    4. Combine Transcript and Diarization: Combine the\
     \ transcript and diarization results.\n\n    ## Supported file extensions:\n \
-    \   AUDIO_EXTENSIONS = {'.mp3', '.wav', '.wma', '.m4a', '.awb', '.ogg', '.aac',\
-    \ '.oga', '.flac', '.amr'}\n\n    VIDEO_EXTENSIONS = {'.mov', '.wmv', '.webm',\
-    \ '.mkv', '.avi', '.mp4'}\n\n    ## Language-Specific Model Overrides:\n\n   \
+    \   AUDIO_EXTENSIONS = {'.aac', '.mp3', '.oga', '.m4a', '.wav', '.ogg', '.wma',\
+    \ '.amr', '.awb', '.flac'}\n\n    VIDEO_EXTENSIONS = {'.avi', '.mkv', '.webm',\
+    \ '.wmv', '.mp4', '.mov'}\n\n    ## Language-Specific Model Overrides:\n\n   \
     \ Some languages have fine-tuned models that are automatically used when that\
     \ language is selected.\n    The server-side `LANGUAGE_MODEL_OVERRIDES` configuration\
     \ maps language codes to optimized CTranslate2\n    model paths. When an override\
@@ -30,7 +30,9 @@ paths:
       - Speech-2-Text
       summary: Speech To Text
       description: "Process an uploaded audio file for speech-to-text conversion.\n\
-        \nArgs:\n    background_tasks (BackgroundTasks): Background tasks dependency.\n\
+        \nSync ``def`` so FastAPI runs it in the threadpool: saving and hashing the\n\
+        upload never block the event loop. Decoding runs in the background job.\n\n\
+        Args:\n    background_tasks (BackgroundTasks): Background tasks dependency.\n\
         \    model_params (WhisperModelParams): Whisper model parameters.\n    align_params\
         \ (AlignmentParams): Alignment parameters.\n    diarize_params (DiarizationParams):\
         \ Diarization parameters.\n    asr_options_params (ASROptions): ASR options\
@@ -38,7 +40,8 @@ paths:
         \    file (UploadFile): Uploaded audio file.\n    callback_url (str | None):\
         \ Optional URL to call back when processing is complete.\n    repository (ITaskRepository):\
         \ Task repository dependency.\n    file_service (FileService): File service\
-        \ dependency.\n\nReturns:\n    Response: Confirmation message of task queuing."
+        \ dependency.\n\nReturns:\n    Response: The queued task, or the in-flight\
+        \ task an identical\n    earlier submit created."
       operationId: speech_to_text_speech_to_text_post
       parameters:
       - name: language
@@ -467,15 +470,18 @@ paths:
       - Speech-2-Text
       summary: Speech To Text Url
       description: "Process an audio file from a URL for speech-to-text conversion.\n\
-        \nArgs:\n    background_tasks (BackgroundTasks): Background tasks dependency.\n\
-        \    model_params (WhisperModelParams): Whisper model parameters.\n    align_params\
-        \ (AlignmentParams): Alignment parameters.\n    diarize_params (DiarizationParams):\
-        \ Diarization parameters.\n    asr_options_params (ASROptions): ASR options\
-        \ parameters.\n    vad_options_params (VADOptions): VAD options parameters.\n\
-        \    url (str): URL of the audio file.\n    callback_url (str | None): Optional\
-        \ URL to call back when processing is complete.\n    repository (ITaskRepository):\
-        \ Task repository dependency.\n    file_service (FileService): File service\
-        \ dependency.\n\nReturns:\n    Response: Confirmation message of task queuing."
+        \nSync ``def`` so FastAPI runs it in the threadpool: the download never\n\
+        blocks the event loop. Decoding runs in the background job.\n\nArgs:\n   \
+        \ background_tasks (BackgroundTasks): Background tasks dependency.\n    model_params\
+        \ (WhisperModelParams): Whisper model parameters.\n    align_params (AlignmentParams):\
+        \ Alignment parameters.\n    diarize_params (DiarizationParams): Diarization\
+        \ parameters.\n    asr_options_params (ASROptions): ASR options parameters.\n\
+        \    vad_options_params (VADOptions): VAD options parameters.\n    url (str):\
+        \ URL of the audio file.\n    callback_url (str | None): Optional URL to call\
+        \ back when processing is complete.\n    repository (ITaskRepository): Task\
+        \ repository dependency.\n    file_service (FileService): File service dependency.\n\
+        \nReturns:\n    Response: The queued task, or the in-flight task an identical\n\
+        \    earlier submit created."
       operationId: speech_to_text_url_speech_to_text_url_post
       parameters:
       - name: language
@@ -933,14 +939,15 @@ paths:
       summary: Get All Tasks Status
       description: "Retrieve a paginated, optionally filtered list of tasks (Plan\
         \ 15-ux).\n\nPagination + search is server-side so the queue can scale beyond\
-        \ a few\nhundred rows without dragging the whole table to the browser. The\n\
-        user-scope filter (Phase 13-07) still applies — callers see only their\nown\
-        \ tasks.\n\nArgs:\n    q: Case-insensitive substring match against file_name.\n\
-        \    status: Exact-match status filter (processing|completed|failed).\n  \
-        \  page: 1-indexed page number; Pydantic ``ge=1`` rejects 0/negatives.\n \
-        \   page_size: Items per page, 1..200; out-of-range -> 422.\n    service:\
-        \ Task management service dependency (scoped to caller).\n\nReturns:\n   \
-        \ TaskListResponse: ``{tasks, total, page, page_size}``."
+        \ a few\nhundred rows without dragging the whole table to the browser. Sync\n\
+        ``def`` so FastAPI runs the query in the threadpool: a slow query never\n\
+        stalls the event loop (and with it every other route). The\nuser-scope filter\
+        \ (Phase 13-07) still applies — callers see only their\nown tasks.\n\nArgs:\n\
+        \    q: Case-insensitive substring match against file_name.\n    status: Exact-match\
+        \ status filter (processing|completed|failed).\n    page: 1-indexed page number;\
+        \ Pydantic ``ge=1`` rejects 0/negatives.\n    page_size: Items per page, 1..200;\
+        \ out-of-range -> 422.\n    service: Task management service dependency (scoped\
+        \ to caller).\n\nReturns:\n    TaskListResponse: ``{tasks, total, page, page_size}``."
       operationId: get_all_tasks_status_task_all_get
       parameters:
       - name: q
@@ -1092,15 +1099,18 @@ paths:
       tags:
       - Speech-2-Text services
       summary: 1. Transcribe
-      description: "Transcribe an uploaded audio file.\n\nArgs:\n    background_tasks\
-        \ (BackgroundTasks): Background tasks dependency.\n    model_params (WhisperModelParams):\
-        \ Whisper model parameters.\n    asr_options_params (ASROptions): ASR options\
-        \ parameters.\n    vad_options_params (VADOptions): VAD options parameters.\n\
-        \    file (UploadFile): Uploaded audio file.\n    repository (ITaskRepository):\
-        \ Task repository dependency.\n    file_service (FileService): File service\
-        \ dependency.\n    transcription_service (ITranscriptionService): Transcription\
-        \ service dependency.\n\nReturns:\n    Response: Confirmation message of task\
-        \ queuing."
+      description: "Transcribe an uploaded audio file.\n\nSync ``def`` so FastAPI\
+        \ runs it in the threadpool: saving and hashing the\nupload never block the\
+        \ event loop. The reply waits only for an ffprobe\nduration read; decoding\
+        \ runs in the background job.\n\nArgs:\n    background_tasks (BackgroundTasks):\
+        \ Background tasks dependency.\n    model_params (WhisperModelParams): Whisper\
+        \ model parameters.\n    asr_options_params (ASROptions): ASR options parameters.\n\
+        \    vad_options_params (VADOptions): VAD options parameters.\n    file (UploadFile):\
+        \ Uploaded audio file.\n    repository (ITaskRepository): Task repository\
+        \ dependency.\n    file_service (FileService): File service dependency.\n\
+        \    transcription_service (ITranscriptionService): Transcription service\
+        \ dependency.\n\nReturns:\n    Response: The queued task, or the in-flight\
+        \ task an identical\n    earlier submit created."
       operationId: 1__Transcribe_service_transcribe_post
       parameters:
       - name: language
@@ -2163,7 +2173,16 @@ paths:
       tags:
       - Usage
       summary: Get Usage
-      description: Return the caller's current usage summary.
+      description: 'Return the caller''s current usage summary.
+
+
+        A bearer request whose key carries the per-key ``unlimited`` flag gets
+
+        ``unlimited: true`` and null limits — that caller bypasses FreeTierGate,
+
+        so reporting the plan caps would state a limit it does not have. Cookie
+
+        sessions and ordinary keys are unaffected.'
       operationId: get_usage_api_usage_get
       responses:
         '200':
@@ -3049,21 +3068,32 @@ components:
           title: Trial Expires At
           description: trial_started_at plus seven days; None when trial_started_at
             is None
+        unlimited:
+          type: boolean
+          title: Unlimited
+          description: True when the request authenticated with an API key carrying
+            the per-key unlimited flag; hour_limit and daily_minutes_limit are null
+            in that case (no cap applies to this caller)
+          default: false
         hour_count:
           type: integer
           minimum: 0.0
           title: Hour Count
         hour_limit:
-          type: integer
-          minimum: 0.0
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
           title: Hour Limit
         daily_minutes_used:
           type: number
           minimum: 0.0
           title: Daily Minutes Used
         daily_minutes_limit:
-          type: number
-          minimum: 0.0
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
           title: Daily Minutes Limit
         window_resets_at:
           type: string

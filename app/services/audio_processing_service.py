@@ -23,10 +23,10 @@ from app.infrastructure.database.connection import SessionLocal
 from app.infrastructure.database.repositories.sqlalchemy_task_repository import (
     SQLAlchemyTaskRepository,
 )
-from app.core.gpu_lock import gpu_slot
 from app.infrastructure.ml.model_registry import evict_on_cuda_error
 from app.infrastructure.websocket import get_progress_emitter
 from app.services.concurrency_slot import release_slot_for_task
+from app.services.task_decode import decode_task_audio
 from app.schemas import (
     AlignmentParams,
     ASROptions,
@@ -107,21 +107,17 @@ def process_audio_task(
         }
         processing_stage = stage_map.get(task_type, TaskProgressStage.transcribing)
 
-        # Initial progress: queued
-        _update_progress(repository, identifier, TaskProgressStage.queued, 0)
-
         try:
+            # Initial progress: queued. Inside the try so a failed write still
+            # marks the task failed and releases its slot.
+            _update_progress(repository, identifier, TaskProgressStage.queued, 0)
             start_time = utc_now()
             logger.info(f"Starting {task_type} task for identifier {identifier}")
 
             # Progress: processing started
             _update_progress(repository, identifier, processing_stage, 10)
 
-            # Serialize GPU access: hold the process-wide slot for the whole
-            # model load+inference so no two jobs double-load VRAM (CUDA OOM /
-            # driver hang guard). Slot auto-releases on success or exception.
-            with gpu_slot(identifier):
-                result = audio_processor()
+            result = audio_processor()
 
             if task_type == "diarization":
                 result = result.drop(columns=["segment"]).to_dict(orient="records")
@@ -199,7 +195,7 @@ def process_audio_task(
 
 
 def process_transcribe(
-    audio: Any,
+    audio_path: str,
     identifier: str,
     model_params: WhisperModelParams,
     asr_options_params: ASROptions,
@@ -210,7 +206,8 @@ def process_transcribe(
     Process a transcription task using the transcription service.
 
     Args:
-        audio: The audio data.
+        audio_path: The saved upload. Decoded here, in the background job,
+            so the submit request never waits on ffmpeg.
         identifier (str): The task identifier.
         model_params (WhisperModelParams): The model parameters.
         asr_options_params (ASROptions): The ASR options.
@@ -219,6 +216,8 @@ def process_transcribe(
     """
 
     def transcribe_task() -> Any:
+        with SessionLocal() as session:
+            audio = decode_task_audio(session, identifier, audio_path)
         return transcription_service.transcribe(
             audio=audio,
             task=model_params.task.value,

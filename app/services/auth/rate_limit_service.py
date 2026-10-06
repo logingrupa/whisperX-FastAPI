@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
 
 from app.core import rate_limit
 from app.core.logging import logger
+from app.domain.entities.rate_limit_bucket import RateLimitBucket
 from app.domain.repositories.rate_limit_repository import IRateLimitRepository
 
 
@@ -27,25 +29,25 @@ class RateLimitService:
         rate: float,
         capacity: int,
     ) -> bool:
-        """Check + consume + persist atomically. Returns True if allowed."""
-        now = datetime.now(timezone.utc)
-        existing = self.repository.get_by_key(bucket_key)
-        bucket: rate_limit.BucketState
-        if existing is None:
-            bucket = {"tokens": capacity, "last_refill": now}
-        else:
-            bucket = {
-                "tokens": existing.tokens,
-                "last_refill": existing.last_refill,
-            }
-        new_state, allowed = rate_limit.consume(
-            bucket,
-            tokens_needed=tokens_needed,
-            now=now,
-            rate=rate,
-            capacity=capacity,
-        )
-        self.repository.upsert_atomic(bucket_key, dict(new_state))
+        """Check + consume + persist in one atomic bucket update. Returns True if allowed."""
+
+        def consume_from(existing: RateLimitBucket | None) -> tuple[dict[str, Any], bool]:
+            now = datetime.now(timezone.utc)
+            bucket: rate_limit.BucketState
+            if existing is None:
+                bucket = {"tokens": capacity, "last_refill": now}
+            else:
+                bucket = {"tokens": existing.tokens, "last_refill": existing.last_refill}
+            new_state, allowed = rate_limit.consume(
+                bucket,
+                tokens_needed=tokens_needed,
+                now=now,
+                rate=rate,
+                capacity=capacity,
+            )
+            return dict(new_state), allowed
+
+        allowed = self.repository.update_atomic(bucket_key, consume_from)
         if not allowed:
             logger.debug("RateLimit denied bucket=%s", bucket_key)
         return allowed
@@ -71,15 +73,19 @@ class RateLimitService:
         called from ``process_audio_common`` try/finally so a
         concurrency slot is ALWAYS returned (success OR failure).
         """
-        existing = self.repository.get_by_key(bucket_key)
-        if existing is None:
+
+        def refund_into(
+            existing: RateLimitBucket | None,
+        ) -> tuple[dict[str, Any] | None, int | None]:
+            if existing is None:
+                return None, None
+            new_tokens = min(capacity, existing.tokens + tokens)
+            return {"tokens": new_tokens, "last_refill": existing.last_refill}, new_tokens
+
+        new_tokens = self.repository.update_atomic(bucket_key, refund_into)
+        if new_tokens is None:
             logger.debug("RateLimit release no-op (no bucket) key=%s", bucket_key)
             return
-        new_tokens = min(capacity, existing.tokens + tokens)
-        self.repository.upsert_atomic(
-            bucket_key,
-            {"tokens": new_tokens, "last_refill": existing.last_refill},
-        )
         logger.debug(
             "RateLimit released bucket=%s tokens=%d/%d",
             bucket_key,

@@ -50,7 +50,7 @@ REM then re-enable.
 set "HF_HUB_OFFLINE=1"
 set "TRANSFORMERS_OFFLINE=1"
 
-REM Two jobs on the GPU at once. Was 1 while disk I/O was the bottleneck (models
+REM Two model leases (load + inference) on the GPU at once. Was 1 while disk I/O was the bottleneck (models
 REM read at 14 MB/s under Defender scanning, so the GPU sat at 1-8% and extra
 REM concurrency bought nothing). With the model dirs excluded from Defender the
 REM loads dropped to 1-6 s and the GPU is idle again for a different reason:

@@ -4,9 +4,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-import numpy as np
 from fastapi import Query
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 from whisperx import utils  # pyright: ignore[reportMissingTypeStubs]
 
 
@@ -399,9 +398,7 @@ class DiarizationParams(BaseModel):
 class SpeechToTextProcessingParams(BaseModel):
     """Model for speech-to-text processing parameters."""
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    audio: np.ndarray  # NumPy array containing the audio waveform, float32 dtype
+    audio_path: str  # Saved upload; the background job decodes it
     identifier: str
     vad_options: VADOptions
     asr_options: ASROptions

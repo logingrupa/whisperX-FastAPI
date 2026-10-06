@@ -46,7 +46,8 @@ class TestSQLAlchemyTaskRepository:
         mock_to_orm.assert_called_once_with(task)
         mock_session.add.assert_called_once_with(orm_task)
         mock_session.commit.assert_called_once()
-        mock_session.refresh.assert_called_once_with(orm_task)
+        # A committed INSERT is never re-read, so a failed re-read cannot fail the add.
+        mock_session.refresh.assert_not_called()
 
     @patch("app.infrastructure.database.repositories.sqlalchemy_task_repository.to_orm")
     def test_add_generates_uuid_if_missing(
@@ -63,9 +64,9 @@ class TestSQLAlchemyTaskRepository:
 
         result = repository.add(task)
 
-        # Task UUID should have been set
+        # Task UUID should have been set, and it is the identifier returned
         assert task.uuid != ""
-        assert result == "generated-uuid"
+        assert result == task.uuid
 
     @patch("app.infrastructure.database.repositories.sqlalchemy_task_repository.to_orm")
     def test_add_rolls_back_on_error(

@@ -1,8 +1,8 @@
 """Unit tests for the TUS upload -> transcription bridge."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pytest
 from fastapi import BackgroundTasks
 
@@ -29,22 +29,14 @@ def scheduled_params() -> dict:
         ),
         patch("app.services.upload_session_service.shutil.move"),
         patch(
-            "app.services.upload_session_service.process_audio_file",
-            return_value=np.zeros(16000, dtype=np.float32),
-        ),
-        patch(
-            "app.services.upload_session_service.get_audio_duration",
+            "app.services.upload_session_service.probe_audio_duration",
             return_value=1.0,
         ),
     ):
-        import asyncio
-
-        asyncio.run(
-            service.start_transcription(
-                file_path="C:/tmp/tus-upload",
-                metadata={"filename": "sermon.wav", "language": "lv"},
-                background_tasks=background_tasks,
-            )
+        service.start_transcription(
+            file_path="C:/tmp/tus-upload",
+            metadata={"filename": "sermon.wav", "language": "lv"},
+            background_tasks=background_tasks,
         )
 
     assert len(background_tasks.tasks) == 1
@@ -80,3 +72,7 @@ class TestUploadSessionService:
     def test_client_language_is_carried_through(self, scheduled_params) -> None:
         """Language drives LANGUAGE_MODEL_OVERRIDES, so it must survive the hop."""
         assert scheduled_params.whisper_model_params.language == "lv"
+
+    def test_worker_gets_the_saved_file_not_decoded_audio(self, scheduled_params) -> None:
+        """Completion only probes the duration; the background job decodes."""
+        assert Path(scheduled_params.audio_path) == Path("C:/tmp/tus-upload.wav")

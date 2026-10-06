@@ -6,6 +6,7 @@ and file extensions used across API endpoints.
 
 # API Response messages
 TASK_QUEUED_MESSAGE = "Task queued"
+TASK_ALREADY_QUEUED_MESSAGE = "Task already queued"
 TASK_SCHEDULED_LOG_FORMAT = "Background task scheduled for processing: ID %s"
 
 # Schema field descriptions

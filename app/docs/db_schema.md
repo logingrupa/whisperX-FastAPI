@@ -16,8 +16,8 @@
 | `task_type` | Type/category of the task | VARCHAR | False | None | False |
 | `task_params` | Parameters of the task | JSON | True | None | False |
 | `duration` | Duration of the task execution | FLOAT | True | None | False |
-| `start_time` | Start time of the task execution | DATETIME | True | None | False |
-| `end_time` | End time of the task execution | DATETIME | True | None | False |
+| `start_time` | Start time of the task execution (UTC, tz-aware) | DATETIME | True | None | False |
+| `end_time` | End time of the task execution (UTC, tz-aware) | DATETIME | True | None | False |
 | `error` | Error message, if any, associated with the task | VARCHAR | True | None | False |
 | `created_at` | Date and time of creation (UTC, tz-aware) | DATETIME | False | None | False |
 | `updated_at` | Date and time of last update (UTC, tz-aware) | DATETIME | False | None | False |
@@ -25,6 +25,7 @@
 | `progress_stage` | Current processing stage (queued, transcribing, aligning, diarizing, complete) | VARCHAR | True | None | False |
 | `user_id` | Owning user (nullable until Phase 12 backfill) | INTEGER | True | None | False |
 | `api_key_id` | API key used to schedule this task (NULL = cookie/session auth) | INTEGER | True | None | False |
+| `submission_key` | SHA-256 of file bytes + task type + language + params (resubmit dedupe) | VARCHAR(64) | True | None | False |
 ## Table: users
 
 | Field | Description | Type | Nullable |  Unique | Primary Key |
@@ -51,6 +52,7 @@
 | `created_at` | Date and time of creation (UTC, tz-aware) | DATETIME | False | None | False |
 | `last_used_at` | When the key was most recently presented (UTC, tz-aware) | DATETIME | True | None | False |
 | `revoked_at` | Soft-delete timestamp; NULL means active (UTC, tz-aware) | DATETIME | True | None | False |
+| `unlimited` | Operator-set per-key bypass: true => FreeTierGate skipped entirely | BOOLEAN | False | None | False |
 ## Table: subscriptions
 
 | Field | Description | Type | Nullable |  Unique | Primary Key |

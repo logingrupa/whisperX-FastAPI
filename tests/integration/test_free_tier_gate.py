@@ -20,8 +20,10 @@ Coverage (≥14):
 
 Strategy:
   - Slim FastAPI app per test mounts auth_router + stt_router + handlers
-  - process_audio_file and get_audio_duration are monkey-patched to skip
-    heavy decode; audio_duration is set per-test via a controllable stub
+  - probe_audio_duration is monkey-patched to skip ffprobe; audio_duration
+    is set per-test via a controllable stub. FileService.sha256_of_file
+    returns a fresh digest per call, so the resubmit dedupe never folds two
+    test submits into one job
   - process_audio_common is monkey-patched to a fast no-op so
     BackgroundTask never blocks; concurrency slot release tested by
     direct FreeTierGate calls (proves the contract that the wrapper would
@@ -32,12 +34,12 @@ Strategy:
 
 from __future__ import annotations
 
+import itertools
 from collections.abc import Generator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -67,6 +69,7 @@ from app.core.exceptions import (
 )
 from app.core.rate_limiter import limiter, rate_limit_handler
 from app.infrastructure.database.models import Base
+from app.infrastructure.database.models import Task as ORMTask
 from app.infrastructure.database.models import User as ORMUser
 from app.infrastructure.database.repositories.sqlalchemy_rate_limit_repository import (
     SQLAlchemyRateLimitRepository,
@@ -140,13 +143,14 @@ def app_and_container(
     """
     limiter.reset()
 
-    # Patch heavy audio pipeline within audio_api module (the route
-    # uses these names directly via local imports).
-    def _fake_process_audio_file(*_args, **_kwargs) -> Any:
-        return np.zeros(16000, dtype=np.float32)
-
-    def _fake_get_audio_duration(*_args, **_kwargs) -> float:
+    # Patch the submit path's file I/O (ffprobe + hashing of a fake path).
+    def _fake_probe_audio_duration(*_args, **_kwargs) -> float:
         return audio_ctrl.value
+
+    upload_counter = itertools.count(1)
+
+    def _fake_sha256_of_file(*_args, **_kwargs) -> str:
+        return f"{next(upload_counter):064x}"
 
     def _fake_save_upload(self: Any, file: Any) -> str:  # noqa: ARG001
         return "/tmp/fake.wav"
@@ -193,8 +197,14 @@ def app_and_container(
         )
         gate.release_concurrency(user)
 
-    monkeypatch.setattr(audio_api_module, "process_audio_file", _fake_process_audio_file)
-    monkeypatch.setattr(audio_api_module, "get_audio_duration", _fake_get_audio_duration)
+    monkeypatch.setattr(
+        "app.services.task_submission_service.probe_audio_duration",
+        _fake_probe_audio_duration,
+    )
+    monkeypatch.setattr(
+        "app.services.file_service.FileService.sha256_of_file",
+        staticmethod(_fake_sha256_of_file),
+    )
     monkeypatch.setattr(
         audio_api_module, "process_audio_common", _fake_process_audio_common
     )
@@ -912,3 +922,104 @@ def test_release_skips_refund_for_unlimited_key_task(
     # Still empty → second consume still blocks (no spurious refund).
     with pytest.raises(ConcurrencyLimitError):
         gate._check_concurrency(user_id, FREE_POLICY)  # noqa: SLF001
+
+
+# ---------------------------------------------------------------
+# Resubmit dedupe: same file + inputs while the first is processing
+# ---------------------------------------------------------------
+
+
+@pytest.fixture
+def identical_uploads(
+    app_and_container: FastAPI,  # noqa: ARG001 - its fakes must be installed first
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> list[Path]:
+    """Every upload hashes the same and is saved to its own real file."""
+    saved_uploads: list[Path] = []
+
+    def _save_upload(self: Any, file: Any) -> str:  # noqa: ARG001
+        upload_path = tmp_path / f"upload-{len(saved_uploads)}.wav"
+        upload_path.write_bytes(b"same bytes")
+        saved_uploads.append(upload_path)
+        return str(upload_path)
+
+    monkeypatch.setattr("app.services.file_service.FileService.save_upload", _save_upload)
+    monkeypatch.setattr(
+        "app.services.file_service.FileService.sha256_of_file",
+        staticmethod(lambda _path: "d" * 64),
+    )
+    return saved_uploads
+
+
+def _task_count(session_factory: Any) -> int:
+    with session_factory() as session:
+        return session.query(ORMTask).count()
+
+
+def _post_stt_in_language(client: TestClient, language: str) -> Any:
+    files = {"file": ("a.wav", b"RIFFFAKEDATAfake", "audio/wav")}
+    return client.post(
+        "/speech-to-text", files=files, params={"model": "tiny", "language": language}
+    )
+
+
+@pytest.mark.integration
+def test_identical_resubmit_returns_the_in_flight_task(
+    client: TestClient,
+    session_factory: Any,
+    identical_uploads: list[Path],
+) -> None:
+    """A retry after a client-side timeout gets the processing task back."""
+    _register(client, "retry@x.com")
+
+    first = _post_stt(client)
+    second = _post_stt(client)
+
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    assert second.json()["identifier"] == first.json()["identifier"]
+    assert first.json()["message"] == "Task queued"
+    assert second.json()["message"] == "Task already queued"
+    assert _task_count(session_factory) == 1
+    assert identical_uploads[0].exists(), "the queued job still needs its upload"
+    assert not identical_uploads[1].exists(), "the duplicate upload is discarded"
+
+
+@pytest.mark.integration
+def test_resubmit_in_another_language_is_a_new_task(
+    client: TestClient,
+    session_factory: Any,
+    identical_uploads: list[Path],  # noqa: ARG001 - same bytes, different inputs
+) -> None:
+    _register(client, "lang@x.com")
+
+    english = _post_stt_in_language(client, "en")
+    russian = _post_stt_in_language(client, "ru")
+
+    assert english.status_code == 200, english.text
+    assert russian.status_code == 200, russian.text
+    assert russian.json()["identifier"] != english.json()["identifier"]
+    assert _task_count(session_factory) == 2
+
+
+@pytest.mark.integration
+def test_resubmit_after_completion_is_a_new_task(
+    client: TestClient,
+    session_factory: Any,
+    identical_uploads: list[Path],  # noqa: ARG001 - same bytes and inputs
+) -> None:
+    _register(client, "again@x.com")
+    first = _post_stt(client)
+    assert first.status_code == 200, first.text
+    with session_factory() as session:
+        session.query(ORMTask).filter(
+            ORMTask.uuid == first.json()["identifier"]
+        ).update({"status": "completed"})
+        session.commit()
+
+    rerun = _post_stt(client)
+
+    assert rerun.status_code == 200, rerun.text
+    assert rerun.json()["identifier"] != first.json()["identifier"]
+    assert _task_count(session_factory) == 2

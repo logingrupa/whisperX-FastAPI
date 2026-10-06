@@ -6,6 +6,7 @@ import pytest
 
 from app.services.audio_processing_service import (
     process_audio_task,
+    process_transcribe,
     validate_language_code,
 )
 
@@ -182,3 +183,43 @@ class TestAudioProcessingService:
         assert "duration" in update_data
         assert isinstance(update_data["duration"], float)
         assert update_data["duration"] >= 0
+
+    @patch("app.services.audio_processing_service.evict_on_cuda_error")
+    @patch("app.services.audio_processing_service.SQLAlchemyTaskRepository")
+    @patch("app.services.audio_processing_service.SessionLocal")
+    def test_background_decode_failure_fails_the_task_and_keeps_warm_models(
+        self,
+        mock_session_local: Mock,
+        mock_repository_class: Mock,
+        mock_evict_on_cuda_error: Mock,
+    ) -> None:
+        """ffmpeg's banner says "--enable-cuda-llvm"; that must not read as a CUDA fault."""
+        from app.infrastructure.ml.model_registry import evict_on_cuda_error
+
+        mock_session_local.return_value = MagicMock()
+        mock_repository = MagicMock()
+        mock_repository_class.return_value = mock_repository
+        mock_evict_on_cuda_error.side_effect = evict_on_cuda_error
+        transcription_service = Mock()
+
+        with (
+            patch(
+                "app.audio.process_audio_file",
+                side_effect=RuntimeError("Failed to load audio: ... --enable-cuda-llvm ..."),
+            ),
+            patch("app.infrastructure.ml.model_registry.evict_all") as mock_evict_all,
+        ):
+            process_transcribe(
+                "deleted-upload.mp4",
+                "task-decode",
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                transcription_service,
+            )
+
+        update_call = assert_single_terminal_update(mock_repository)
+        assert update_call["update_data"]["status"] == "failed"
+        assert "could not decode" in update_call["update_data"]["error"]
+        transcription_service.transcribe.assert_not_called()
+        mock_evict_all.assert_not_called()

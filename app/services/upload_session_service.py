@@ -12,7 +12,7 @@ from uuid import uuid4
 
 from fastapi import BackgroundTasks
 
-from app.audio import get_audio_duration, process_audio_file
+from app.audio import probe_audio_duration
 from app.core.config import get_settings
 from app.core.logging import logger
 from app.domain.entities.task import Task as DomainTask
@@ -52,7 +52,7 @@ class UploadSessionService:
         """
         self._repository = repository
 
-    async def start_transcription(
+    def start_transcription(
         self,
         file_path: str,
         metadata: dict,
@@ -60,8 +60,9 @@ class UploadSessionService:
     ) -> str:
         """Validate an assembled file and schedule transcription.
 
-        Called by the TUS upload completion hook after all chunks are assembled.
-        Returns quickly after scheduling -- transcription runs in the background.
+        Called by the TUS upload completion hook (in the threadpool) after all
+        chunks are assembled. Reads the duration with ffprobe and returns after
+        scheduling; decoding and transcription run in the background job.
 
         Args:
             file_path: Absolute path to the assembled file on disk.
@@ -89,11 +90,10 @@ class UploadSessionService:
             logger.info("Renamed TUS file: %s -> %s", file_path, renamed_path)
             file_path = renamed_path
 
-            # 3. Load audio and measure duration
-            audio = process_audio_file(file_path)
-            audio_duration = get_audio_duration(audio)
+            # 3. Measure duration from the container header (no decode)
+            audio_duration = probe_audio_duration(file_path)
             logger.info(
-                "TUS upload audio loaded: %s, duration: %.2fs",
+                "TUS upload probed: %s, duration: %.2fs",
                 filename,
                 audio_duration,
             )
@@ -135,7 +135,7 @@ class UploadSessionService:
             )
 
             params = SpeechToTextProcessingParams(
-                audio=audio,
+                audio_path=file_path,
                 identifier=identifier,
                 vad_options=VADOptions(vad_onset=0.5, vad_offset=0.363),
                 asr_options=ASROptions(

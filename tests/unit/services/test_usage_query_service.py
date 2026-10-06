@@ -68,8 +68,8 @@ class _StubRateLimitRepo:
         self.lookup_calls.append(bucket_key)
         return self._buckets.get(bucket_key)
 
-    def upsert_atomic(
-        self, bucket_key: str, new_state: dict[str, Any]
+    def update_atomic(
+        self, bucket_key: str, compute: Any
     ) -> None:  # pragma: no cover — read-only path
         raise AssertionError("UsageQueryService must NOT write to rate-limit store")
 
@@ -317,7 +317,7 @@ def test_get_summary_does_not_write_to_rate_limit_store() -> None:
         rate_limit_repository=rate_limit_repo,
     )
 
-    # Stub raises AssertionError if upsert_atomic is called -> if we get here, no writes.
+    # Stub raises AssertionError if update_atomic is called -> if we get here, no writes.
     service.get_summary(user_id=42, now=_NOW)
     assert "user:42:tx:hour" in rate_limit_repo.lookup_calls
     assert "user:42:audio_min:day" in rate_limit_repo.lookup_calls

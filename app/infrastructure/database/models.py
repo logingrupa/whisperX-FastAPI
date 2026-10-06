@@ -16,6 +16,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     false as sa_false,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -154,6 +155,25 @@ class Task(Base):
         ForeignKey("api_keys.id", ondelete="SET NULL", name="fk_tasks_api_key_id"),
         nullable=True,
         comment="API key used to schedule this task (NULL = cookie/session auth)",
+    )
+    submission_key: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        comment="SHA-256 of file bytes + task type + language + params (resubmit dedupe)",
+    )
+
+    __table_args__ = (
+        # Task list: WHERE user_id = ? ORDER BY created_at DESC LIMIT n
+        # without a temp b-tree over every row's result payload.
+        Index("idx_tasks_user_id_created_at", "user_id", "created_at"),
+        # At most one processing task per user + submission key.
+        Index(
+            "uq_tasks_in_flight_submission",
+            "user_id",
+            "submission_key",
+            unique=True,
+            sqlite_where=text("status = 'processing'"),
+        ),
     )
 
 
