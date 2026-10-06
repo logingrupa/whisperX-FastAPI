@@ -64,11 +64,16 @@ export function createTusUpload(
   metadata: Record<string, string>,
   callbacks: TusUploadCallbacks,
 ): tus.Upload {
-  /** HTTP status codes that indicate permanent failure -- never retry. */
-  const PERMANENT_STATUSES = new Set([413, 415, 410, 403]);
+  /**
+   * HTTP status codes that indicate permanent failure -- never retry.
+   * 429 is here, not in TRANSIENT_STATUSES: on TUS it only comes from the
+   * free-tier gate on the final PATCH, which deletes the upload, so a retry
+   * would re-send the whole file from byte 0.
+   */
+  const PERMANENT_STATUSES = new Set([413, 415, 410, 403, 429]);
 
   /** HTTP status codes that are always worth retrying. */
-  const TRANSIENT_STATUSES = new Set([0, 408, 429, 502, 503, 504]);
+  const TRANSIENT_STATUSES = new Set([0, 408, 502, 503, 504]);
 
   const upload = new tus.Upload(file, {
     endpoint: TUS_ENDPOINT,
