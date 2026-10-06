@@ -24,10 +24,13 @@ const usageSummarySchema = z.object({
   plan_tier: planTierSchema,
   trial_started_at: z.string().datetime({ offset: true }).nullable(),
   trial_expires_at: z.string().datetime({ offset: true }).nullable(),
+  // unlimited: caller authenticated with an API key carrying the per-key
+  // unlimited flag; both limits come back null in that case.
+  unlimited: z.boolean(),
   hour_count: z.number().int().nonnegative(),
-  hour_limit: z.number().int().nonnegative(),
+  hour_limit: z.number().int().nonnegative().nullable(),
   daily_minutes_used: z.number().nonnegative(),
-  daily_minutes_limit: z.number().nonnegative(),
+  daily_minutes_limit: z.number().nonnegative().nullable(),
   window_resets_at: z.string().datetime({ offset: true }),
   day_resets_at: z.string().datetime({ offset: true }),
 });

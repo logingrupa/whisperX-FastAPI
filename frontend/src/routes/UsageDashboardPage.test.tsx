@@ -27,6 +27,7 @@ import {
   FREE_NO_TRIAL_USAGE,
   HOUR_AT_LIMIT_USAGE,
   TRIAL_EXPIRED_USAGE,
+  UNLIMITED_KEY_USAGE,
 } from '@/tests/msw/usage.handlers';
 
 function renderPage() {
@@ -109,6 +110,18 @@ describe('UsageDashboardPage', () => {
     expect(screen.getByRole('heading', { name: /usage/i })).toBeInTheDocument();
   });
 
+  it('renders no-cap copy when the summary comes back unlimited', async () => {
+    server.use(
+      http.get('/api/usage', () => HttpResponse.json(UNLIMITED_KEY_USAGE)),
+    );
+    renderPage();
+    const hourCard = await screen.findByTestId('hour-quota-card');
+    // Count still shown; the "of N" cap is not, because there is none.
+    expect(within(hourCard).getByText(/1 used/)).toBeInTheDocument();
+    expect(within(hourCard).queryByText(/of 5/)).not.toBeInTheDocument();
+    expect(screen.getByText(/no hourly or daily cap/i)).toBeInTheDocument();
+  });
+
   it('Refresh button re-fetches /api/usage', async () => {
     renderPage();
     const hourCard = await screen.findByTestId('hour-quota-card');
@@ -121,6 +134,7 @@ describe('UsageDashboardPage', () => {
           plan_tier: 'trial',
           trial_started_at: '2026-05-01T12:00:00Z',
           trial_expires_at: '2026-05-08T12:00:00Z',
+          unlimited: false,
           hour_count: 2,
           hour_limit: 5,
           daily_minutes_used: 4.5,

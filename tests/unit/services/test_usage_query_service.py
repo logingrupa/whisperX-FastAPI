@@ -96,6 +96,7 @@ def test_get_summary_returns_required_keys_for_trial_user_with_no_buckets() -> N
         "plan_tier",
         "trial_started_at",
         "trial_expires_at",
+        "unlimited",
         "hour_count",
         "hour_limit",
         "daily_minutes_used",
@@ -188,6 +189,52 @@ def test_get_summary_trial_user_uses_free_policy_limits() -> None:
 
     assert summary["hour_limit"] == FREE_POLICY.max_per_hour
     assert summary["daily_minutes_limit"] == float(FREE_POLICY.max_daily_seconds // 60)
+
+
+# ---------------------------------------------------------------------------
+# Per-key unlimited (0005)
+# ---------------------------------------------------------------------------
+
+
+def test_get_summary_unlimited_caller_gets_null_limits() -> None:
+    """unlimited=True nulls both caps and flags the response."""
+    user = _make_user(plan_tier="pro")
+    service = _make_service(user)
+
+    summary = service.get_summary(user_id=42, unlimited=True, now=_NOW)
+
+    assert summary["unlimited"] is True
+    assert summary["hour_limit"] is None
+    assert summary["daily_minutes_limit"] is None
+
+
+def test_get_summary_unlimited_caller_keeps_consumed_counts() -> None:
+    """Caps go away; accounting does not. Counts still describe the user."""
+    user = _make_user(plan_tier="pro")
+    buckets = {
+        "user:42:tx:hour": RateLimitBucket(
+            id=1,
+            bucket_key="user:42:tx:hour",
+            tokens=PRO_POLICY.max_per_hour - 3,
+            last_refill=_NOW,
+        ),
+    }
+    service = _make_service(user, buckets)
+
+    summary = service.get_summary(user_id=42, unlimited=True, now=_NOW)
+
+    assert summary["hour_count"] == 3
+
+
+def test_get_summary_defaults_to_limited() -> None:
+    """Omitting the kwarg keeps the pre-0005 behaviour (caps reported)."""
+    user = _make_user(plan_tier="pro")
+    service = _make_service(user)
+
+    summary = service.get_summary(user_id=42, now=_NOW)
+
+    assert summary["unlimited"] is False
+    assert summary["hour_limit"] == PRO_POLICY.max_per_hour
 
 
 # ---------------------------------------------------------------------------

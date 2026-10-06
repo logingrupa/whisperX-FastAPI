@@ -89,8 +89,16 @@ class FreeTierGate:
         file_seconds: float,
         model: str,
         diarize: bool,
+        unlimited: bool = False,
     ) -> None:
         """Run all 6 fail-fast gates. Raises on first failure.
+
+        ``unlimited=True`` (set when the request authenticated via an API key
+        whose per-key ``unlimited`` flag is on) bypasses EVERY gate and
+        consumes NO rate-limit token / concurrency slot. The matching release
+        path (``release_slot_if_authed``) likewise skips the refund for such
+        a task, so the per-user concurrency bucket is left untouched and the
+        user's other (limited) keys keep accounting correctly.
 
         Order (debug fix — quota leak): pure validators (zero-cost config
         checks) run FIRST, then rate-bucket consumers. A duration / model /
@@ -107,6 +115,8 @@ class FreeTierGate:
           - daily audio min cap       -> RateLimitExceededError (429)    [consumes N tokens]
           - concurrency slot acquired -> ConcurrencyLimitError  (429)    [consumes 1 token, released in finally]
         """
+        if unlimited:
+            return
         policy = self._policy_for(user)
         user_id = int(user.id)  # type: ignore[arg-type]
         # Pure validators (no bucket consume) — fail-fast on config violations

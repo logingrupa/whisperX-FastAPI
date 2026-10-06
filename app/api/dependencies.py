@@ -246,12 +246,17 @@ _COOKIE_REFRESH_FAILURES = (JwtExpiredError, JwtAlgorithmError, JwtTamperedError
 STATE_MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 
-def _resolve_bearer(plaintext: str, db: Session) -> tuple[User | None, int | None]:
-    """Resolve a presented bearer plaintext to ``(User, api_key_id)``.
+def _resolve_bearer(
+    plaintext: str, db: Session
+) -> tuple[User | None, int | None, bool]:
+    """Resolve a presented bearer plaintext to ``(User, api_key_id, unlimited)``.
 
     The api_key_id is surfaced (alongside the User) so the transcribe route
     can attribute usage to the specific key (see ``current_api_key_id``).
-    Returns ``(None, None)`` on any bearer failure.
+    ``unlimited`` mirrors the key's per-key bypass flag (see
+    ``current_api_key_unlimited``) so the transcribe route can skip the
+    FreeTierGate entirely. Returns ``(None, None, False)`` on any bearer
+    failure.
 
     Two-query semantics carried forward verbatim from the legacy resolver
     (Phase 20 collapses to a single JOIN; preserved here so structural
@@ -263,9 +268,10 @@ def _resolve_bearer(plaintext: str, db: Session) -> tuple[User | None, int | Non
     try:
         api_key = key_service.verify_plaintext(plaintext)
     except _BEARER_FAILURES:
-        return None, None
+        return None, None, False
     user = SQLAlchemyUserRepository(db).get_by_id(api_key.user_id)
-    return user, int(api_key.id) if api_key.id is not None else None
+    api_key_id = int(api_key.id) if api_key.id is not None else None
+    return user, api_key_id, bool(api_key.unlimited)
 
 
 def _resolve_cookie(token: str, db: Session, response: Response) -> User | None:
@@ -322,16 +328,19 @@ def _try_resolve(
     does NOT silently fall through to the cookie (T-19-04-06 mitigation;
     see RESEARCH §Pitfall 5).
 
-    Side-effect: stashes the resolving ``api_key_id`` (bearer auth only) on
-    ``request.state`` so ``current_api_key_id`` can attribute usage without
-    re-running key verification. Cookie/anonymous legs leave it None.
+    Side-effect: stashes the resolving ``api_key_id`` and ``api_key_unlimited``
+    (bearer auth only) on ``request.state`` so ``current_api_key_id`` /
+    ``current_api_key_unlimited`` can read them without re-running key
+    verification. Cookie/anonymous legs leave them None / False.
     """
     request.state.api_key_id = None
+    request.state.api_key_unlimited = False
     auth_header = request.headers.get("authorization", "")
     if auth_header.startswith(BEARER_PREFIX):
         plaintext = auth_header[len(BEARER_PREFIX):].strip()
-        user, api_key_id = _resolve_bearer(plaintext, db)
+        user, api_key_id, unlimited = _resolve_bearer(plaintext, db)
         request.state.api_key_id = api_key_id
+        request.state.api_key_unlimited = unlimited
         return user
     cookie = request.cookies.get(SESSION_COOKIE)
     if cookie:
@@ -388,6 +397,21 @@ def current_api_key_id(
     those have no API key to attribute usage to.
     """
     return getattr(request.state, "api_key_id", None)
+
+
+def current_api_key_unlimited(
+    request: Request,
+    user: User = Depends(authenticated_user),
+) -> bool:
+    """Return whether the key that authenticated this request is unlimited.
+
+    True only for bearer requests presenting a key with ``unlimited=True``;
+    cookie/session-authenticated requests (no API key) are always False.
+    The transcribe routes pass this to ``FreeTierGate.check(unlimited=...)``
+    to bypass tier limits for the key. Depends on ``authenticated_user`` so
+    ``_try_resolve`` has stamped ``request.state.api_key_unlimited`` first.
+    """
+    return bool(getattr(request.state, "api_key_unlimited", False))
 
 
 def get_scoped_task_repository(

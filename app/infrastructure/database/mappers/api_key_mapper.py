@@ -18,6 +18,7 @@ def to_domain(orm_key: ORMApiKey) -> DomainApiKey:
         created_at=orm_key.created_at,
         last_used_at=orm_key.last_used_at,
         revoked_at=orm_key.revoked_at,
+        unlimited=orm_key.unlimited,
     )
 
 
@@ -32,4 +33,5 @@ def to_orm(domain_key: DomainApiKey) -> ORMApiKey:
         created_at=domain_key.created_at,
         last_used_at=domain_key.last_used_at,
         revoked_at=domain_key.revoked_at,
+        unlimited=domain_key.unlimited,
     )

@@ -28,10 +28,18 @@ class UsageSummaryResponse(BaseModel):
         None,
         description="trial_started_at plus seven days; None when trial_started_at is None",
     )
+    unlimited: bool = Field(
+        False,
+        description=(
+            "True when the request authenticated with an API key carrying the "
+            "per-key unlimited flag; hour_limit and daily_minutes_limit are "
+            "null in that case (no cap applies to this caller)"
+        ),
+    )
     hour_count: int = Field(..., ge=0)
-    hour_limit: int = Field(..., ge=0)
+    hour_limit: int | None = Field(..., ge=0)
     daily_minutes_used: float = Field(..., ge=0.0)
-    daily_minutes_limit: float = Field(..., ge=0.0)
+    daily_minutes_limit: float | None = Field(..., ge=0.0)
     window_resets_at: datetime
     day_resets_at: datetime
 

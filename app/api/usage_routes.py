@@ -27,6 +27,7 @@ from fastapi import APIRouter, Depends
 from app.api.dependencies import (
     authenticated_user,
     csrf_protected,
+    current_api_key_unlimited,
     get_usage_by_key_service,
     get_usage_query_service,
 )
@@ -49,9 +50,18 @@ usage_router = APIRouter(
 async def get_usage(
     user: User = Depends(authenticated_user),
     usage_query_service: UsageQueryService = Depends(get_usage_query_service),
+    api_key_unlimited: bool = Depends(current_api_key_unlimited),
 ) -> UsageSummaryResponse:
-    """Return the caller's current usage summary."""
-    summary = usage_query_service.get_summary(int(user.id))
+    """Return the caller's current usage summary.
+
+    A bearer request whose key carries the per-key ``unlimited`` flag gets
+    ``unlimited: true`` and null limits — that caller bypasses FreeTierGate,
+    so reporting the plan caps would state a limit it does not have. Cookie
+    sessions and ordinary keys are unaffected.
+    """
+    summary = usage_query_service.get_summary(
+        int(user.id), unlimited=api_key_unlimited
+    )
     return UsageSummaryResponse(**summary)
 
 

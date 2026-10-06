@@ -11,6 +11,12 @@ UTC midnight) chosen to match the UI copy. The user actually gets a fractional
 refill at the boundary, not the full capacity. Documented divergence — see
 ``RESEARCH §6.2`` in the quick-task planning artifacts.
 
+Unlimited callers: a request bearing an API key with ``api_keys.unlimited``
+skips FreeTierGate entirely, so the tier caps never apply to it. The summary
+reports ``unlimited: true`` with both limits ``None`` rather than the plan
+numbers, which would otherwise read as a cap the caller does not have. The
+consumed counts stay as-is — they describe the user's limited keys.
+
 Anti-enumeration: missing-user raises ``InvalidCredentialsError`` (mapped to
 HTTP 401) for parity with ``AccountService.get_account_summary``. T-15-05 mirror.
 
@@ -48,12 +54,18 @@ class UsageQueryService:
         self,
         user_id: int,
         *,
+        unlimited: bool = False,
         now: datetime | None = None,
     ) -> dict[str, Any]:
         """Return current rate-limit + trial state for ``user_id``.
 
         Args:
             user_id: Caller user id (route resolves via ``authenticated_user``).
+            unlimited: True when the caller authenticated with an API key
+                carrying the per-key ``unlimited`` flag. Such requests bypass
+                FreeTierGate entirely, so the plan caps do not apply to them;
+                both limits are reported as ``None``. Counts stay live: they
+                still describe what the user's limited keys have consumed.
             now: Reference instant for refill replay + reset-time computation.
                  Injected for deterministic testing; defaults to ``datetime.now(UTC)``.
 
@@ -94,10 +106,11 @@ class UsageQueryService:
             "plan_tier": user.plan_tier,
             "trial_started_at": user.trial_started_at,
             "trial_expires_at": trial_expires_at,
+            "unlimited": unlimited,
             "hour_count": hour_count,
-            "hour_limit": hour_limit,
+            "hour_limit": None if unlimited else hour_limit,
             "daily_minutes_used": daily_minutes_used,
-            "daily_minutes_limit": daily_minutes_limit,
+            "daily_minutes_limit": None if unlimited else daily_minutes_limit,
             "window_resets_at": self._top_of_next_hour(now_utc),
             "day_resets_at": self._next_utc_midnight(now_utc),
         }

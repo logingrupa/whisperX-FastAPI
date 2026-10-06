@@ -6,6 +6,7 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     CheckConstraint,
     DateTime,
     Float,
@@ -14,6 +15,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    false as sa_false,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -286,6 +288,13 @@ class ApiKey(Base):
         DateTime(timezone=True),
         nullable=True,
         comment="Soft-delete timestamp; NULL means active (UTC, tz-aware)",
+    )
+    unlimited: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=sa_false(),
+        comment="Operator-set per-key bypass: true => FreeTierGate skipped entirely",
     )
 
     __table_args__ = (

@@ -27,6 +27,7 @@ from app.api.constants import (
 from app.api.dependencies import (
     authenticated_user,
     current_api_key_id,
+    current_api_key_unlimited,
     get_free_tier_gate,
     get_scoped_task_repository,
 )
@@ -93,6 +94,7 @@ async def transcribe(
     user: User = Depends(authenticated_user),
     free_tier_gate: FreeTierGate = Depends(get_free_tier_gate),
     api_key_id: int | None = Depends(current_api_key_id),
+    api_key_unlimited: bool = Depends(current_api_key_unlimited),
 ) -> Response:
     """
     Transcribe an uploaded audio file.
@@ -129,6 +131,7 @@ async def transcribe(
         file_seconds=audio_duration,
         model=model_params.model.value,
         diarize=False,
+        unlimited=api_key_unlimited,
     )
 
     # Phase 20 — gate-then-schedule atomic (see /speech-to-text comment).
@@ -162,7 +165,9 @@ async def transcribe(
             transcription_service,
         )
     except Exception:
-        free_tier_gate.release_concurrency(user)
+        # Unlimited keys consumed no slot in check() — nothing to refund.
+        if not api_key_unlimited:
+            free_tier_gate.release_concurrency(user)
         raise
 
     logger.info(TASK_SCHEDULED_LOG_FORMAT, identifier)

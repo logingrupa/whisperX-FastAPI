@@ -23,6 +23,9 @@ class ApiKey:
         created_at: Row creation timestamp (tz-aware UTC).
         last_used_at: Most-recent presentation timestamp (tz-aware UTC).
         revoked_at: Soft-delete timestamp; ``None`` means active.
+        unlimited: Operator-set per-key bypass; ``True`` => FreeTierGate is
+            skipped entirely for requests authenticated with this key (no
+            tier checks, no rate-bucket consume, no concurrency slot).
     """
 
     id: int | None
@@ -34,6 +37,7 @@ class ApiKey:
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     last_used_at: datetime | None = None
     revoked_at: datetime | None = None
+    unlimited: bool = False
 
     def is_active(self) -> bool:
         """A key is active iff it has not been soft-deleted."""

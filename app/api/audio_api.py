@@ -19,6 +19,8 @@ from fastapi import (
 
 from app.api.dependencies import (
     authenticated_user,
+    current_api_key_id,
+    current_api_key_unlimited,
     get_free_tier_gate,
     get_scoped_task_repository,
 )
@@ -69,6 +71,8 @@ async def speech_to_text(
     file_service: FileService = Depends(get_file_service),
     user: User = Depends(authenticated_user),
     free_tier_gate: FreeTierGate = Depends(get_free_tier_gate),
+    api_key_id: int | None = Depends(current_api_key_id),
+    api_key_unlimited: bool = Depends(current_api_key_unlimited),
 ) -> Response:
     """
     Process an uploaded audio file for speech-to-text conversion.
@@ -119,6 +123,7 @@ async def speech_to_text(
         file_seconds=audio_duration,
         model=model_params.model.value,
         diarize=diarize_requested,
+        unlimited=api_key_unlimited,
     )
 
     # Phase 20 — gate-then-schedule atomic: if ANYTHING between
@@ -142,6 +147,7 @@ async def speech_to_text(
             callback_url=callback_url,
             start_time=datetime.now(tz=timezone.utc),
             user_id=int(user.id) if user.id is not None else None,
+            api_key_id=api_key_id,
         )
 
         identifier = repository.add(task)
@@ -161,7 +167,9 @@ async def speech_to_text(
         background_tasks.add_task(process_audio_common, audio_params)
         logger.info("Background task scheduled for processing: ID %s", identifier)
     except Exception:
-        free_tier_gate.release_concurrency(user)
+        # Unlimited keys consumed no slot in check() — nothing to refund.
+        if not api_key_unlimited:
+            free_tier_gate.release_concurrency(user)
         raise
 
     return Response(identifier=identifier, message="Task queued")
@@ -183,6 +191,8 @@ async def speech_to_text_url(
     file_service: FileService = Depends(get_file_service),
     user: User = Depends(authenticated_user),
     free_tier_gate: FreeTierGate = Depends(get_free_tier_gate),
+    api_key_id: int | None = Depends(current_api_key_id),
+    api_key_unlimited: bool = Depends(current_api_key_unlimited),
 ) -> Response:
     """
     Process an audio file from a URL for speech-to-text conversion.
@@ -227,6 +237,7 @@ async def speech_to_text_url(
         file_seconds=audio_duration,
         model=model_params.model.value,
         diarize=diarize_requested,
+        unlimited=api_key_unlimited,
     )
 
     # Phase 20 — gate-then-schedule atomic (see /speech-to-text comment).
@@ -249,6 +260,7 @@ async def speech_to_text_url(
             callback_url=callback_url,
             start_time=datetime.now(tz=timezone.utc),
             user_id=int(user.id) if user.id is not None else None,
+            api_key_id=api_key_id,
         )
 
         identifier = repository.add(task)
@@ -268,7 +280,9 @@ async def speech_to_text_url(
         background_tasks.add_task(process_audio_common, audio_params)
         logger.info("Background task scheduled for processing: ID %s", identifier)
     except Exception:
-        free_tier_gate.release_concurrency(user)
+        # Unlimited keys consumed no slot in check() — nothing to refund.
+        if not api_key_unlimited:
+            free_tier_gate.release_concurrency(user)
         raise
 
     return Response(identifier=identifier, message="Task queued")

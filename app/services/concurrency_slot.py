@@ -13,6 +13,9 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from app.core.logging import logger
+from app.infrastructure.database.repositories.sqlalchemy_api_key_repository import (
+    SQLAlchemyApiKeyRepository,
+)
 from app.infrastructure.database.repositories.sqlalchemy_rate_limit_repository import (
     SQLAlchemyRateLimitRepository,
 )
@@ -26,17 +29,42 @@ from app.services.auth.rate_limit_service import RateLimitService
 from app.services.free_tier_gate import FreeTierGate
 
 
+def _task_bypassed_gate(
+    api_key_repo: SQLAlchemyApiKeyRepository, api_key_id: int | None
+) -> bool:
+    """True iff the task was created by an unlimited key (gate was bypassed).
+
+    Such a task consumed NO concurrency slot at request time, so releasing
+    one here would over-refund the per-user bucket and corrupt accounting
+    for the user's limited keys. Flat-guard: unknown / missing key => not
+    bypassed (release as normal).
+    """
+    if api_key_id is None:
+        return False
+    api_key = api_key_repo.get_by_id(api_key_id)
+    if api_key is None:
+        return False
+    return bool(api_key.unlimited)
+
+
 def release_slot_if_authed(
     repo: SQLAlchemyTaskRepository,
     user_repo: SQLAlchemyUserRepository,
     identifier: str,
     free_tier_gate: FreeTierGate,
+    api_key_repo: SQLAlchemyApiKeyRepository,
 ) -> None:
-    """Release the concurrency slot iff the task has an authenticated owner."""
+    """Release the concurrency slot iff the task has an authenticated owner.
+
+    Skips the release when the task was created by an unlimited key — that
+    request bypassed FreeTierGate.check and never consumed a slot (W1 mirror).
+    """
     completed_task = repo.get_by_id(identifier)
     if completed_task is None:
         return
     if completed_task.user_id is None:
+        return
+    if _task_bypassed_gate(api_key_repo, completed_task.api_key_id):
         return
     user = user_repo.get_by_id(completed_task.user_id)
     if user is None:
@@ -54,11 +82,14 @@ def release_slot_for_task(session: Session, identifier: str) -> None:
     try:
         repo = SQLAlchemyTaskRepository(session)
         user_repo = SQLAlchemyUserRepository(session)
+        api_key_repo = SQLAlchemyApiKeyRepository(session)
         rate_limit_service = RateLimitService(
             repository=SQLAlchemyRateLimitRepository(session)
         )
         free_tier_gate = FreeTierGate(rate_limit_service=rate_limit_service)
-        release_slot_if_authed(repo, user_repo, identifier, free_tier_gate)
+        release_slot_if_authed(
+            repo, user_repo, identifier, free_tier_gate, api_key_repo
+        )
     except Exception as exc:
         logger.warning(
             "Failed to release concurrency slot task=%s: %s", identifier, exc

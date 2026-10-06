@@ -753,3 +753,162 @@ def test_pro_diarize_route_passes_pro_blocks_free(
     gate.check_diarize_route(pro)  # no raise
     with pytest.raises(FreeTierViolationError):
         gate.check_diarize_route(free)
+
+
+# ---------------------------------------------------------------
+# Per-key unlimited bypass (0005) — check(unlimited=True) skips ALL
+# gates and consumes NO concurrency slot; the release path must skip
+# the refund so the per-user bucket is left untouched.
+# ---------------------------------------------------------------
+
+
+@pytest.mark.integration
+def test_unlimited_bypasses_every_gate(
+    app_and_container: FastAPI,
+    session_factory: Any,
+) -> None:
+    """A free, trial-EXPIRED user with unlimited=True clears every gate.
+
+    Each dimension below would normally raise for this user: expired trial
+    (402), 10h file > 5min cap (403), large-v3 model (403), diarize (403).
+    unlimited=True must short-circuit before any of them fire.
+    """
+    app = app_and_container  # noqa: F841 — fixture sets up handlers/patches
+    rls = _build_rate_limit_service(session_factory)
+    gate = FreeTierGate(rls)
+
+    from app.domain.entities.user import User as DUser
+
+    expired_trial = DUser(
+        id=7001,
+        email="owner@x.com",
+        password_hash="x",
+        plan_tier="trial",
+        trial_started_at=datetime.now(timezone.utc) - timedelta(days=99),
+    )
+
+    # No raise despite every dimension violating the free/trial policy.
+    gate.check(
+        user=expired_trial,
+        file_seconds=10 * 60 * 60,  # 10h ≫ 5min free cap
+        model="large-v3",  # not in free allowed_models
+        diarize=True,  # not allowed on free
+        unlimited=True,
+    )
+
+
+@pytest.mark.integration
+def test_unlimited_consumes_no_concurrency_slot(
+    app_and_container: FastAPI,
+    session_factory: Any,
+) -> None:
+    """unlimited=True never depletes the concurrency bucket.
+
+    Free cap is 1 concurrent. 5 back-to-back unlimited checks all pass AND
+    leave a full bucket, proving no slot was consumed (a normal free check
+    would 429 on the 2nd held slot).
+    """
+    app = app_and_container  # noqa: F841
+    rls = _build_rate_limit_service(session_factory)
+    gate = FreeTierGate(rls)
+
+    from app.domain.entities.user import User as DUser
+
+    user = DUser(id=7002, email="batch@x.com", password_hash="x", plan_tier="free")
+
+    for _ in range(5):
+        gate.check(
+            user=user,
+            file_seconds=60.0,
+            model="tiny",
+            diarize=False,
+            unlimited=True,
+        )
+
+    # Bucket untouched: a normal consume still has its single free slot.
+    gate._check_concurrency(int(user.id), FREE_POLICY)  # noqa: SLF001
+
+
+@pytest.mark.integration
+def test_release_skips_refund_for_unlimited_key_task(
+    app_and_container: FastAPI,
+    session_factory: Any,
+) -> None:
+    """release_slot_if_authed must NOT refund a task created by an unlimited key.
+
+    Such a task never consumed a slot, so a spurious release would inflate
+    the per-user bucket and corrupt accounting for the user's limited keys.
+    Setup: one user holding a real slot (consumed by a *limited* path) plus
+    a completed task stamped with an unlimited key. Releasing for that task
+    must be a no-op (bucket count unchanged).
+    """
+    app = app_and_container  # noqa: F841
+    from app.domain.entities.user import User as DUser
+    from app.infrastructure.database.models import ApiKey as ORMApiKey
+    from app.infrastructure.database.models import Task as ORMTask
+    from app.infrastructure.database.repositories.sqlalchemy_api_key_repository import (
+        SQLAlchemyApiKeyRepository,
+    )
+    from app.infrastructure.database.repositories.sqlalchemy_task_repository import (
+        SQLAlchemyTaskRepository,
+    )
+    from app.infrastructure.database.repositories.sqlalchemy_user_repository import (
+        SQLAlchemyUserRepository,
+    )
+    from app.services.concurrency_slot import release_slot_if_authed
+
+    user_id = 7003
+    with session_factory() as s:
+        s.add(
+            ORMUser(
+                id=user_id,
+                email="mix@x.com",
+                password_hash="x",
+                plan_tier="free",
+            )
+        )
+        s.commit()
+        s.add(
+            ORMApiKey(
+                id=7100,
+                user_id=user_id,
+                name="unlimited-key",
+                prefix="ulkey000",
+                hash="h" * 64,
+                unlimited=True,
+            )
+        )
+        s.commit()
+        s.add(
+            ORMTask(
+                uuid="task-unlimited",
+                status="completed",
+                task_type="full_process",
+                user_id=user_id,
+                api_key_id=7100,
+            )
+        )
+        s.commit()
+
+    rls = _build_rate_limit_service(session_factory)
+    gate = FreeTierGate(rls)
+    user = DUser(id=user_id, email="mix@x.com", password_hash="x", plan_tier="free")
+
+    # Consume the single free slot via a limited path → bucket now empty.
+    gate._check_concurrency(user_id, FREE_POLICY)  # noqa: SLF001
+    with pytest.raises(ConcurrencyLimitError):
+        gate._check_concurrency(user_id, FREE_POLICY)  # noqa: SLF001
+
+    # Releasing for the UNLIMITED-key task must be a no-op.
+    with session_factory() as s:
+        release_slot_if_authed(
+            SQLAlchemyTaskRepository(s),
+            SQLAlchemyUserRepository(s),
+            "task-unlimited",
+            gate,
+            SQLAlchemyApiKeyRepository(s),
+        )
+
+    # Still empty → second consume still blocks (no spurious refund).
+    with pytest.raises(ConcurrencyLimitError):
+        gate._check_concurrency(user_id, FREE_POLICY)  # noqa: SLF001

@@ -6,7 +6,9 @@ Coverage:
   3. Authenticated user with hour bucket pre-seeded: hour_count > 0.
   4. Authenticated pro user: pro limits surfaced.
   5. CSRF NOT required on GET (no X-CSRF-Token header still returns 200).
-  6. Response shape locked: exactly 9 declared fields (T-15-11 mirror).
+  6. Response shape locked: exactly 10 declared fields (T-15-11 mirror).
+  7. Bearer request with an unlimited key: unlimited=true + null limits;
+     the same user on a cookie session still sees the plan caps.
 
 Phase 19 Plan 10 fixture migration (mirrors test_account_routes.py):
   - slim FastAPI app per test (auth_router + usage_router)
@@ -27,6 +29,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.api import dependencies
 from app.api.auth_routes import auth_router
+from app.api.key_routes import key_router
 from app.api.exception_handlers import (
     invalid_credentials_handler,
     validation_error_handler,
@@ -72,6 +75,7 @@ def usage_app(
     app.add_exception_handler(InvalidCredentialsError, invalid_credentials_handler)
     app.add_exception_handler(ValidationError, validation_error_handler)
     app.include_router(auth_router)
+    app.include_router(key_router)
     app.include_router(usage_router)
 
     def _override_get_db():
@@ -364,7 +368,7 @@ def test_get_usage_by_key_unauthenticated_returns_401(usage_app: FastAPI) -> Non
 
 @pytest.mark.integration
 def test_get_usage_response_shape_locked(client: TestClient) -> None:
-    """Response keys are EXACTLY the 9 declared UsageSummaryResponse fields."""
+    """Response keys are EXACTLY the 10 declared UsageSummaryResponse fields."""
     _register(client, "shape@example.com")
     response = client.get("/api/usage")
     assert response.status_code == 200, response.text
@@ -373,6 +377,7 @@ def test_get_usage_response_shape_locked(client: TestClient) -> None:
         "plan_tier",
         "trial_started_at",
         "trial_expires_at",
+        "unlimited",
         "hour_count",
         "hour_limit",
         "daily_minutes_used",
@@ -380,3 +385,102 @@ def test_get_usage_response_shape_locked(client: TestClient) -> None:
         "window_resets_at",
         "day_resets_at",
     }
+
+
+# ---------------------------------------------------------------
+# Per-key unlimited (0005) — /api/usage must not report a cap the
+# caller does not have.
+# ---------------------------------------------------------------
+
+
+def _issue_key(client: TestClient, name: str) -> tuple[int, str]:
+    """Create an API key via /api/keys; return (key_id, bearer plaintext)."""
+    response = client.post("/api/keys", json={"name": name})
+    assert response.status_code == 201, response.text
+    body = response.json()
+    return int(body["id"]), body["key"]
+
+
+def _set_key_unlimited(session_factory, *, key_id: int) -> None:
+    with session_factory() as session:
+        session.execute(
+            text("UPDATE api_keys SET unlimited = 1 WHERE id = :kid"),
+            {"kid": key_id},
+        )
+        session.commit()
+
+
+@pytest.mark.integration
+def test_get_usage_unlimited_key_reports_null_limits(
+    client: TestClient,
+    usage_app: FastAPI,
+    session_factory,
+) -> None:
+    """Bearer request with an unlimited key: unlimited=true, both limits null.
+
+    The key bypasses FreeTierGate entirely, so surfacing hour_limit=100 /
+    daily_minutes_limit=1440 would state a cap that is never enforced for
+    this caller.
+    """
+    user_id = _register(client, "unlimited-key@example.com")
+    _set_plan_tier(session_factory, user_id=user_id, plan_tier="pro")
+    key_id, plaintext = _issue_key(client, "owner-machine")
+    _set_key_unlimited(session_factory, key_id=key_id)
+
+    bearer = TestClient(usage_app)
+    response = bearer.get(
+        "/api/usage", headers={"Authorization": f"Bearer {plaintext}"}
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["unlimited"] is True
+    assert body["hour_limit"] is None
+    assert body["daily_minutes_limit"] is None
+    # Counts stay live — accounting is not switched off, only the caps.
+    assert body["hour_count"] == 0
+    assert body["daily_minutes_used"] == 0.0
+
+
+@pytest.mark.integration
+def test_get_usage_ordinary_key_still_reports_plan_limits(
+    client: TestClient,
+    usage_app: FastAPI,
+    session_factory,
+) -> None:
+    """Regression: a key WITHOUT the flag keeps its tier caps (no blanket bypass)."""
+    user_id = _register(client, "limited-key@example.com")
+    _set_plan_tier(session_factory, user_id=user_id, plan_tier="pro")
+    _key_id, plaintext = _issue_key(client, "ordinary-machine")
+
+    bearer = TestClient(usage_app)
+    response = bearer.get(
+        "/api/usage", headers={"Authorization": f"Bearer {plaintext}"}
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["unlimited"] is False
+    assert body["hour_limit"] == 100
+    assert body["daily_minutes_limit"] == 1440.0
+
+
+@pytest.mark.integration
+def test_get_usage_cookie_session_of_unlimited_owner_sees_plan_limits(
+    client: TestClient,
+    session_factory,
+) -> None:
+    """Owning an unlimited key does not make the browser session unlimited.
+
+    The flag is per-key, not per-user: a cookie-authenticated request holds
+    no key, so it is gated normally and must read the plan caps.
+    """
+    user_id = _register(client, "cookie-owner@example.com")
+    _set_plan_tier(session_factory, user_id=user_id, plan_tier="pro")
+    key_id, _plaintext = _issue_key(client, "owner-machine")
+    _set_key_unlimited(session_factory, key_id=key_id)
+
+    response = client.get("/api/usage")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["unlimited"] is False
+    assert body["hour_limit"] == 100
+    assert body["daily_minutes_limit"] == 1440.0

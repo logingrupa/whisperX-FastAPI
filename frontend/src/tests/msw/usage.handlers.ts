@@ -15,10 +15,11 @@ export interface UsageSummaryFixture {
   plan_tier: 'free' | 'trial' | 'pro' | 'team';
   trial_started_at: string | null;
   trial_expires_at: string | null;
+  unlimited: boolean;
   hour_count: number;
-  hour_limit: number;
+  hour_limit: number | null;
   daily_minutes_used: number;
-  daily_minutes_limit: number;
+  daily_minutes_limit: number | null;
   window_resets_at: string;
   day_resets_at: string;
 }
@@ -27,6 +28,7 @@ export const DEFAULT_USAGE_SUMMARY: UsageSummaryFixture = {
   plan_tier: 'trial',
   trial_started_at: '2026-05-01T12:00:00Z',
   trial_expires_at: '2026-05-08T12:00:00Z',
+  unlimited: false,
   hour_count: 1,
   hour_limit: 5,
   daily_minutes_used: 4.5,
@@ -46,6 +48,14 @@ export const FREE_NO_TRIAL_USAGE: UsageSummaryFixture = {
   plan_tier: 'free',
   trial_started_at: null,
   trial_expires_at: null,
+};
+
+export const UNLIMITED_KEY_USAGE: UsageSummaryFixture = {
+  ...DEFAULT_USAGE_SUMMARY,
+  plan_tier: 'pro',
+  unlimited: true,
+  hour_limit: null,
+  daily_minutes_limit: null,
 };
 
 export const HOUR_AT_LIMIT_USAGE: UsageSummaryFixture = {

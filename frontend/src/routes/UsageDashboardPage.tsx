@@ -11,6 +11,8 @@
  *   1. Plan — pill Badge with tier-specific variant + tier copy line built
  *      entirely from summary.hour_limit + summary.daily_minutes_limit
  *      (no hardcoded numbers; data-driven for free / trial / pro / team).
+ *      Null limits (summary.unlimited — caller holds an unlimited API key)
+ *      render "no cap" copy and a flat bar instead of a percentage.
  *   2. Trial countdown — rendered ONLY when plan_tier === 'trial' AND
  *      trial_started_at !== null. Days-remaining label colored by
  *      threshold (<=2d destructive, <=4d warn, >4d default); when expired
@@ -80,8 +82,9 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 type SemanticAccent = 'default' | 'warn' | 'destructive';
 
-function resolveQuotaAccent(used: number, limit: number): SemanticAccent {
-  if (limit <= 0) return 'default';
+function resolveQuotaAccent(used: number, limit: number | null): SemanticAccent {
+  // null limit = uncapped caller (unlimited API key): never warn, never fill.
+  if (limit === null || limit <= 0) return 'default';
   const percent = used / limit;
   if (percent >= QUOTA_FULL_THRESHOLD) return 'destructive';
   if (percent >= QUOTA_WARN_THRESHOLD) return 'warn';
@@ -230,9 +233,10 @@ export function UsageDashboardPage() {
 
   const planVariant = PLAN_BADGE_VARIANT[summary.plan_tier];
   const planLabel = PLAN_BADGE_LABEL[summary.plan_tier];
-  const planLine =
-    `Your plan: ${summary.hour_limit} transcribes/hour, ` +
-    `${summary.daily_minutes_limit} min/day.`;
+  const planLine = summary.unlimited
+    ? 'This API key is unlimited: no hourly or daily cap.'
+    : `Your plan: ${summary.hour_limit} transcribes/hour, ` +
+      `${summary.daily_minutes_limit} min/day.`;
 
   const showTrialCard =
     summary.plan_tier === 'trial' && summary.trial_started_at !== null;
@@ -264,8 +268,16 @@ export function UsageDashboardPage() {
         title="Hour quota"
         used={summary.hour_count}
         limit={summary.hour_limit}
-        valueLabel={`${summary.hour_count} of ${summary.hour_limit}`}
-        subLine={`Resets at ${formatHourMinUTC(summary.window_resets_at)}`}
+        valueLabel={
+          summary.hour_limit === null
+            ? `${summary.hour_count} used`
+            : `${summary.hour_count} of ${summary.hour_limit}`
+        }
+        subLine={
+          summary.hour_limit === null
+            ? 'No cap on this key'
+            : `Resets at ${formatHourMinUTC(summary.window_resets_at)}`
+        }
         testIdPrefix="hour-quota"
       />
 
@@ -274,8 +286,16 @@ export function UsageDashboardPage() {
         title="Daily minutes"
         used={summary.daily_minutes_used}
         limit={summary.daily_minutes_limit}
-        valueLabel={`${formatMinutes(summary.daily_minutes_used)} of ${formatMinutes(summary.daily_minutes_limit)}`}
-        subLine="Resets at midnight UTC"
+        valueLabel={
+          summary.daily_minutes_limit === null
+            ? `${formatMinutes(summary.daily_minutes_used)} used`
+            : `${formatMinutes(summary.daily_minutes_used)} of ${formatMinutes(summary.daily_minutes_limit)}`
+        }
+        subLine={
+          summary.daily_minutes_limit === null
+            ? 'No cap on this key'
+            : 'Resets at midnight UTC'
+        }
         testIdPrefix="daily-minutes"
       />
 
@@ -419,13 +439,13 @@ function QuotaCard({
 }: {
   title: string;
   used: number;
-  limit: number;
+  limit: number | null;
   valueLabel: string;
   subLine: string;
   testIdPrefix: string;
 }) {
   const accent = resolveQuotaAccent(used, limit);
-  const percent = clampPercent(limit > 0 ? (used / limit) * 100 : 0);
+  const percent = clampPercent(limit !== null && limit > 0 ? (used / limit) * 100 : 0);
   return (
     <Card
       className="gap-3 p-6"
