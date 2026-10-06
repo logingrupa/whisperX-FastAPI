@@ -78,10 +78,10 @@ def decode_task_audio(
 def _gated_owner(session: Session, task: Task) -> User | None:
     """The task's owner when its submit went through FreeTierGate, else None.
 
-    Only TaskSubmissionService gates a submit, and only it sets
-    ``submission_key``; TUS uploads are never gated.
+    Every transcription submit path (multipart, URL, TUS) runs the gate;
+    only an unlimited API key skips it.
     """
-    if task.user_id is None or task.submission_key is None:
+    if task.user_id is None:
         return None
     if task_bypassed_gate(SQLAlchemyApiKeyRepository(session), task.api_key_id):
         return None

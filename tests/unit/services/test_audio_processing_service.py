@@ -223,3 +223,23 @@ class TestAudioProcessingService:
         assert "could not decode" in update_call["update_data"]["error"]
         transcription_service.transcribe.assert_not_called()
         mock_evict_all.assert_not_called()
+
+    @patch("app.services.audio_processing_service.SQLAlchemyTaskRepository")
+    @patch("app.services.audio_processing_service.SessionLocal")
+    def test_worker_clears_its_live_mark_on_every_exit(
+        self, mock_session_local: Mock, mock_repository_class: Mock
+    ) -> None:
+        """A finished worker, failed or not, no longer counts as a live twin."""
+        from app.services import live_jobs
+
+        mock_session_local.return_value = MagicMock()
+        mock_repository_class.return_value = MagicMock()
+        live_jobs.mark_live("task-live")
+
+        process_audio_task(
+            audio_processor=Mock(side_effect=RuntimeError("boom")),
+            identifier="task-live",
+            task_type="transcription",
+        )
+
+        assert not live_jobs.is_live("task-live")

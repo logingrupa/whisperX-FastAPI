@@ -25,6 +25,7 @@ from app.infrastructure.database.repositories.sqlalchemy_task_repository import 
 )
 from app.infrastructure.ml.model_registry import evict_on_cuda_error
 from app.infrastructure.websocket import get_progress_emitter
+from app.services import live_jobs
 from app.services.concurrency_slot import release_slot_for_task
 from app.services.task_decode import decode_task_audio
 from app.schemas import (
@@ -187,6 +188,7 @@ def process_audio_task(
             )
 
         finally:
+            live_jobs.mark_finished(identifier)
             # Phase 20 — release the concurrency slot consumed by
             # FreeTierGate.check at request time. Success OR failure path
             # MUST refund the slot, otherwise the user is locked out until

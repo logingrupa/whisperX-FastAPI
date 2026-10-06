@@ -20,6 +20,7 @@ from app.domain.entities.task import Task
 from app.domain.entities.user import User
 from app.domain.repositories.task_repository import ITaskRepository
 from app.schemas import TaskStatus
+from app.services import live_jobs
 from app.services.file_service import FileService
 from app.services.free_tier_gate import FreeTierGate
 
@@ -49,6 +50,16 @@ class FreeTierAdmission:
         if self.unlimited:
             return
         self.gate.release_admission(self.user, file_seconds)
+
+
+ORPHANED_TASK_ERROR = "Worker lost; an identical resubmit replaced this task"
+
+
+def _abandon(task: Task, admission: FreeTierAdmission) -> None:
+    """Undo the live mark and the admission of a submit that created no job."""
+    assert task.audio_duration is not None
+    live_jobs.mark_finished(task.uuid)
+    admission.refund(task.audio_duration)
 
 
 @dataclass(frozen=True)
@@ -116,13 +127,14 @@ class TaskSubmissionService:
 
         task.audio_duration = probe_audio_duration(audio_path)
         admission.check(task.audio_duration)
+        live_jobs.mark_live(task.uuid)
         try:
             identifier = self._insert(task)
         except Exception:
-            admission.refund(task.audio_duration)
+            _abandon(task, admission)
             raise
         if identifier != task.uuid:
-            admission.refund(task.audio_duration)
+            _abandon(task, admission)
             return self._return_twin(identifier, audio_path)
         self._schedule_or_fail(task, admission, schedule)
         return SubmissionOutcome(identifier=identifier, is_duplicate=False)
@@ -149,11 +161,10 @@ class TaskSubmissionService:
         schedule: Callable[[str], None],
     ) -> None:
         """Queue the job. If that fails, fail the row so no resubmit dedupes onto it."""
-        assert task.audio_duration is not None
         try:
             schedule(task.uuid)
         except Exception as error:
-            admission.refund(task.audio_duration)
+            _abandon(task, admission)
             self._repository.update(
                 task.uuid,
                 {"status": TaskStatus.failed, "error": f"Could not queue the job: {error}"},
@@ -161,12 +172,29 @@ class TaskSubmissionService:
             raise
 
     def _find_in_flight_twin(self, task: Task) -> str | None:
-        """Identifier of the caller's processing task with the same key, if any."""
+        """Identifier of the caller's live processing task with the same key, if any.
+
+        A matching row with no live worker is failed here, so this submit
+        replaces it and the unique index lets the new row in.
+        """
         assert task.user_id is not None and task.submission_key is not None
         twin = self._repository.find_in_flight_by_submission_key(
             user_id=task.user_id, submission_key=task.submission_key
         )
-        return twin.uuid if twin is not None else None
+        if twin is None:
+            return None
+        if live_jobs.is_live(twin.uuid):
+            return twin.uuid
+        self._fail_orphan(twin.uuid)
+        return None
+
+    def _fail_orphan(self, identifier: str) -> None:
+        """Fail a 'processing' row that has no live worker (no-op if it just finished)."""
+        if self._repository.fail_if_processing(identifier, ORPHANED_TASK_ERROR):
+            logger.warning(
+                "Task %s was processing with no live worker; failed it so a resubmit replaces it",
+                identifier,
+            )
 
     @staticmethod
     def _return_twin(twin_identifier: str, audio_path: str) -> SubmissionOutcome:

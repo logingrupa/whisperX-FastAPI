@@ -1,6 +1,7 @@
 """Unit tests for TaskSubmissionService: in-flight dedupe, gating, races."""
 
 import hashlib
+from typing import Any
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -8,6 +9,7 @@ import pytest
 
 from app.core.exceptions import DatabaseOperationError
 from app.domain.entities.task import Task
+from app.services import live_jobs
 from app.services import task_submission_service as submission_module
 from app.services.free_tier_gate import FreeTierGate
 from app.services.task_submission_service import (
@@ -30,6 +32,20 @@ def _draft_task(language: str = "ru", model: str = "large-v3") -> Task:
         task_params={"model": model, "language": language},
         user_id=3,
     )
+
+
+@pytest.fixture
+def live_twin() -> Any:
+    """Mark the twin's worker as running for the duration of a test."""
+    live_jobs.mark_live("twin-uuid")
+    yield
+    live_jobs.mark_finished("twin-uuid")
+
+
+@pytest.fixture(autouse=True)
+def _new_task_never_stays_live() -> Any:
+    yield
+    live_jobs.mark_finished("new-uuid")
 
 
 def _twin_task() -> Task:
@@ -84,7 +100,7 @@ class TestSubmit:
         assert upload.exists(), "the scheduled job owns the upload"
 
     def test_resubmit_returns_in_flight_twin_without_a_second_job(
-        self, repository: MagicMock, admission: MagicMock, upload: Path
+        self, repository: MagicMock, admission: MagicMock, upload: Path, live_twin: None
     ) -> None:
         repository.find_in_flight_by_submission_key.return_value = _twin_task()
         schedule = MagicMock()
@@ -100,7 +116,7 @@ class TestSubmit:
         assert not upload.exists(), "the duplicate upload is discarded"
 
     def test_lost_race_on_unique_index_returns_winner_and_refunds(
-        self, repository: MagicMock, admission: MagicMock, upload: Path
+        self, repository: MagicMock, admission: MagicMock, upload: Path, live_twin: None
     ) -> None:
         repository.find_in_flight_by_submission_key.side_effect = [None, _twin_task()]
         repository.add.side_effect = DatabaseOperationError(
@@ -165,6 +181,46 @@ class TestSubmit:
         schedule.assert_called_once_with("new-uuid")
         admission.refund.assert_not_called()
         assert upload.exists(), "the scheduled job owns the upload"
+
+    def test_twin_without_a_live_worker_is_failed_and_replaced(
+        self, repository: MagicMock, admission: MagicMock, upload: Path
+    ) -> None:
+        repository.find_in_flight_by_submission_key.return_value = _twin_task()
+        schedule = MagicMock()
+
+        outcome = TaskSubmissionService(repository).submit(
+            audio_path=str(upload), task=_draft_task(), admission=admission, schedule=schedule
+        )
+
+        assert outcome == SubmissionOutcome(identifier="new-uuid", is_duplicate=False)
+        repository.fail_if_processing.assert_called_once_with(
+            "twin-uuid", submission_module.ORPHANED_TASK_ERROR
+        )
+        schedule.assert_called_once_with("new-uuid")
+
+    def test_scheduled_job_is_live_until_its_worker_finishes(
+        self, repository: MagicMock, admission: MagicMock, upload: Path
+    ) -> None:
+        TaskSubmissionService(repository).submit(
+            audio_path=str(upload), task=_draft_task(), admission=admission, schedule=MagicMock()
+        )
+
+        assert live_jobs.is_live("new-uuid")
+
+    def test_failed_submit_leaves_nothing_live(
+        self, repository: MagicMock, admission: MagicMock, upload: Path
+    ) -> None:
+        repository.add.side_effect = DatabaseOperationError(operation="add", reason="disk full")
+
+        with pytest.raises(DatabaseOperationError):
+            TaskSubmissionService(repository).submit(
+                audio_path=str(upload),
+                task=_draft_task(),
+                admission=admission,
+                schedule=MagicMock(),
+            )
+
+        assert not live_jobs.is_live("new-uuid")
 
     def test_gate_rejection_creates_nothing(
         self, repository: MagicMock, admission: MagicMock, upload: Path

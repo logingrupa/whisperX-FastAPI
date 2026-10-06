@@ -13,6 +13,10 @@ exited hours ago. On 2026-07-21 exactly that cost a long debugging detour.
 Because workers cannot outlive the process, any ``processing`` row observed at
 startup is orphaned by definition. That makes the sweep unconditional and safe:
 no age threshold to tune, and no window in which it could kill a live job.
+
+The same holds for concurrency slots: a worker returns its slot in a
+``finally`` that never runs when the process dies, and the bucket never
+refills on its own (rate 0). At startup no job runs, so every slot is free.
 """
 
 from __future__ import annotations
@@ -22,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from app.core.logging import logger
 from app.core.time import utc_now
+from app.services.free_tier_gate import CONCURRENCY_BUCKET_KEY_PATTERN
 
 _ORPHAN_ERROR = (
     "Orphaned: the worker process exited while this task was still running "
@@ -61,3 +66,25 @@ def reap_orphaned_tasks(session: Session) -> int:
     else:
         logger.info("Startup sweep: no orphaned tasks")
     return swept
+
+
+def reset_concurrency_slots(session: Session) -> int:
+    """Return every user's concurrency slots. Returns the number of buckets reset.
+
+    Call once during application startup, alongside ``reap_orphaned_tasks``.
+    Deleting the bucket is enough: the next consume recreates it at capacity.
+
+    Args:
+        session: Database session to run the reset in.
+
+    Returns:
+        Count of concurrency buckets removed.
+    """
+    result = session.execute(
+        text("DELETE FROM rate_limit_buckets WHERE bucket_key LIKE :pattern"),
+        {"pattern": CONCURRENCY_BUCKET_KEY_PATTERN},
+    )
+    session.commit()
+    reset = int(result.rowcount or 0)
+    logger.info("Startup sweep: reset %d concurrency bucket(s)", reset)
+    return reset

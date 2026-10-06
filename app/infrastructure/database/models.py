@@ -166,6 +166,8 @@ class Task(Base):
         # Task list: WHERE user_id = ? ORDER BY created_at DESC LIMIT n
         # without a temp b-tree over every row's result payload.
         Index("idx_tasks_user_id_created_at", "user_id", "created_at"),
+        # Task identifiers are addressed by clients (TUS taskId, polling).
+        Index("uq_tasks_uuid", "uuid", unique=True),
         # At most one processing task per user + submission key.
         Index(
             "uq_tasks_in_flight_submission",

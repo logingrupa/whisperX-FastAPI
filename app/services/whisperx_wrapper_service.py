@@ -39,6 +39,7 @@ from app.infrastructure.database.repositories.sqlalchemy_user_repository import 
 from app.infrastructure.ml.model_registry import evict_on_cuda_error
 from app.infrastructure.websocket import get_progress_emitter
 from app.services.auth.rate_limit_service import RateLimitService
+from app.services import live_jobs
 from app.services.concurrency_slot import release_slot_if_authed
 from app.services.free_tier_gate import FreeTierGate
 from app.services.task_decode import decode_task_audio
@@ -551,6 +552,7 @@ def process_audio_common(
             )
 
         finally:
+            live_jobs.mark_finished(params.identifier)
             # Capture per-task data needed for usage_events + slot release.
             # Single repo lookup serves callback + W1 release paths (DRT).
             completed_task = None

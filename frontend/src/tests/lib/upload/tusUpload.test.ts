@@ -37,6 +37,7 @@ import { createTusUpload } from '@/lib/upload/tusUpload';
 
 interface CapturedOptions {
   onBeforeRequest?: (req: unknown) => void | Promise<void>;
+  onShouldRetry?: (err: unknown, retryAttempt: number, options: unknown) => boolean;
   endpoint?: string;
   metadata?: Record<string, string>;
 }
@@ -159,5 +160,31 @@ describe('createTusUpload — CSRF + credentials wiring', () => {
     const second = buildFakeRequest();
     opts.onBeforeRequest!(second.req);
     expect(second.setHeader).toHaveBeenCalledWith('X-CSRF-Token', 'token-v2');
+  });
+});
+
+describe('createTusUpload — retry policy', () => {
+  beforeEach(() => {
+    uploadCtorSpy.mockClear();
+  });
+
+  function shouldRetryOn(status: number): boolean {
+    createTusUpload(buildFakeFile(), { filename: 'test.aac' }, {
+      onProgress: () => {},
+      onSuccess: () => {},
+      onError: () => {},
+    });
+    const onShouldRetry = lastCapturedOptions().onShouldRetry;
+    if (!onShouldRetry) throw new Error('onShouldRetry not registered');
+    const error = { originalResponse: { getStatus: () => status } };
+    return onShouldRetry(error, 0, {});
+  }
+
+  it('never retries a 429: the gate deleted the upload, a retry re-sends the whole file', () => {
+    expect(shouldRetryOn(429)).toBe(false);
+  });
+
+  it('still retries gateway errors', () => {
+    expect(shouldRetryOn(503)).toBe(true);
   });
 });

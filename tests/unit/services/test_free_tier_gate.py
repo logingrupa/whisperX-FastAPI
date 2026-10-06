@@ -321,3 +321,44 @@ class TestFreeTierGate:
         user = _make_user(plan_tier="trial", trial_started_at=naive_started_at)
         # 2 days into a 7-day trial — must NOT raise (and must NOT TypeError).
         gate.check(user=user, file_seconds=60.0, model="tiny", diarize=False)
+
+
+@pytest.mark.unit
+def test_pro_user_may_run_the_server_default_model() -> None:
+    """The server default (large-v3-turbo) runs every TUS upload; Pro must allow it."""
+    from app.core.config import get_settings
+
+    gate = FreeTierGate(rate_limit_service=_StubRateLimitService())
+    gate.check(
+        user=_make_user(plan_tier="pro"),
+        file_seconds=60.0,
+        model="large-v3-turbo",
+        diarize=False,
+    )
+    assert "large-v3-turbo" in PRO_POLICY.allowed_models
+    assert get_settings().whisper.WHISPER_MODEL.value in PRO_POLICY.allowed_models
+
+
+@pytest.mark.unit
+class TestCheckUploadAllowed:
+    def test_expired_trial_is_refused_before_the_upload(self) -> None:
+        rls = _StubRateLimitService()
+        gate = FreeTierGate(rate_limit_service=rls)
+        expired = _make_user(
+            plan_tier="trial", trial_started_at=datetime.now(timezone.utc) - timedelta(days=30)
+        )
+
+        with pytest.raises(TrialExpiredError):
+            gate.check_upload_allowed(expired, "tiny")
+        assert rls.consumed_calls == []
+
+    def test_model_outside_the_tier_is_refused(self) -> None:
+        gate = FreeTierGate(rate_limit_service=_StubRateLimitService())
+
+        with pytest.raises(FreeTierViolationError):
+            gate.check_upload_allowed(_make_user(plan_tier="free"), "large-v3-turbo")
+
+    def test_pro_upload_of_the_default_model_passes(self) -> None:
+        gate = FreeTierGate(rate_limit_service=_StubRateLimitService())
+
+        gate.check_upload_allowed(_make_user(plan_tier="pro"), "large-v3-turbo")

@@ -31,7 +31,6 @@ TRIAL_USER_ID = 401
 UNLIMITED_KEY_ID = 41
 TRIAL_FILE_CAP_SECONDS = 300
 TRIAL_DAILY_MINUTES = 30
-GATED_SUBMISSION_KEY = "c" * 64
 
 
 @pytest.fixture
@@ -64,13 +63,8 @@ def _decode_returning_seconds(monkeypatch: pytest.MonkeyPatch, seconds: float) -
 
 
 def _add_task(
-    session_factory: Any,
-    *,
-    probed_seconds: float,
-    api_key_id: int | None = None,
-    submission_key: str | None = GATED_SUBMISSION_KEY,
+    session_factory: Any, *, probed_seconds: float, api_key_id: int | None = None
 ) -> None:
-    """Insert the task as a gated submit (submission_key set) unless told otherwise."""
     with session_factory() as session:
         SQLAlchemyTaskRepository(session).add(
             Task(
@@ -80,7 +74,6 @@ def _add_task(
                 user_id=TRIAL_USER_ID,
                 api_key_id=api_key_id,
                 audio_duration=probed_seconds,
-                submission_key=submission_key,
             )
         )
 
@@ -158,17 +151,6 @@ class TestDecodeTaskAudio:
 
         with session_factory() as session:
             decode_task_audio(session, "task-1", "long-sermon.ogg")
-
-        assert _stored_seconds(session_factory) == pytest.approx(TRIAL_FILE_CAP_SECONDS + 300)
-
-    def test_ungated_tus_task_is_recorded_but_never_capped(
-        self, session_factory: Any, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        _add_task(session_factory, probed_seconds=26.0, submission_key=None)
-        _decode_returning_seconds(monkeypatch, TRIAL_FILE_CAP_SECONDS + 300)
-
-        with session_factory() as session:
-            decode_task_audio(session, "task-1", "tus-upload.mp3")
 
         assert _stored_seconds(session_factory) == pytest.approx(TRIAL_FILE_CAP_SECONDS + 300)
 

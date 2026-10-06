@@ -67,7 +67,10 @@ from app.docs import generate_db_schema, save_openapi_json  # noqa: E402
 from app.infrastructure.scheduler import start_cleanup_scheduler, stop_cleanup_scheduler  # noqa: E402
 from app.infrastructure.database import Base, engine  # noqa: E402
 from app.infrastructure.database.connection import SessionLocal  # noqa: E402
-from app.services.stale_task_reaper import reap_orphaned_tasks  # noqa: E402
+from app.services.stale_task_reaper import (  # noqa: E402
+    reap_orphaned_tasks,
+    reset_concurrency_slots,
+)
 from app.infrastructure.websocket import set_main_loop  # noqa: E402
 from app.spa_handler import setup_spa_routes  # noqa: E402
 
@@ -99,6 +102,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # in the queue forever and read as a backlog that is not running.
     with SessionLocal() as reaper_session:
         reap_orphaned_tasks(reaper_session)
+        reset_concurrency_slots(reaper_session)
 
     save_openapi_json(app)
     generate_db_schema(Base.metadata.tables.values())

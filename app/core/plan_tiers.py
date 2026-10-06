@@ -54,7 +54,7 @@ PRO_POLICY = TierPolicy(
     max_file_seconds=24 * 60 * 60,
     max_daily_seconds=24 * 60 * 60,
     allowed_models=frozenset(
-        {"tiny", "base", "small", "medium", "large", "large-v2", "large-v3"}
+        {"tiny", "base", "small", "medium", "large", "large-v2", "large-v3", "large-v3-turbo"}
     ),
     diarization_allowed=True,
     max_concurrent=3,

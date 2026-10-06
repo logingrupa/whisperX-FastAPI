@@ -25,6 +25,7 @@ from sqlalchemy.orm import Query, Session, defer
 
 from app.core.exceptions import DatabaseOperationError
 from app.core.logging import logger
+from app.core.time import utc_now
 from app.domain.entities.task import Task as DomainTask
 from app.infrastructure.database.mappers.task_mapper import (
     to_domain,
@@ -281,6 +282,43 @@ class SQLAlchemyTaskRepository:
         if orm_task is None:
             return None
         return to_domain_without_result(orm_task)
+
+    def fail_if_processing(self, identifier: str, error: str) -> bool:
+        """Mark the task failed only while it is still ``processing``.
+
+        A single conditional UPDATE, so a task that finished between a read
+        and this call keeps its terminal status and result.
+
+        Returns:
+            bool: True if the row was still processing and is now failed.
+        """
+        try:
+            changed = (
+                self._scoped_query()
+                .filter(
+                    ORMTask.uuid == identifier,
+                    ORMTask.status == TaskStatus.processing.value,
+                )
+                .update(
+                    {
+                        ORMTask.status: TaskStatus.failed.value,
+                        ORMTask.error: error,
+                        ORMTask.end_time: utc_now(),
+                    },
+                    synchronize_session=False,
+                )
+            )
+            self.session.commit()
+            return bool(changed)
+        except SQLAlchemyError as e:
+            self.session.rollback()
+            logger.error(f"Failed to fail task {identifier}: {str(e)}")
+            raise DatabaseOperationError(
+                operation="fail_if_processing",
+                reason=str(e),
+                original_error=e,
+                identifier=identifier,
+            )
 
     def count(self, *, q: str | None, status: str | None) -> int:
         """Return scoped + filtered count (Plan 15-ux).

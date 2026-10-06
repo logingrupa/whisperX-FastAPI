@@ -174,3 +174,38 @@ class TestListPaginated:
         index_names = {index["name"] for index in inspect(engine).get_indexes(ORMTask.__tablename__)}
 
         assert {"idx_tasks_user_id_created_at", "uq_tasks_in_flight_submission"} <= index_names
+
+
+@pytest.mark.integration
+class TestFailIfProcessing:
+    def test_fails_a_processing_task(self, session_factory: Any) -> None:
+        with session_factory() as session:
+            repository = SQLAlchemyTaskRepository(session)
+            repository.add(_task("stuck"))
+
+            assert repository.fail_if_processing("stuck", "worker lost") is True
+
+            stuck = repository.get_by_id("stuck")
+        assert stuck is not None
+        assert (stuck.status, stuck.error) == ("failed", "worker lost")
+
+    def test_leaves_a_task_that_already_finished(self, session_factory: Any) -> None:
+        with session_factory() as session:
+            repository = SQLAlchemyTaskRepository(session)
+            repository.add(_task("done", status="completed", result={"segments": []}))
+
+            assert repository.fail_if_processing("done", "worker lost") is False
+
+            done = repository.get_by_id("done")
+        assert done is not None
+        assert (done.status, done.result) == ("completed", {"segments": []})
+
+
+@pytest.mark.integration
+def test_task_uuid_is_unique(session_factory: Any) -> None:
+    with session_factory() as session:
+        repository = SQLAlchemyTaskRepository(session)
+        repository.add(_task("same-id", status="completed", submission_key=None))
+
+        with pytest.raises(DatabaseOperationError):
+            repository.add(_task("same-id", status="completed", submission_key=None))

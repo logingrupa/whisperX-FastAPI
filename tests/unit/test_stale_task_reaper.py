@@ -8,8 +8,8 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.infrastructure.database.models import Base, Task
-from app.services.stale_task_reaper import reap_orphaned_tasks
+from app.infrastructure.database.models import Base, RateLimitBucket, Task
+from app.services.stale_task_reaper import reap_orphaned_tasks, reset_concurrency_slots
 
 
 @pytest.fixture()
@@ -76,3 +76,35 @@ def test_is_idempotent(session: Session) -> None:
 
     assert reap_orphaned_tasks(session) == 1
     assert reap_orphaned_tasks(session) == 0, "second sweep must find nothing"
+
+
+def _add_bucket(session: Session, bucket_key: str, tokens: int) -> None:
+    session.add(
+        RateLimitBucket(
+            bucket_key=bucket_key, tokens=tokens, last_refill=datetime.now(timezone.utc)
+        )
+    )
+    session.commit()
+
+
+def test_startup_returns_every_concurrency_slot(session: Session) -> None:
+    _add_bucket(session, "user:3:concurrent", 0)
+    _add_bucket(session, "user:7:concurrent", 0)
+
+    assert reset_concurrency_slots(session) == 2
+
+    remaining = session.execute(text("SELECT bucket_key FROM rate_limit_buckets")).all()
+    assert remaining == []
+
+
+def test_startup_leaves_hourly_and_daily_buckets(session: Session) -> None:
+    _add_bucket(session, "user:3:concurrent", 0)
+    _add_bucket(session, "user:3:tx:hour", 2)
+    _add_bucket(session, "user:3:audio_min:day", 11)
+
+    reset_concurrency_slots(session)
+
+    remaining = {
+        row[0] for row in session.execute(text("SELECT bucket_key FROM rate_limit_buckets")).all()
+    }
+    assert remaining == {"user:3:tx:hour", "user:3:audio_min:day"}

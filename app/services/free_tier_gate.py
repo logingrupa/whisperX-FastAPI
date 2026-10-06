@@ -60,6 +60,10 @@ def concurrency_bucket_key(user_id: int) -> str:
 
 
 
+# SQL LIKE pattern matching every concurrency_bucket_key().
+CONCURRENCY_BUCKET_KEY_PATTERN = "user:%:concurrent"
+
+
 def hourly_bucket_key(user_id: int) -> str:
     """Bucket key for the per-user hourly transcribe count."""
     return f"user:{user_id}:tx:hour"
@@ -85,6 +89,7 @@ class FreeTierGate:
       - check(user, file_seconds, model, diarize) — runs all 6 gates fail-fast
       - check_diarize_route(user) — pro-only diarize-route guard
       - check_file_duration(user, file_seconds) — tier file-length cap alone
+      - check_upload_allowed(user, model) — checks that need no duration
       - reconcile_daily_minutes(user, charged, decoded) — settle the daily bucket
       - release_concurrency(user) — refund 1 concurrency slot (W1)
       - release_admission(user, file_seconds) — refund all a check() consumed
@@ -149,9 +154,19 @@ class FreeTierGate:
         self._check_diarization(diarize, policy)
         # Rate consumers — order matters: hourly first (smallest token),
         # daily next, concurrency last (its slot is released in finally).
+        # A rejection gives back what the earlier buckets already took.
         self._check_hourly_rate(user_id, policy)
-        self._check_daily_minutes(user_id, file_seconds, policy)
-        self._check_concurrency(user_id, policy)
+        try:
+            self._check_daily_minutes(user_id, file_seconds, policy)
+        except RateLimitExceededError:
+            self._release_hourly_token(user_id, policy)
+            raise
+        try:
+            self._check_concurrency(user_id, policy)
+        except ConcurrencyLimitError:
+            self._release_hourly_token(user_id, policy)
+            self._release_daily_minutes(user_id, file_seconds, policy)
+            raise
 
     def check_file_duration(self, user: User, file_seconds: float) -> None:
         """Re-check only the tier's file-length cap (no bucket consumed).
@@ -161,6 +176,17 @@ class FreeTierGate:
         forged header can misstate.
         """
         self._check_file_duration(file_seconds, self._policy_for(user))
+
+    def check_upload_allowed(self, user: User, model: str) -> None:
+        """Run the checks that need no file duration and consume no bucket.
+
+        For TUS upload creation: trial expiry and model entitlement reject
+        before a multi-GB upload starts. check() still runs every gate once
+        the upload is complete and its duration is known.
+        """
+        policy = self._policy_for(user)
+        self._check_trial_expiry(user)
+        self._check_model(model, policy)
 
     def reconcile_daily_minutes(
         self, user: User, charged_seconds: float, decoded_seconds: float
@@ -215,15 +241,23 @@ class FreeTierGate:
         """
         policy = self._policy_for(user)
         user_id = int(user.id)  # type: ignore[arg-type]
+        self._release_hourly_token(user_id, policy)
+        self._release_daily_minutes(user_id, file_seconds, policy)
+        self.release_concurrency(user)
+
+    def _release_hourly_token(self, user_id: int, policy: TierPolicy) -> None:
         self.rate_limit_service.release(
             hourly_bucket_key(user_id), tokens=1, capacity=policy.max_per_hour
         )
+
+    def _release_daily_minutes(
+        self, user_id: int, file_seconds: float, policy: TierPolicy
+    ) -> None:
         self.rate_limit_service.release(
             daily_minutes_bucket_key(user_id),
             tokens=_minute_tokens(file_seconds),
             capacity=_daily_capacity_minutes(policy),
         )
-        self.release_concurrency(user)
 
     # ------------------------------------------------------------------
     # Per-gate guards (SRP — one method per policy dimension)

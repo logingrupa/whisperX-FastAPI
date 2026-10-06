@@ -98,6 +98,18 @@ class ITaskRepository(Protocol):
         """
         ...
 
+    def fail_if_processing(self, identifier: str, error: str) -> bool:
+        """Mark the task failed only while it is still ``processing``.
+
+        Args:
+            identifier: The task UUID.
+            error: Error text to store.
+
+        Returns:
+            bool: True if the row was still processing and is now failed.
+        """
+        ...
+
     def count(self, *, q: str | None, status: str | None) -> int:
         """Return the count of tasks matching q/status under the active scope.
 

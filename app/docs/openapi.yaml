@@ -11,9 +11,9 @@ info:
     \ Align the transcript to the audio/video file.\n    3. Diarize: Diarize an audio/video\
     \ file into speakers.\n    4. Combine Transcript and Diarization: Combine the\
     \ transcript and diarization results.\n\n    ## Supported file extensions:\n \
-    \   AUDIO_EXTENSIONS = {'.aac', '.mp3', '.oga', '.m4a', '.wav', '.ogg', '.wma',\
-    \ '.amr', '.awb', '.flac'}\n\n    VIDEO_EXTENSIONS = {'.avi', '.mkv', '.webm',\
-    \ '.wmv', '.mp4', '.mov'}\n\n    ## Language-Specific Model Overrides:\n\n   \
+    \   AUDIO_EXTENSIONS = {'.wma', '.amr', '.oga', '.aac', '.ogg', '.m4a', '.awb',\
+    \ '.wav', '.mp3', '.flac'}\n\n    VIDEO_EXTENSIONS = {'.webm', '.mkv', '.wmv',\
+    \ '.mov', '.mp4', '.avi'}\n\n    ## Language-Specific Model Overrides:\n\n   \
     \ Some languages have fine-tuned models that are automatically used when that\
     \ language is selected.\n    The server-side `LANGUAGE_MODEL_OVERRIDES` configuration\
     \ maps language codes to optimized CTranslate2\n    model paths. When an override\
